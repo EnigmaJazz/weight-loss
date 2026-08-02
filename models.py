@@ -1,6 +1,6 @@
 """Dataclasses for the weight-loss tracker's structured state."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -26,6 +26,28 @@ class RewardMilestone:
     milestone_kg: float
     earned: bool
     earned_at: Optional[str]
+
+
+@dataclass
+class ActiveCheckpoint:
+    """One earned reward checkpoint (threshold reached by latest weight)."""
+
+    percent: int
+    threshold_kg: float
+    earned_at: Optional[str] = None
+
+
+@dataclass
+class RewardState:
+    """Derived checkpoint state for the latest weight against start/target."""
+
+    start_kg: Optional[float] = None
+    target_kg: Optional[float] = None
+    current_kg: Optional[float] = None
+    active: list[ActiveCheckpoint] = field(default_factory=list)
+    earned_count: int = 0
+    next_checkpoint: Optional[tuple[int, float]] = None
+    progress_to_next: float = 0.0
 
 
 @dataclass

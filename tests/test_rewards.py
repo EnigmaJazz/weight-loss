@@ -1,14 +1,17 @@
-"""Unit tests for pure reward/milestone logic (no I/O)."""
+"""Unit tests for pure reward logic: checkpoint thresholds and active state (no I/O)."""
 
-from models import WeightEntry
+from models import AppSettings, WeightEntry
 from rewards import (
+    CHECKPOINTS,
+    active_checkpoints,
+    checkpoint_thresholds,
     compute_baseline,
     compute_current,
     compute_lost,
-    milestone_levels,
-    next_milestone,
-    progress_to_next,
+    next_checkpoint,
+    progress_to_next_checkpoint,
     remaining_to_target,
+    reward_state,
 )
 
 
@@ -21,6 +24,116 @@ ENTRIES = [
     _entry("2026-08-02", 89.7),
     _entry("2026-08-03", 89.0),
 ]
+
+
+# ---- checkpoint thresholds -------------------------------------------------
+
+
+def test_checkpoint_constants():
+    assert CHECKPOINTS == (10, 25, 50, 75, 100)
+
+
+def test_thresholds_use_earliest_entry_without_override():
+    # Spec: start = earliest entry (100 kg), target 80 -> 10% = 98, 100% = 80.
+    assert checkpoint_thresholds(100.0, 80.0) == [
+        (10, 98.0),
+        (25, 95.0),
+        (50, 90.0),
+        (75, 85.0),
+        (100, 80.0),
+    ]
+
+
+def test_thresholds_use_configured_override():
+    # Spec: override (110 kg) must be used as start for every checkpoint.
+    thresholds = checkpoint_thresholds(110.0, 80.0)
+    assert thresholds[0] == (10, 107.0)
+    assert thresholds[1] == (25, 102.5)
+    assert thresholds[4] == (100, 80.0)
+
+
+def test_thresholds_missing_data_returns_empty():
+    assert checkpoint_thresholds(None, 80.0) == []
+    assert checkpoint_thresholds(100.0, None) == []
+    assert checkpoint_thresholds(None, None) == []
+
+
+def test_thresholds_target_at_or_above_start_returns_empty():
+    assert checkpoint_thresholds(80.0, 80.0) == []
+    assert checkpoint_thresholds(80.0, 90.0) == []
+
+
+# ---- active reward state ---------------------------------------------------
+
+
+def test_active_checkpoints_inclusive_equality():
+    # Spec: latest weight exactly at threshold (95 kg) -> both checkpoints active.
+    assert active_checkpoints(100.0, 80.0, 95.0) == [(10, 98.0), (25, 95.0)]
+
+
+def test_active_checkpoints_all_earned_at_target():
+    active = active_checkpoints(100.0, 80.0, 80.0)
+    assert len(active) == 5
+    assert active[-1] == (100, 80.0)
+
+
+def test_active_checkpoints_none_above_first_threshold():
+    # Spec: regression above both thresholds revokes both checkpoints.
+    assert active_checkpoints(100.0, 80.0, 99.0) == []
+
+
+def test_active_checkpoints_without_current():
+    assert active_checkpoints(100.0, 80.0, None) == []
+    assert active_checkpoints(None, 80.0, 90.0) == []
+
+
+# ---- next checkpoint / band progress ---------------------------------------
+
+
+def test_next_checkpoint_is_first_unreached():
+    assert next_checkpoint(100.0, 80.0, 97.0) == (25, 95.0)
+    assert next_checkpoint(100.0, 80.0, 99.0) == (10, 98.0)
+    assert next_checkpoint(100.0, 80.0, 79.0) is None
+
+
+def test_progress_to_next_band():
+    assert progress_to_next_checkpoint(100.0, 80.0, 99.0) == 0.5
+    assert progress_to_next_checkpoint(100.0, 80.0, 97.0) == 0.3333
+    assert progress_to_next_checkpoint(100.0, 80.0, 95.0) == 0.0
+    assert progress_to_next_checkpoint(100.0, 80.0, 90.0) == 0.0
+    assert progress_to_next_checkpoint(100.0, 80.0, 80.0) == 1.0
+    assert progress_to_next_checkpoint(100.0, 80.0, None) == 0.0
+    assert progress_to_next_checkpoint(None, 80.0, 90.0) == 0.0
+
+
+# ---- reward_state composition ----------------------------------------------
+
+
+def test_reward_state_derives_full_state():
+    settings = AppSettings(target_weight=80.0)
+    entries = [_entry("2026-08-01", 100.0), _entry("2026-08-02", 95.0)]
+    state = reward_state(entries, settings)
+    assert state.start_kg == 100.0
+    assert state.target_kg == 80.0
+    assert state.current_kg == 95.0
+    assert [(cp.percent, cp.threshold_kg) for cp in state.active] == [
+        (10, 98.0),
+        (25, 95.0),
+    ]
+    assert state.earned_count == 2
+    assert state.next_checkpoint == (50, 90.0)
+    assert state.progress_to_next == 0.0
+
+
+def test_reward_state_empty_without_target():
+    state = reward_state(ENTRIES, AppSettings())
+    assert state.active == []
+    assert state.earned_count == 0
+    assert state.next_checkpoint is None
+    assert state.progress_to_next == 0.0
+
+
+# ---- preserved baseline helpers (approval: behavior unchanged) -------------
 
 
 def test_baseline_from_first_entry():
@@ -52,36 +165,6 @@ def test_lost_calculation():
 def test_lost_with_missing_data():
     assert compute_lost(None, 89.0) is None
     assert compute_lost(90.5, None) is None
-
-
-def test_milestone_levels():
-    assert milestone_levels(0.8, 1.0) == []
-    assert milestone_levels(1.0, 1.0) == [1.0]
-    assert milestone_levels(2.3, 1.0) == [1.0, 2.0]
-    assert milestone_levels(3.0, 0.5) == [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
-
-
-def test_milestone_levels_negative():
-    assert milestone_levels(-1.0, 1.0) == []
-    assert milestone_levels(2.0, 0.0) == []
-
-
-def test_next_milestone():
-    assert next_milestone(0.0, 1.0) == 1.0
-    assert next_milestone(0.8, 1.0) == 1.0
-    assert next_milestone(1.0, 1.0) == 2.0
-    assert next_milestone(2.3, 1.0) == 3.0
-    assert next_milestone(0.2, 0.5) == 0.5
-    assert next_milestone(None, 1.0) is None
-
-
-def test_progress_to_next():
-    assert progress_to_next(0.0, 1.0) == 0.0
-    assert progress_to_next(0.8, 1.0) == 0.8
-    assert progress_to_next(1.0, 1.0) == 0.0
-    assert progress_to_next(1.4, 1.0) == 0.4
-    assert progress_to_next(-0.5, 1.0) == 0.0
-    assert progress_to_next(None, 1.0) == 0.0
 
 
 def test_remaining_to_target():
