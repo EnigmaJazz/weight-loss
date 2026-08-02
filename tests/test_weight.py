@@ -2,6 +2,9 @@
 
 import pytest
 
+from database import Database
+from main import create_app, init_app_state
+
 
 def _post(client, date, weight_kg):
     return client.post(
@@ -81,3 +84,29 @@ async def test_history_newest_first(client):
     data = (await client.get("/api/weight")).json()
     dates = [entry["date"] for entry in data["entries"]]
     assert dates == ["2026-08-02", "2026-08-01", "2026-07-30"]
+
+
+@pytest.mark.asyncio
+async def test_startup_reconciles_active_rewards(tmp_path):
+    db_path = str(tmp_path / "startup.db")
+    vapid_path = str(tmp_path / "vapid_keys.json")
+
+    # Seed a database with entries + target and a stale (revoked) reward row.
+    db = Database(db_path)
+    db.init_schema()
+    db.update_settings({"target_weight": 80.0})
+    db.upsert_entry("2026-08-01", 100.0)
+    db.upsert_entry("2026-08-02", 95.0)
+    with db._tx() as conn:
+        conn.execute(
+            "INSERT INTO active_rewards (checkpoint_percent, threshold_kg, earned_at)"
+            " VALUES (100, 80.0, '2020-01-01 00:00:00')"
+        )
+    db.close()
+
+    # Startup must reconcile away the stale row and keep the earned ones.
+    app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
+    init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+    rows = app.state.db.list_active_rewards()
+    assert {r["checkpoint_percent"] for r in rows} == {10, 25}
+    assert all(r["earned_at"] != "2020-01-01 00:00:00" for r in rows)

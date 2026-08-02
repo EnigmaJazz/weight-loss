@@ -20,9 +20,11 @@ logger = get_logger("main")
 def init_app_state(
     app: FastAPI, *, db_path: str, vapid_path: str
 ) -> None:
-    """Open the DB, create schema, and load/generate VAPID keys."""
+    """Open the DB, create schema, reconcile rewards, and load/generate VAPID
+    keys."""
     db = Database(db_path)
     db.init_schema()
+    db.reconcile_active_rewards()
     app.state.db = db
     app.state.db_path = db_path
     vapid, public_key = load_or_generate_vapid(vapid_path)
