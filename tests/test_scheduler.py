@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytest
 
+import database as database_module
 import notifications as notifications_module
 from main import create_app, init_app_state
 from scheduler import run_due_checks
@@ -105,3 +106,92 @@ async def test_due_checks_with_no_subscriptions(tmp_path, monkeypatch):
     assert calls == [0, 0, 0]
     # Still marked sent so the type fires once per day regardless.
     assert app.state.db.is_notification_sent("2026-08-02", "tip")
+
+
+# ---- 2.2: local-time sent_at + DST day semantics ------------------------
+
+
+@pytest.mark.asyncio
+async def test_scheduler_persists_sent_at_from_tick(tmp_path, monkeypatch):
+    # Spec: scheduled-send sent_at MUST be the host-local wall time of the
+    # event — the scheduler's own tick, not an unrelated fresh now().
+    monkeypatch.setattr(
+        database_module, "_local_now", lambda: "1999-01-01 00:00:00"
+    )
+
+    db_path = str(tmp_path / "sched.db")
+    vapid_path = str(tmp_path / "vapid_keys.json")
+    app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
+    init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+
+    now = datetime(2026, 8, 2, 9, 30)
+    count = await run_due_checks(app.state, now)
+    assert count == 1
+
+    with app.state.db._tx() as conn:
+        row = conn.execute(
+            "SELECT sent_at FROM notifications_sent WHERE date = ? AND type = ?",
+            ("2026-08-02", "tip"),
+        ).fetchone()
+    assert row["sent_at"] == "2026-08-02 09:30:00"
+
+
+@pytest.mark.asyncio
+async def test_dst_repeated_hour_sends_once(tmp_path, monkeypatch):
+    # Spec: a repeated wall-clock hour (fall-back) must yield at most one
+    # scheduled attempt for that local date and type.
+    sent = []
+
+    async def fake_send_to_all(subscriptions, title, body, vapid):
+        sent.append(title)
+        return 1
+
+    monkeypatch.setattr(notifications_module, "send_to_all", fake_send_to_all)
+
+    db_path = str(tmp_path / "sched.db")
+    vapid_path = str(tmp_path / "vapid_keys.json")
+    app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
+    init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+    app.state.db.update_settings({"tip_time": "01:00"})
+
+    repeated_hour = datetime(2026, 11, 1, 1, 30)  # first occurrence
+    count = await run_due_checks(app.state, repeated_hour)
+    assert count == 1
+    assert len(sent) == 1
+
+    second_occurrence = datetime(2026, 11, 1, 1, 30)
+    count = await run_due_checks(app.state, second_occurrence)
+    assert count == 0
+    assert len(sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_dst_skipped_time_fires_on_next_tick(tmp_path, monkeypatch):
+    # Spec: a wall-clock time skipped by a forward transition fires on the
+    # next scheduler check on that local date when no key exists yet.
+    sent = []
+
+    async def fake_send_to_all(subscriptions, title, body, vapid):
+        sent.append(title)
+        return 1
+
+    monkeypatch.setattr(notifications_module, "send_to_all", fake_send_to_all)
+
+    db_path = str(tmp_path / "sched.db")
+    vapid_path = str(tmp_path / "vapid_keys.json")
+    app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
+    init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+    app.state.db.update_settings({"exercise_time": "02:30"})
+
+    # 03:00 local: tip/reminder not due, the skipped 02:30 exercise IS due.
+    now = datetime(2026, 3, 8, 3, 0)
+    count = await run_due_checks(app.state, now)
+    assert count == 1
+    assert sent == ["Exercise encouragement"]
+    assert app.state.db.is_notification_sent("2026-03-08", "exercise")
+
+    # And exercise stays deduped for the rest of that local date (the later
+    # ticks only add tip/reminder, which were never sent that day).
+    count = await run_due_checks(app.state, datetime(2026, 3, 8, 23, 59))
+    assert count == 2
+    assert sent.count("Exercise encouragement") == 1
