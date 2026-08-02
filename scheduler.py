@@ -37,7 +37,11 @@ async def run_due_checks(app_state: Any, now: datetime) -> int:
         title, body = NOTIFICATION_MESSAGES[notif_type]
         subscriptions = await run_db(db.list_subscriptions)
         await notifications.send_to_all(subscriptions, title, body, app_state.vapid)
-        await run_db(db.mark_notification_sent, today, notif_type)
+        # Persist the tick's own local wall time (not a fresh now()) so sent_at
+        # always matches the moment the schedule actually fired.
+        await run_db(
+            db.mark_notification_sent, today, notif_type, now.strftime("%Y-%m-%d %H:%M:%S")
+        )
         sent_count += 1
         logger.info(
             "sent %s notification for %s (subscriptions: %d)",
