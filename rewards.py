@@ -120,32 +120,6 @@ def compute_lost(
     return baseline - current
 
 
-def milestone_levels(lost: float, step: float) -> list[float]:
-    """All milestone levels fully earned for the given lost amount."""
-    if step <= 0 or lost <= 0:
-        return []
-    count = int(lost // step)
-    return [round(step * level_index, 4) for level_index in range(1, count + 1)]
-
-
-def next_milestone(lost: Optional[float], step: float) -> Optional[float]:
-    """The next milestone level to earn, or None when step is invalid."""
-    if lost is None or step <= 0:
-        return None
-    effective = max(lost, 0.0)
-    return round(step * (int(effective // step) + 1), 4)
-
-
-def progress_to_next(lost: Optional[float], step: float) -> float:
-    """Fraction (0..1) of the way from the last earned milestone to the next."""
-    if lost is None or step <= 0:
-        return 0.0
-    effective = max(lost, 0.0)
-    nxt = next_milestone(lost, step) or step
-    last_earned = round(nxt - step, 4)
-    return round(max(0.0, min(1.0, (effective - last_earned) / step)), 4)
-
-
 def remaining_to_target(
     current: Optional[float], target: Optional[float]
 ) -> Optional[float]:
