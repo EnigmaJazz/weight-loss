@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weight Loss Tracker</title>
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%232f7d54'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E%E2%86%93%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Weight Loss Tracker</h1>
+    <p class="tagline">Log. Earn milestones. Get reminded.</p>
+  </header>
+
+  <main>
+    <section class="card" id="summary">
+      <h2>Summary</h2>
+      <div class="stats">
+        <div class="stat"><span class="stat-value" id="stat-baseline">—</span><span class="stat-label">Baseline (kg)</span></div>
+        <div class="stat"><span class="stat-value" id="stat-current">—</span><span class="stat-label">Current (kg)</span></div>
+        <div class="stat"><span class="stat-value" id="stat-lost">—</span><span class="stat-label">Lost (kg)</span></div>
+        <div class="stat"><span class="stat-value" id="stat-target">—</span><span class="stat-label">Target (kg)</span></div>
+        <div class="stat"><span class="stat-value" id="stat-remaining">—</span><span class="stat-label">Remaining (kg)</span></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Log weight</h2>
+        <form id="weight-form">
+          <label>Date
+            <input type="date" id="weight-date" required>
+          </label>
+          <label>Weight (kg)
+            <input type="number" id="weight-kg" step="0.1" min="0.1" placeholder="e.g. 85.4" required>
+          </label>
+          <button type="submit">Log weight</button>
+        </form>
+        <p class="hint" id="weight-form-message"></p>
+      </div>
+
+      <div class="card">
+        <h2>Rewards</h2>
+        <div class="reward-top">
+          <span class="reward-total" id="reward-total">0.0 kg</span>
+          <span class="reward-meta" id="reward-next">next: 1.0 kg</span>
+        </div>
+        <div class="progress">
+          <div class="progress-fill" id="reward-progress" style="width: 0%"></div>
+        </div>
+        <ul class="milestones" id="milestones"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>History</h2>
+      <canvas id="chart" height="220"></canvas>
+      <p class="hint" id="chart-empty">No weight entries yet — add your first one above.</p>
+      <table class="history">
+        <thead>
+          <tr><th>Date</th><th>Weight (kg)</th><th></th></tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Settings</h2>
+        <form id="settings-form">
+          <label>Target weight (kg)
+            <input type="number" id="set-target" step="0.1" min="0.1" placeholder="empty = no target">
+          </label>
+          <label>Milestone step (kg)
+            <input type="number" id="set-step" step="0.1" min="0.1" required>
+          </label>
+          <label>Start weight override (kg)
+            <input type="number" id="set-start" step="0.1" min="0.1" placeholder="empty = first entry">
+          </label>
+          <label>Daily tip time <input type="time" id="set-tip" required></label>
+          <label>Weigh-in reminder time <input type="time" id="set-reminder" required></label>
+          <label>Exercise encouragement time <input type="time" id="set-exercise" required></label>
+          <button type="submit">Save settings</button>
+        </form>
+        <p class="hint" id="settings-message"></p>
+      </div>
+
+      <div class="card">
+        <h2>Notifications</h2>
+        <p class="hint">Receive daily tips, weigh-in reminders, and exercise nudges on this device.</p>
+        <button id="enable-push">Enable push notifications</button>
+        <button id="test-push" class="secondary">Send test notification</button>
+        <p class="hint" id="push-message"></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
