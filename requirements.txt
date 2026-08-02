@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+pywebpush
+python-dotenv
+httpx
+pytest
+pytest-asyncio

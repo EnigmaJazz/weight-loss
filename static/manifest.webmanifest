@@ -1,0 +1,9 @@
+{
+  "name": "Weight Loss Tracker",
+  "short_name": "WeightLoss",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#2f7d54",
+  "description": "Track your weight, earn milestones, and get daily reminders."
+}
