@@ -272,12 +272,16 @@ class Database:
             ).fetchone()
         return row is not None
 
-    def mark_notification_sent(self, date: str, notif_type: str) -> None:
+    def mark_notification_sent(
+        self, date: str, notif_type: str, sent_at: Optional[str] = None
+    ) -> None:
+        # The scheduler passes its own tick's local wall time so persisted
+        # sent_at matches the event; direct callers default to a fresh local now.
         with self._tx() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO notifications_sent (date, type, sent_at)"
                 " VALUES (?, ?, ?)",
-                (date, notif_type, _local_now()),
+                (date, notif_type, sent_at or _local_now()),
             )
 
 

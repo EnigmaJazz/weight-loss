@@ -33,8 +33,8 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Backend — API and scheduler
 
-- [ ] 2.1 Add RED API scenarios for kg/lb/st/BMI summaries, history payloads, active checkpoint serialization, validation, and mutation reconciliation; update `routes.py` (~180 lines).
-- [ ] 2.2 Add RED scheduler cases for local `sent_at`, due/disabled schedules, zero-subscription consumption, local-day rollover, and DST repeat/skip; update `scheduler.py` (~100 lines).
+- [x] 2.1 Add RED API scenarios for kg/lb/st/BMI summaries, history payloads, active checkpoint serialization, validation, and mutation reconciliation; update `routes.py` (~180 lines).
+- [x] 2.2 Add RED scheduler cases for local `sent_at`, due/disabled schedules, zero-subscription consumption, local-day rollover, and DST repeat/skip; update `scheduler.py` (~100 lines).
 
 ## Phase 3: Frontend — presentation and optional polish
 

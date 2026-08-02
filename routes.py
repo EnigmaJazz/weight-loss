@@ -25,6 +25,7 @@ from rewards import (
     remaining_to_target,
     reward_state,
 )
+from units import weight_display
 
 router = APIRouter()
 logger = get_logger("routes")
@@ -60,6 +61,8 @@ def _valid_time(value: Optional[str]) -> Optional[str]:
 
 
 class WeightIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     date: str
     weight_kg: float = Field(gt=0)
 
@@ -121,13 +124,62 @@ class SettingsIn(BaseModel):
 # ---- serialization ------------------------------------------------------
 
 
-def _entry_dict(entry: WeightEntry) -> dict[str, Any]:
+def _weight_view(
+    weight_kg: Optional[float], height_cm: Optional[float]
+) -> dict[str, Any]:
+    """Raw derived display values (lb/stone/stone_lb/bmi) for one weight;
+    None-safe so the SPA just formats without null-guarding every field."""
+    if weight_kg is None:
+        return {"lb": None, "stone": None, "stone_lb": None, "bmi": None}
+    display = weight_display(weight_kg, height_cm)
+    return {
+        "lb": display.lb,
+        "stone": display.stone,
+        "stone_lb": display.stone_lb,
+        "bmi": display.bmi,
+    }
+
+
+def _entry_dict(entry: WeightEntry, height_cm: Optional[float]) -> dict[str, Any]:
+    view = _weight_view(entry.weight_kg, height_cm)
     return {
         "id": entry.id,
         "date": entry.date,
         "weight_kg": entry.weight_kg,
+        "lb": view["lb"],
+        "stone": view["stone"],
+        "stone_lb": view["stone_lb"],
+        "bmi": view["bmi"],
         "created_at": entry.created_at,
     }
+
+
+def _summary_view(
+    entries: list[WeightEntry], settings: Any, height_cm: Optional[float]
+) -> dict[str, Any]:
+    """Summary dict: canonical *_kg keys plus raw multi-unit siblings.
+    BMI rides along on real weights (baseline/current/target) but not on
+    deltas (lost/remaining), where it would be meaningless."""
+    baseline = compute_baseline(entries, settings.start_weight_override)
+    current = compute_current(entries)
+    target = settings.target_weight
+    values = (
+        ("baseline", baseline),
+        ("current", current),
+        ("lost", compute_lost(baseline, current)),
+        ("target", target),
+        ("remaining", remaining_to_target(current, target)),
+    )
+    summary: dict[str, Any] = {}
+    for name, value in values:
+        summary[f"{name}_kg"] = value
+        view = _weight_view(value, height_cm)
+        summary[f"{name}_lb"] = view["lb"]
+        summary[f"{name}_stone"] = view["stone"]
+        summary[f"{name}_stone_lb"] = view["stone_lb"]
+        if name in ("baseline", "current", "target"):
+            summary[f"{name}_bmi"] = view["bmi"]
+    return summary
 
 
 # ---- weight -------------------------------------------------------------
@@ -137,17 +189,11 @@ def _entry_dict(entry: WeightEntry) -> dict[str, Any]:
 async def get_weight(db: Database = Depends(get_db)) -> dict[str, Any]:
     entries = await run_db(db.list_entries)
     settings = await run_db(db.get_settings)
-    baseline = compute_baseline(entries, settings.start_weight_override)
-    current = compute_current(entries)
-    lost = compute_lost(baseline, current)
-    summary = {
-        "baseline_kg": baseline,
-        "current_kg": current,
-        "lost_kg": lost,
-        "target_kg": settings.target_weight,
-        "remaining_kg": remaining_to_target(current, settings.target_weight),
+    summary = _summary_view(entries, settings, settings.height_cm)
+    return {
+        "entries": [_entry_dict(e, settings.height_cm) for e in entries],
+        "summary": summary,
     }
-    return {"entries": [_entry_dict(e) for e in entries], "summary": summary}
 
 
 @router.post("/api/weight")
@@ -156,8 +202,11 @@ async def upsert_weight(
 ) -> JSONResponse:
     existing = await run_db(db.get_entry_by_date, payload.date)
     entry = await run_db(db.upsert_entry, payload.date, payload.weight_kg)
+    settings = await run_db(db.get_settings)
     status_code = 200 if existing is not None else 201
-    return JSONResponse(status_code=status_code, content=_entry_dict(entry))
+    return JSONResponse(
+        status_code=status_code, content=_entry_dict(entry, settings.height_cm)
+    )
 
 
 @router.delete("/api/weight/{entry_id}")
@@ -182,21 +231,35 @@ async def get_rewards(db: Database = Depends(get_db)) -> dict[str, Any]:
     earned_at_by_percent = {
         row["checkpoint_percent"]: row["earned_at"] for row in earned_rows
     }
-    active_checkpoints = [
-        {
-            "percent": cp.percent,
-            "threshold_kg": cp.threshold_kg,
-            "earned_at": earned_at_by_percent.get(cp.percent),
-        }
-        for cp in state.active
-    ]
+    active_checkpoints = []
+    for cp in state.active:
+        view = _weight_view(cp.threshold_kg, settings.height_cm)
+        active_checkpoints.append(
+            {
+                "percent": cp.percent,
+                "threshold_kg": cp.threshold_kg,
+                "threshold_lb": view["lb"],
+                "threshold_stone": view["stone"],
+                "threshold_stone_lb": view["stone_lb"],
+                "earned_at": earned_at_by_percent.get(cp.percent),
+            }
+        )
     nxt = state.next_checkpoint
+    if nxt is not None:
+        view = _weight_view(nxt[1], settings.height_cm)
+        next_checkpoint = {
+            "percent": nxt[0],
+            "threshold_kg": nxt[1],
+            "threshold_lb": view["lb"],
+            "threshold_stone": view["stone"],
+            "threshold_stone_lb": view["stone_lb"],
+        }
+    else:
+        next_checkpoint = None
     return {
         "active_checkpoints": active_checkpoints,
         "earned_count": state.earned_count,
-        "next_checkpoint": (
-            {"percent": nxt[0], "threshold_kg": nxt[1]} if nxt is not None else None
-        ),
+        "next_checkpoint": next_checkpoint,
         "progress_to_next": state.progress_to_next,
     }
 

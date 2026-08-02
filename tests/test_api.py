@@ -162,7 +162,12 @@ async def test_rewards_checkpoints_earned_via_upserts(client):
     assert data["active_checkpoints"][0]["threshold_kg"] == 98.0
     assert data["active_checkpoints"][0]["earned_at"] is not None
     assert data["earned_count"] == 2
-    assert data["next_checkpoint"] == {"percent": 50, "threshold_kg": 90.0}
+    nxt = data["next_checkpoint"]
+    assert nxt["percent"] == 50
+    assert nxt["threshold_kg"] == 90.0
+    assert nxt["threshold_lb"] == pytest.approx(90 * 2.2046226218)
+    assert nxt["threshold_stone"] == 14
+    assert nxt["threshold_stone_lb"] == pytest.approx(90 * 2.2046226218 - 14 * 14)
     assert data["progress_to_next"] == 0.0
 
 
@@ -175,7 +180,12 @@ async def test_rewards_regression_revokes_checkpoints(client):
     data = (await client.get("/api/rewards")).json()
     assert data["active_checkpoints"] == []
     assert data["earned_count"] == 0
-    assert data["next_checkpoint"] == {"percent": 10, "threshold_kg": 98.0}
+    nxt = data["next_checkpoint"]
+    assert nxt["percent"] == 10
+    assert nxt["threshold_kg"] == 98.0
+    assert nxt["threshold_lb"] == pytest.approx(98 * 2.2046226218)
+    assert nxt["threshold_stone"] == 15
+    assert nxt["threshold_stone_lb"] == pytest.approx(98 * 2.2046226218 - 14 * 15)
 
 
 @pytest.mark.asyncio
@@ -272,3 +282,121 @@ async def test_weight_summary_includes_target(client):
     data = (await client.get("/api/weight")).json()
     assert data["summary"]["target_kg"] == 80.0
     assert data["summary"]["remaining_kg"] == 10.5
+
+
+# ---- 2.1: multi-unit + BMI display data --------------------------------
+
+
+@pytest.mark.asyncio
+async def test_weight_entries_include_display_units(client):
+    # Spec: each history row derives lb/stone from canonical kg; BMI is "—"
+    # (None) until height is configured.
+    res = await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 70.0})
+    assert res.status_code == 201
+    entry = res.json()
+    assert entry["weight_kg"] == 70.0
+    assert entry["lb"] == pytest.approx(70 * 2.2046226218)
+    assert entry["stone"] == 11
+    assert entry["stone_lb"] == pytest.approx(70 * 2.2046226218 - 14 * 11)
+    assert entry["bmi"] is None
+
+    data = (await client.get("/api/weight")).json()
+    got = data["entries"][0]
+    assert got["lb"] == entry["lb"]
+    assert got["stone"] == 11
+    assert got["stone_lb"] == entry["stone_lb"]
+    assert got["bmi"] is None
+
+
+@pytest.mark.asyncio
+async def test_weight_entries_bmi_with_height(client):
+    # Spec: BMI = kg / (height_cm/100)^2, using unrounded values.
+    await client.put("/api/settings", json={"height_cm": 175})
+    res = await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 70.0})
+    body = res.json()
+    assert body["bmi"] == pytest.approx(70 / 1.75**2)
+
+
+@pytest.mark.asyncio
+async def test_weight_summary_has_display_units(client):
+    await client.put("/api/settings", json={"target_weight": 80.0, "height_cm": 175})
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 90.0})
+    summary = (await client.get("/api/weight")).json()["summary"]
+
+    # Canonical kg keys stay; multi-unit siblings are raw derived values.
+    assert summary["baseline_kg"] == 100.0
+    assert summary["baseline_lb"] == pytest.approx(100 * 2.2046226218)
+    assert summary["baseline_stone"] == 15
+    assert summary["baseline_stone_lb"] == pytest.approx(100 * 2.2046226218 - 14 * 15)
+    assert summary["baseline_bmi"] == pytest.approx(100 / 1.75**2)
+
+    assert summary["current_kg"] == 90.0
+    assert summary["current_lb"] == pytest.approx(90 * 2.2046226218)
+    assert summary["current_stone"] == 14
+    assert summary["current_stone_lb"] == pytest.approx(90 * 2.2046226218 - 14 * 14)
+    assert summary["current_bmi"] == pytest.approx(90 / 1.75**2)
+
+    assert summary["lost_kg"] == 10.0
+    assert summary["lost_lb"] == pytest.approx(10 * 2.2046226218)
+    assert summary["lost_stone"] == 1
+    assert summary["lost_stone_lb"] == pytest.approx(10 * 2.2046226218 - 14 * 1)
+
+    assert summary["target_kg"] == 80.0
+    assert summary["target_lb"] == pytest.approx(80 * 2.2046226218)
+    assert summary["target_stone"] == 12
+    assert summary["target_stone_lb"] == pytest.approx(80 * 2.2046226218 - 14 * 12)
+    assert summary["target_bmi"] == pytest.approx(80 / 1.75**2)
+
+    assert summary["remaining_kg"] == 10.0
+    assert summary["remaining_lb"] == pytest.approx(10 * 2.2046226218)
+    assert summary["remaining_stone"] == 1
+    assert summary["remaining_stone_lb"] == pytest.approx(10 * 2.2046226218 - 14 * 1)
+
+
+@pytest.mark.asyncio
+async def test_weight_summary_display_none_without_data(client):
+    summary = (await client.get("/api/weight")).json()["summary"]
+    for key in ("baseline_lb", "baseline_stone", "baseline_stone_lb", "baseline_bmi",
+                "current_lb", "current_stone", "current_stone_lb", "current_bmi",
+                "lost_lb", "lost_stone", "lost_stone_lb",
+                "target_lb", "target_stone", "target_stone_lb", "target_bmi",
+                "remaining_lb", "remaining_stone", "remaining_stone_lb"):
+        assert summary[key] is None, key
+
+
+@pytest.mark.asyncio
+async def test_rewards_checkpoints_include_threshold_units(client):
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+
+    # Setting height must not disturb reward state, only its serialization.
+    await client.put("/api/settings", json={"height_cm": 175})
+    data = (await client.get("/api/rewards")).json()
+
+    first = data["active_checkpoints"][0]
+    assert first["percent"] == 10
+    assert first["threshold_kg"] == 98.0
+    assert first["threshold_lb"] == pytest.approx(98 * 2.2046226218)
+    assert first["threshold_stone"] == 15
+    assert first["threshold_stone_lb"] == pytest.approx(98 * 2.2046226218 - 14 * 15)
+    assert first["earned_at"] is not None
+
+    nxt = data["next_checkpoint"]
+    assert nxt == {
+        "percent": 50,
+        "threshold_kg": 90.0,
+        "threshold_lb": pytest.approx(90 * 2.2046226218),
+        "threshold_stone": 14,
+        "threshold_stone_lb": pytest.approx(90 * 2.2046226218 - 14 * 14),
+    }
+
+
+@pytest.mark.asyncio
+async def test_weight_in_rejects_unknown_keys(client):
+    res = await client.post(
+        "/api/weight",
+        json={"date": "2026-08-01", "weight_kg": 90.0, "units": "lb"},
+    )
+    assert res.status_code == 422
