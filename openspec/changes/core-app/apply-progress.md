@@ -46,3 +46,49 @@
 ## Status
 
 Slice 1 complete: 4/4 tasks. Ready for verify (orchestrator) → next_recommended: sdd-verify, then slice 2.
+
+---
+
+# Apply Progress: core-app — Slice 2 (Backend)
+
+**Change**: core-app
+**Slice**: 2 of 3 (stacked-to-main) — branch `slice-2-backend`, PR #2 → `main`
+**Mode**: Strict TDD (active)
+**Status**: 2/2 slice tasks complete (2.1, 2.2). PR #1 (slice 1) merged; PR #2 left open for review.
+**Test counts**: 65 passing at start → 74 passing at end (all green; 9 new, 2 contract updates)
+
+## Completed Tasks
+
+- [x] 2.1 API display data — `routes.py`: `WeightIn` strict (`extra="forbid"`); `_weight_view` None-safe raw lb/stone/stone_lb/bmi per weight; entries carry `lb`/`stone`/`stone_lb`/`bmi`; summary carries `*_lb`/`*_stone`/`*_stone_lb` for all five values + `*_bmi` on real weights (baseline/current/target, not deltas); rewards active/next checkpoints carry `threshold_lb`/`threshold_stone`/`threshold_stone_lb`. Mutations already self-reconcile via the DB layer (slice 1) — verified through the API. Tests: `tests/test_api.py` (+6 new, 2 contract updates).
+- [x] 2.2 Scheduler local time — `scheduler.py` passes the injected tick's own local wall time (`now.strftime("%Y-%m-%d %H:%M:%S")`) to `mark_notification_sent`; `database.py` accepts optional `sent_at` (defaults to fresh `_local_now()` for direct callers). Local HH:MM comparison + local-calendar-date day key were already correct by construction; DST repeated-hour single-send, DST skipped-time fires-on-next-tick, and tick-sourced `sent_at` pinned with regression tests. Tests: `tests/test_scheduler.py` (+3 new).
+
+## TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 2.1 | tests/test_api.py (+6 new: entries display units, entries bmi with height, summary display units, summary None-empty, rewards threshold units, WeightIn unknown-key 422; 2 contract updates) | Integration | suite (65) | 6 failures: missing `lb`/`stone`/`stone_lb`/`bmi` keys (KeyError) + unknown weight key not rejected (201 != 422) | 73 passed (6 new + 2 updated contracts) | exact kg↔lb factor (×2.2046226218), stone decomposition, BMI 175cm, None-safe empty summary, rewards 10%/50% thresholds, unknown-key 422 | `_weight_view` + `_summary_view` helpers centralize derivation; canonical `*_kg` keys untouched so the SPA keeps its existing contract |
+| 2.2 | tests/test_scheduler.py (+3 new: tick-sourced `sent_at` via `_local_now` decoy monkeypatch, DST repeated hour single-send, DST skipped time fires on next tick) | Integration | suite (73) | 1 genuine failure (stored `sent_at` = decoy, not the tick's local time) + 1 test-authoring bug fixed during RED (23:59 tick legitimately fires tip/reminder → `count == 2`, only exercise deduped); 2 DST regressions green immediately (behavior already correct by construction) | 74 passed | monkeypatched `database._local_now` decoy proves the tick's timestamp wins; repeated 01:30 wall time on same local date sends once; 02:30 skipped → fires at 03:00 same date | `mark_notification_sent` gains `sent_at: Optional[str] = None` param; scheduler passes `now.strftime` |
+
+## Work Unit Evidence
+
+| Evidence | Required value |
+|----------|----------------|
+| Focused test command and exact result | `.venv/bin/python -m pytest tests/test_api.py tests/test_scheduler.py` → **38 passed** (was 32 before slice); full suite `.venv/bin/python -m pytest -q` → **74 passed in 0.59s** |
+| Runtime harness command/scenario and exact result | Real uvicorn boot (`WEIGHT_LOSS_DB=/tmp/... WEIGHT_LOSS_VAPID_KEYS=/tmp/... uvicorn main:app --port 8793`): PUT settings height=175/target=80 → POST 100kg, 95kg → GET `/api/weight` 200 (entry: `{weight_kg:95, lb:209.439, stone:14, stone_lb:13.439, bmi:31.020}`; summary baseline/current/lost/target/remaining with `_lb`/`_stone`/`_stone_lb`, `_bmi` only on baseline/current/target) → GET `/api/rewards` 200 (active 10%/25% with `threshold_lb`/`threshold_stone`/`threshold_stone_lb`/`earned_at`, next 50% with display units) → POST `/api/weight` with unknown key `units` → **422** |
+| Rollback boundary | Revert branch `slice-2-backend` to `main` (PR #1 content). Slice-2 files: `routes.py` (display serialization + `WeightIn` strictness), `scheduler.py`, `database.py` (`mark_notification_sent` signature), `tests/test_api.py`, `tests/test_scheduler.py`. Frontend untouched — slice 3 renders the new fields. |
+
+## Deviations from Design
+
+1. **`_weight_view`/`_summary_view` helpers in routes.py** — the design places display construction in units.py (`weight_display` already exists there and is reused); routes adds thin dict serializers. No logic duplication, `units.weight_display` remains the single source of truth.
+2. **BMI field policy**: entries + summary real weights (baseline/current/target) carry `bmi`; deltas (lost/remaining) carry multi-unit only — the spec requires BMI only for the current summary/history/tooltip, and BMI of a delta is meaningless. Documented in `_summary_view` docstring; pinned by tests (no `lost_bmi`/`remaining_bmi` keys).
+3. **Two pre-existing rewards tests updated** (`test_rewards_checkpoints_earned_via_upserts`, `test_rewards_regression_revokes_checkpoints`): exact-equality `next_checkpoint == {"percent": …, "threshold_kg": …}` assertions extended to the new additive keys — contract extension, not relaxation (per design's "existing step/default assertions must change").
+4. **`database.py` touched in 2.2** (tasks.md says "update scheduler.py ~100 lines"): the `sent_at` override parameter lives on `mark_notification_sent`; the scheduler alone cannot force its tick time into the DB layer otherwise.
+
+## Issues Found
+
+1. **Latent slice-1 bug — persisted VAPID load path crashes (out of slice scope, flagged):** py_vapid 1.9.4 `Vapid.from_raw` crashes with `TypeError: can only concatenate str (not "bytes") to str` on a str private key loaded from `vapid_keys.json` (`notifications._vapid_from_payload`). Fresh-generate path works, so the first boot is fine but **every subsequent boot with persisted keys crashes**. Reproduced 3× against a real server; fix verified as `Vapid.from_raw(payload["private_key"].encode("ascii"))`. Not fixed here — notifications.py is not in slice-2 scope; recommend a small follow-up (slice 3/4 or dedicated PR) with a regression test.
+2. Pyright LSP diagnostics (17) remain environment noise (`.venv` unresolved; `pyrightconfig.json` is 4.1) — runtime imports prove fine (74 passed).
+
+## Status
+
+Slice 2 complete: 2/2 tasks (2.1, 2.2). PR #2 open for review (not merged — orchestrator/verify decides). next_recommended: sdd-apply slice 3 (frontend) after PR #2 merge, or sdd-verify first.
