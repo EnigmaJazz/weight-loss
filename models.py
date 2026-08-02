@@ -22,13 +22,6 @@ class PushSubscription:
 
 
 @dataclass
-class RewardMilestone:
-    milestone_kg: float
-    earned: bool
-    earned_at: Optional[str]
-
-
-@dataclass
 class ActiveCheckpoint:
     """One earned reward checkpoint (threshold reached by latest weight)."""
 
@@ -64,11 +57,11 @@ class WeightDisplay:
 @dataclass
 class AppSettings:
     target_weight: Optional[float] = None
-    milestone_step_kg: float = 1.0
     tip_time: str = "09:00"
     reminder_time: str = "20:00"
     exercise_time: str = "17:00"
     start_weight_override: Optional[float] = None
+    height_cm: Optional[float] = None
 
     def time_for(self, notif_type: str) -> str:
         """Scheduled "HH:MM" for a notification type ("" disables it)."""

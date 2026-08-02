@@ -2,6 +2,8 @@
 
 import pytest
 
+import database as database_module
+
 SUBSCRIBE_BODY = {
     "endpoint": "https://push.example.com/v1/abcd1234",
     "p256dh": "BEl62iUYgUivxIkv69yViEuiBIa_IbT8n1sWj3N5nPw",
@@ -21,11 +23,13 @@ async def test_weight_empty(client):
 @pytest.mark.asyncio
 async def test_settings_get_returns_defaults(client):
     data = (await client.get("/api/settings")).json()
-    assert data["milestone_step_kg"] == 1.0
+    assert "milestone_step_kg" not in data
+    assert data["height_cm"] is None
     assert data["tip_time"] == "09:00"
     assert data["reminder_time"] == "20:00"
     assert data["exercise_time"] == "17:00"
     assert data["target_weight"] is None
+    assert data["start_weight_override"] is None
 
 
 @pytest.mark.asyncio
@@ -34,7 +38,7 @@ async def test_settings_put_partial_update(client):
     assert res.status_code == 200
     body = res.json()
     assert body["target_weight"] == 80.0
-    assert body["milestone_step_kg"] == 1.0
+    assert body["height_cm"] is None
 
     got = (await client.get("/api/settings")).json()
     assert got["target_weight"] == 80.0
@@ -57,8 +61,31 @@ async def test_settings_bad_time_rejected(client):
 
 
 @pytest.mark.asyncio
-async def test_settings_bad_step_rejected(client):
-    res = await client.put("/api/settings", json={"milestone_step_kg": 0})
+async def test_settings_retired_key_rejected(client):
+    # Spec: the retired milestone_step_kg setting must be rejected and must not
+    # change the stored settings.
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    res = await client.put("/api/settings", json={"milestone_step_kg": 2.0})
+    assert res.status_code == 422
+    got = (await client.get("/api/settings")).json()
+    assert got["target_weight"] == 80.0
+    assert "milestone_step_kg" not in got
+
+
+@pytest.mark.asyncio
+async def test_settings_save_height(client):
+    res = await client.put("/api/settings", json={"height_cm": 175})
+    assert res.status_code == 200
+    assert res.json()["height_cm"] == 175
+    got = (await client.get("/api/settings")).json()
+    assert got["height_cm"] == 175
+
+
+@pytest.mark.asyncio
+async def test_settings_nonpositive_height_rejected(client):
+    res = await client.put("/api/settings", json={"height_cm": 0})
+    assert res.status_code == 422
+    res = await client.put("/api/settings", json={"height_cm": -5})
     assert res.status_code == 422
 
 
@@ -119,26 +146,123 @@ async def test_manual_notify_endpoints(client, stub_push):
 @pytest.mark.asyncio
 async def test_rewards_empty(client):
     data = (await client.get("/api/rewards")).json()
+    assert data["active_checkpoints"] == []
     assert data["earned_count"] == 0
-    assert data["reward_total_kg"] == 0.0
+    assert data["next_checkpoint"] is None
+    assert data["progress_to_next"] == 0.0
 
 
 @pytest.mark.asyncio
-async def test_rewards_earns_milestone(client):
-    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 90.5})
+async def test_rewards_checkpoints_earned_via_upserts(client):
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
     data = (await client.get("/api/rewards")).json()
-    assert data["earned_count"] == 0
-    assert data["next_milestone_kg"] == 1.0
+    assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
+    assert data["active_checkpoints"][0]["threshold_kg"] == 98.0
+    assert data["active_checkpoints"][0]["earned_at"] is not None
+    assert data["earned_count"] == 2
+    assert data["next_checkpoint"] == {"percent": 50, "threshold_kg": 90.0}
+    assert data["progress_to_next"] == 0.0
 
-    await client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 89.2})
+
+@pytest.mark.asyncio
+async def test_rewards_regression_revokes_checkpoints(client):
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    await client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 99.0})
     data = (await client.get("/api/rewards")).json()
-    assert data["earned_count"] == 1
-    assert data["reward_total_kg"] == 1.0
-    assert data["next_milestone_kg"] == 2.0
-    assert data["progress_to_next"] == 0.3
-    earned = [m for m in data["milestones"] if m["earned"]]
-    assert earned[0]["milestone_kg"] == 1.0
-    assert earned[0]["earned_at"] is not None
+    assert data["active_checkpoints"] == []
+    assert data["earned_count"] == 0
+    assert data["next_checkpoint"] == {"percent": 10, "threshold_kg": 98.0}
+
+
+@pytest.mark.asyncio
+async def test_rewards_reenroll_refreshes_earned_at(client, app, monkeypatch):
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-02 09:00:00")
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    rows = app.state.db.list_active_rewards()
+    assert {r["checkpoint_percent"] for r in rows} == {10, 25}
+    assert all(r["earned_at"] == "2026-08-02 09:00:00" for r in rows)
+
+    # Regression revokes every checkpoint.
+    await client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 99.0})
+    assert app.state.db.list_active_rewards() == []
+
+    # Renewed progress re-earns with a NEW local timestamp.
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-04 18:30:00")
+    await client.post("/api/weight", json={"date": "2026-08-04", "weight_kg": 90.0})
+    rows = app.state.db.list_active_rewards()
+    assert {r["checkpoint_percent"] for r in rows} == {10, 25, 50}
+    assert all(r["earned_at"] == "2026-08-04 18:30:00" for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_rewards_historical_upsert_changes_start(client):
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    data = (await client.get("/api/rewards")).json()
+    assert data["active_checkpoints"] == []
+
+    # An earlier-dated entry moves the start (and thresholds) back to 100.
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    data = (await client.get("/api/rewards")).json()
+    assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
+
+
+@pytest.mark.asyncio
+async def test_rewards_delete_reconciles(client, app):
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    created = (await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})).json()
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    assert len(app.state.db.list_active_rewards()) == 2
+
+    await client.delete(f"/api/weight/{created['id']}")
+    data = (await client.get("/api/rewards")).json()
+    assert data["active_checkpoints"] == []
+    assert app.state.db.list_active_rewards() == []
+
+
+@pytest.mark.asyncio
+async def test_settings_update_reconciles_rewards(client):
+    await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    data = (await client.get("/api/rewards")).json()
+    assert data["active_checkpoints"] == []
+
+    # Setting a target triggers reconciliation.
+    await client.put("/api/settings", json={"target_weight": 80.0})
+    data = (await client.get("/api/rewards")).json()
+    assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
+
+    # Moving the override (start 100 -> 110) re-derives thresholds.
+    await client.put("/api/settings", json={"start_weight_override": 110.0})
+    data = (await client.get("/api/rewards")).json()
+    assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25, 50]
+
+
+@pytest.mark.asyncio
+async def test_weight_created_at_uses_local_time(client, app, monkeypatch):
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-02 21:30:00")
+    res = await client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 90.5})
+    assert res.json()["created_at"] == "2026-08-02 21:30:00"
+    row = app.state.db.get_entry_by_date("2026-08-01")
+    assert row.created_at == "2026-08-02 21:30:00"
+
+
+@pytest.mark.asyncio
+async def test_notification_sent_at_uses_local_time(app, monkeypatch):
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-02 21:30:00")
+    app.state.db.mark_notification_sent("2026-08-02", "tip")
+    with app.state.db._tx() as conn:
+        row = conn.execute(
+            "SELECT sent_at FROM notifications_sent WHERE date = ? AND type = ?",
+            ("2026-08-02", "tip"),
+        ).fetchone()
+    assert row["sent_at"] == "2026-08-02 21:30:00"
 
 
 @pytest.mark.asyncio

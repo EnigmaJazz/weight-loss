@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from constants import (
     NOTIFICATION_MESSAGES,
@@ -22,9 +22,8 @@ from rewards import (
     compute_baseline,
     compute_current,
     compute_lost,
-    next_milestone,
-    progress_to_next,
     remaining_to_target,
+    reward_state,
 )
 
 router = APIRouter()
@@ -104,12 +103,14 @@ class PushUnsubscribeIn(BaseModel):
 
 
 class SettingsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     target_weight: Optional[float] = Field(default=None, gt=0)
-    milestone_step_kg: Optional[float] = Field(default=None, gt=0)
     tip_time: Optional[str] = None
     reminder_time: Optional[str] = None
     exercise_time: Optional[str] = None
     start_weight_override: Optional[float] = Field(default=None, gt=0)
+    height_cm: Optional[float] = Field(default=None, gt=0)
 
     @field_validator("tip_time", "reminder_time", "exercise_time")
     @classmethod
@@ -155,17 +156,6 @@ async def upsert_weight(
 ) -> JSONResponse:
     existing = await run_db(db.get_entry_by_date, payload.date)
     entry = await run_db(db.upsert_entry, payload.date, payload.weight_kg)
-    settings = await run_db(db.get_settings)
-    entries = await run_db(db.list_entries)
-    baseline = compute_baseline(entries, settings.start_weight_override)
-    current = compute_current(entries)
-    if baseline is not None and current is not None:
-        await run_db(
-            db.reconcile_milestones,
-            baseline,
-            current,
-            settings.milestone_step_kg,
-        )
     status_code = 200 if existing is not None else 201
     return JSONResponse(status_code=status_code, content=_entry_dict(entry))
 
@@ -187,33 +177,27 @@ async def delete_weight(
 async def get_rewards(db: Database = Depends(get_db)) -> dict[str, Any]:
     entries = await run_db(db.list_entries)
     settings = await run_db(db.get_settings)
-    earned_rows = await run_db(db.list_milestone_rows)
-    step = settings.milestone_step_kg
-    baseline = compute_baseline(entries, settings.start_weight_override)
-    current = compute_current(entries)
-    lost = compute_lost(baseline, current)
-    nxt = next_milestone(lost, step)
-    earned_by_level = {row["milestone_kg"]: row["earned_at"] for row in earned_rows}
-
-    levels: list[float] = []
-    if nxt is not None:
-        levels = [
-            round(step * i, 4) for i in range(1, int(nxt / step) + 1)
-        ]
-    milestones = [
+    earned_rows = await run_db(db.list_active_rewards)
+    state = reward_state(entries, settings)
+    earned_at_by_percent = {
+        row["checkpoint_percent"]: row["earned_at"] for row in earned_rows
+    }
+    active_checkpoints = [
         {
-            "milestone_kg": level,
-            "earned": level in earned_by_level,
-            "earned_at": earned_by_level.get(level),
+            "percent": cp.percent,
+            "threshold_kg": cp.threshold_kg,
+            "earned_at": earned_at_by_percent.get(cp.percent),
         }
-        for level in levels
+        for cp in state.active
     ]
+    nxt = state.next_checkpoint
     return {
-        "milestones": milestones,
-        "earned_count": len(earned_rows),
-        "reward_total_kg": round(len(earned_rows) * step, 4),
-        "next_milestone_kg": nxt,
-        "progress_to_next": progress_to_next(lost, step),
+        "active_checkpoints": active_checkpoints,
+        "earned_count": state.earned_count,
+        "next_checkpoint": (
+            {"percent": nxt[0], "threshold_kg": nxt[1]} if nxt is not None else None
+        ),
+        "progress_to_next": state.progress_to_next,
     }
 
 

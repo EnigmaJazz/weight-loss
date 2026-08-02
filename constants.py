@@ -27,11 +27,11 @@ VAPID_SUBJECT = "mailto:weight-tracker@localhost"
 
 DEFAULT_SETTINGS: dict[str, object] = {
     "target_weight": None,
-    "milestone_step_kg": 1.0,
     "tip_time": "09:00",
     "reminder_time": "20:00",
     "exercise_time": "17:00",
     "start_weight_override": None,
+    "height_cm": None,
 }
 
 NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "reminder", "exercise")

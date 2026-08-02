@@ -4,15 +4,18 @@ import asyncio
 import contextlib
 import sqlite3
 import threading
+from datetime import datetime
 from typing import Any, Callable, Iterator, Optional
 
 from constants import DEFAULT_SETTINGS, get_logger
 from models import AppSettings, PushSubscription, WeightEntry
-from rewards import milestone_levels
+from rewards import reward_state
 
 logger = get_logger("database")
 
 SCHEMA = """
+DROP TABLE IF EXISTS reward_events;
+
 CREATE TABLE IF NOT EXISTS weight_entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL UNIQUE,
@@ -28,9 +31,9 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS reward_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    milestone_kg REAL NOT NULL UNIQUE,
+CREATE TABLE IF NOT EXISTS active_rewards (
+    checkpoint_percent INTEGER PRIMARY KEY,
+    threshold_kg REAL NOT NULL,
     earned_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -45,6 +48,8 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+DELETE FROM settings WHERE key = 'milestone_step_kg';
 """
 
 
@@ -103,15 +108,17 @@ class Database:
     def upsert_entry(self, date: str, weight_kg: float) -> WeightEntry:
         with self._tx() as conn:
             conn.execute(
-                "INSERT INTO weight_entries (date, weight_kg) VALUES (?, ?)"
+                "INSERT INTO weight_entries (date, weight_kg, created_at)"
+                " VALUES (?, ?, ?)"
                 " ON CONFLICT(date) DO UPDATE SET weight_kg = excluded.weight_kg",
-                (date, weight_kg),
+                (date, weight_kg, _local_now()),
             )
             row = conn.execute(
                 "SELECT id, date, weight_kg, created_at"
                 " FROM weight_entries WHERE date = ?",
                 (date,),
             ).fetchone()
+            self._reconcile_active_rewards(conn)
         if row is None:
             raise RuntimeError("upsert produced no row")
         return _weight_from_row(row)
@@ -121,57 +128,74 @@ class Database:
             cursor = conn.execute(
                 "DELETE FROM weight_entries WHERE id = ?", (entry_id,)
             )
-            return cursor.rowcount > 0
+            deleted = cursor.rowcount > 0
+            self._reconcile_active_rewards(conn)
+            return deleted
 
-    # ---- reward events ----
+    # ---- active reward checkpoints ----
 
-    def reconcile_milestones(
-        self, baseline: float, current: float, step: float
-    ) -> list[float]:
-        """Insert any newly-earned milestone levels, returning the new ones."""
-        lost = baseline - current
-        levels = milestone_levels(lost, step)
-        new_levels: list[float] = []
-        if not levels:
-            return new_levels
+    REWARD_AFFECTING_KEYS: tuple[str, ...] = (
+        "target_weight",
+        "start_weight_override",
+    )
+
+    def reconcile_active_rewards(self) -> None:
+        """Reconcile the persisted checkpoint set in its own transaction
+        (startup entry point after the schema is created)."""
         with self._tx() as conn:
-            earned_rows = conn.execute(
-                "SELECT milestone_kg FROM reward_events"
-            ).fetchall()
-            earned = {row["milestone_kg"] for row in earned_rows}
-            for level in levels:
-                if level not in earned:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO reward_events (milestone_kg)"
-                        " VALUES (?)",
-                        (level,),
-                    )
-                    new_levels.append(level)
-        return new_levels
+            self._reconcile_active_rewards(conn)
 
-    def list_milestone_rows(self) -> list[dict[str, Any]]:
+    def list_active_rewards(self) -> list[dict[str, Any]]:
         with self._tx() as conn:
             rows = conn.execute(
-                "SELECT milestone_kg, earned_at FROM reward_events"
-                " ORDER BY milestone_kg"
+                "SELECT checkpoint_percent, threshold_kg, earned_at"
+                " FROM active_rewards ORDER BY checkpoint_percent"
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def _reconcile_active_rewards(self, conn: sqlite3.Connection) -> None:
+        """Transactional core: sync active_rewards to the derived checkpoint
+        state using the caller's open transaction. Earned timestamps survive
+        while a checkpoint stays active; revoked rows are removed and re-earned
+        ones get a fresh local timestamp."""
+        entry_rows = conn.execute(
+            "SELECT id, date, weight_kg, created_at FROM weight_entries"
+        ).fetchall()
+        entries = [_weight_from_row(row) for row in entry_rows]
+        state = reward_state(entries, self._settings_from_conn(conn))
+        existing = {
+            row["checkpoint_percent"]
+            for row in conn.execute(
+                "SELECT checkpoint_percent FROM active_rewards"
+            ).fetchall()
+        }
+        derived = {cp.percent for cp in state.active}
+        for percent in existing - derived:
+            conn.execute(
+                "DELETE FROM active_rewards WHERE checkpoint_percent = ?",
+                (percent,),
+            )
+        for cp in state.active:
+            conn.execute(
+                "INSERT INTO active_rewards"
+                " (checkpoint_percent, threshold_kg, earned_at)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT(checkpoint_percent) DO UPDATE SET"
+                " threshold_kg = excluded.threshold_kg",
+                (cp.percent, cp.threshold_kg, _local_now()),
+            )
 
     # ---- settings ----
 
     def get_settings(self) -> AppSettings:
         with self._tx() as conn:
-            rows = conn.execute(
-                "SELECT key, value FROM settings"
-            ).fetchall()
+            return self._settings_from_conn(conn)
+
+    def _settings_from_conn(self, conn: sqlite3.Connection) -> AppSettings:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
         stored = {row["key"]: row["value"] for row in rows}
         return AppSettings(
             target_weight=_optional_float(stored.get("target_weight")),
-            milestone_step_kg=_float(
-                stored.get(
-                    "milestone_step_kg", DEFAULT_SETTINGS["milestone_step_kg"]
-                )
-            ),
             tip_time=str(stored.get("tip_time", DEFAULT_SETTINGS["tip_time"])),
             reminder_time=str(
                 stored.get("reminder_time", DEFAULT_SETTINGS["reminder_time"])
@@ -182,6 +206,7 @@ class Database:
             start_weight_override=_optional_float(
                 stored.get("start_weight_override")
             ),
+            height_cm=_optional_float(stored.get("height_cm")),
         )
 
     def update_settings(self, updates: dict[str, Any]) -> None:
@@ -197,6 +222,8 @@ class Database:
                         " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                         (key, str(value)),
                     )
+            if any(key in self.REWARD_AFFECTING_KEYS for key in updates):
+                self._reconcile_active_rewards(conn)
 
     # ---- push subscriptions ----
 
@@ -248,9 +275,9 @@ class Database:
     def mark_notification_sent(self, date: str, notif_type: str) -> None:
         with self._tx() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO notifications_sent (date, type)"
-                " VALUES (?, ?)",
-                (date, notif_type),
+                "INSERT OR IGNORE INTO notifications_sent (date, type, sent_at)"
+                " VALUES (?, ?, ?)",
+                (date, notif_type, _local_now()),
             )
 
 
@@ -284,5 +311,6 @@ def _optional_float(value: Optional[str]) -> Optional[float]:
     return float(value)
 
 
-def _float(value: object) -> float:
-    return float(str(value))
+def _local_now() -> str:
+    """Host-local wall-clock timestamp for persisted event times."""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
