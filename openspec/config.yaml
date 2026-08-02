@@ -1,0 +1,58 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.14.6, FastAPI 0.141.1, uvicorn[standard] (uvloop), pywebpush + py-vapid
+    (Web Push), stdlib sqlite3, vanilla JS SPA in static/ (no framework, no build step).
+  Architecture: module-per-concern — main.py app factory, routes.py /api/* endpoints,
+    database.py (sync sqlite + run_db thread helper), rewards.py pure logic, notifications.py,
+    scheduler.py background loop, constants.py, models.py dataclasses. State on fastapi
+    app.state; async request path. Single-user, no auth.
+  Testing: pytest 9.1.1 + pytest-asyncio 1.4.0 (asyncio_mode=strict), httpx ASGITransport
+    in-process API tests, conftest harness (tmp_path DB, scheduler disabled, send_to_all
+    stubbed). 37 tests passing.
+  Style: type hints required, dataclasses for state objects, no global state outside
+    app.state, no print() (get_logger), no bare except, conventional commits, no AI
+    attribution in commits.
+
+strict_tdd: true
+
+testing:
+  runner: pytest
+  command: .venv/bin/python -m pytest
+  framework: pytest 9.1.1 + pytest-asyncio 1.4.0 (asyncio_mode=strict)
+  layers:
+    unit: pytest
+    integration: httpx.ASGITransport (in-process, tests/conftest.py client fixture)
+    e2e: none
+  coverage: false
+  quality:
+    linter: none
+    type_checker: none
+    formatter: none
+
+rules:
+  proposal:
+    - Scope to a single-user, no-auth app.
+    - Include rollback plan for risky changes.
+  specs:
+    - Use Given/When/Then for scenarios.
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY).
+  design:
+    - Follow the module map in AGENTS.md; keep pure logic (rewards.py) free of I/O.
+    - Document architecture decisions with rationale.
+  tasks:
+    - Group by phase, use hierarchical numbering.
+    - Keep tasks completable in one session.
+    - Every new code path MUST have a regression test (AGENTS.md hard rule 5).
+  apply:
+    guidelines:
+      - Follow existing patterns: async request path, dataclasses in models.py, state on app.state.
+      - Wrap sync sqlite calls with await run_db(...); never sync DB calls in the request path.
+    tdd: true
+    test_command: .venv/bin/python -m pytest
+  verify:
+    test_command: .venv/bin/python -m pytest
+    build_command: ""
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas.
