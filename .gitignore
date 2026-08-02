@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# App data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+vapid_keys.json
+.env
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Codegraph / tools
+.codegraph/
