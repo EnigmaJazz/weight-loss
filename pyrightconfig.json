@@ -1,0 +1,7 @@
+{
+  "venvPath": ".venv",
+  "pythonPlatform": "linux",
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "basic",
+  "exclude": ["**/__pycache__", "**/.git", "static"]
+}
