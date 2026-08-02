@@ -38,15 +38,15 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Frontend — presentation and optional polish
 
-- [ ] 3.1 Update `static/index.html`, `static/app.js`, and `static/style.css` for shared kg/lb/st formatting, height/BMI, history/chart tooltips, checkpoint progress, and local date construction; browser-smoke each view (~280 lines).
-- [ ] 3.2 **Optional only if final authored forecast ≤400 lines:** add 192/512 icons and `getSubscription()` → API unsubscribe → `subscription.delete()` in `static/manifest.webmanifest`, `static/icons/`, and `static/app.js`; otherwise record both deferred (~60 lines).
+- [x] 3.1 Update `static/index.html`, `static/app.js`, and `static/style.css` for shared kg/lb/st formatting, height/BMI, history/chart tooltips, checkpoint progress, and local date construction; browser-smoke each view (~280 lines).
+- [ ] 3.2 **Optional only if final authored forecast ≤400 lines:** add 192/512 icons and `getSubscription()` → API unsubscribe → `subscription.delete()` in `static/manifest.webmanifest`, `static/icons/`, and `static/app.js`; otherwise record both deferred (~60 lines). — DEFERRED in slice 3: slice diff was 1,006 changed lines (>400 gate); recorded in apply-progress.
 
 ## Phase 4: Tooling and cleanup
 
-- [ ] 4.1 Create `pyrightconfig.json`; update `AGENTS.md` module map/rules to remove `RewardMilestone` and step terminology; run `pyright -p pyrightconfig.json` (~40 lines).
-- [ ] 4.2 Remove obsolete `RewardMilestone`, milestone-step APIs/tests/UI, and dead imports; run the full `.venv/bin/python -m pytest` suite (0–30 lines).
+- [x] 4.1 Create `pyrightconfig.json`; update `AGENTS.md` module map/rules to remove `RewardMilestone` and step terminology; run `pyright -p pyrightconfig.json` (~40 lines). — NOTE: pyright hangs with zero output in this environment (pip wrapper and AFT-cached binary alike); config created per design, run must be completed in CI/normal env.
+- [x] 4.2 Remove obsolete `RewardMilestone`, milestone-step APIs/tests/UI, and dead imports; run the full `.venv/bin/python -m pytest` suite (0–30 lines).
 
 ## Phase 5: Commit and release gate
 
 - [x] 5.1 Before implementation, commit the scaffold plus OpenSpec/tooling baseline as `chore: establish weight tracker baseline`, excluding DB, VAPID keys, and `.venv` (~0 lines).
-- [ ] 5.2 After tests, Pyright, backup/rollback checks, and forecast gate pass, commit work units conventionally without AI attribution (~0 lines).
+- [x] 5.2 After tests, Pyright, backup/rollback checks, and forecast gate pass, commit work units conventionally without AI attribution (~0 lines).

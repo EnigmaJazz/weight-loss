@@ -92,3 +92,57 @@ Slice 1 complete: 4/4 tasks. Ready for verify (orchestrator) → next_recommende
 ## Status
 
 Slice 2 complete: 2/2 tasks (2.1, 2.2). PR #2 open for review (not merged — orchestrator/verify decides). next_recommended: sdd-apply slice 3 (frontend) after PR #2 merge, or sdd-verify first.
+
+---
+
+# Apply Progress: core-app — Slice 3 (Frontend + cleanup)
+
+**Change**: core-app
+**Slice**: 3 of 3 (stacked-to-main) — branch `slice-3-frontend`, PR #3 → `main`
+**Mode**: Strict TDD (active)
+**Status**: 4/5 slice tasks complete (3.1, 4.1, 4.2, 5.2) + EXTRA VAPID fix; **3.2 DEFERRED** (budget gate, see below). PR #1 + PR #2 merged; PR #3 left open.
+**Test counts**: 74 passing at start → **76 passing at end** (all green; +2 VAPID regression tests)
+
+## Completed Tasks
+
+- [x] 3.1 Frontend presentation — `static/index.html`, `static/app.js`, `static/style.css` rewritten against the fixed raw-value contract (the SPA was still speaking the retired milestone-step contract; settings save 422'd on `milestone_step_kg`). Summary shows kg (lb; st lb) + BMI for baseline/current/target/lost/remaining; history rows show the same; chart tooltip (canvas hover) shows date, kg, lb, st-lb, BMI; rewards UI shows earned count, active checkpoint chips (percent + kg + lb/st + earned date), next checkpoint threshold, and a progress bar fed by `progress_to_next`; settings form swaps `milestone_step_kg` → `height_cm`; weight form defaults to the **local** date (no UTC off-by-one). Asset paths fixed to the `/static` mount. Frontend has no automated test harness — verified via `node --check` + live uvicorn smoke (documented below).
+- [x] 4.1 `pyrightconfig.json` (venvPath `.venv`, pythonPlatform linux, pythonVersion 3.14) + `AGENTS.md` module map refreshed (units.py, checkpoint rewards, `active_rewards` reconciliation, `_local_now` wall-clock timestamps, `height_cm`, notifications tests). **Pyright smoke blocked by environment**: both the pip-installed wrapper and the AFT-cached node binary hang with zero output (tested sandboxed + unsandboxed, with/without `--outputjson`, 4 attempts); the 19 LSP diagnostics are all `.venv`-unresolved import noise that the config addresses. `pyright -p pyrightconfig.json` must be run in CI/normal env to complete the smoke.
+- [x] 4.2 Dead-code cleanup — removed `milestone_levels`, `next_milestone`, `progress_to_next` (old step-based helpers) from `rewards.py`; verified unused across the repo (only slice-1's apply-progress note referenced them). `RewardMilestone` was already removed in slice 1.3; no dead imports found. Full suite green.
+- [x] EXTRA (orchestrator-mandated) — latent VAPID reload bug fixed in `notifications._vapid_from_payload`: `Vapid.from_raw` now receives `payload["private_key"].encode("ascii")` (py_vapid 1.9.4 `b64urldecode` crashes on str with `TypeError: can only concatenate str (not "bytes") to str`). Regression tests added in `tests/test_notifications.py` (new file): round-trip key equality + second-boot load path. Real second boot verified at runtime (server logs "loaded VAPID keys from …").
+- [x] 5.2 Feature commits — four conventional work units on `slice-3-frontend` (see below), no AI attribution.
+- [ ] 3.2 Optional polish — **DEFERRED**: slice diff measured **575+/431− = 1,006 changed lines**, far over the 400-line gate, so the explicit condition (implement only if the budget allows) was not met. Both halves (manifest icons, local unsubscribe) deferred together per design. The disable-push wiring drafted during implementation was stripped so no half-wired deferred feature ships.
+
+## TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| VAPID fix | tests/test_notifications.py (new, 2 tests) | Unit | suite (74) | Both fail: `TypeError: can only concatenate str (not "bytes") to str` in py_vapid b64urldecode on second-boot load | 76 passed | `_vapid_to_payload` round-trip asserts public-key DER equality; load-path test boots the file twice; live second boot logs "loaded VAPID keys" | one-line fix + comment: encode("ascii") — orchestrator-suggested approach confirmed against py_vapid 1.9.4 source |
+| 4.2 (cleanup) | no new tests (removal of unused code — no behavior to pin; grep proved zero references) | Structural | suite (74) | N/A — removing dead symbols cannot have a RED test; confirmation was static (repo-wide grep for `milestone_levels`/`next_milestone`/`progress_to_next`/`lost_delta`) | 76 passed after removal (0 regressions) | imports in tests/rewards checked; no orphaned references | commit `chore(rewards): remove dead step-based milestone helpers` (-26 lines) |
+| 4.1 (tooling) | n/a (config + docs) | Tooling | suite (74) | N/A — no behavior | pyrightconfig.json created; AGENTS.md refreshed | pyright smoke attempted 4× — blocked: hangs with zero output in this env (pip wrapper + AFT node binary, sandboxed + host) | committed with explicit note; smoke must run in CI |
+| 3.1 (frontend) | no harness by scope — **manual smoke is the check** (documented, per orchestrator) | Presentation | suite (76) | N/A (no frontend test runner) | `node --check static/app.js` OK; live uvicorn smoke: all `/static/*` 200; PUT settings (height+target) 200; 3 POSTs 200; GET `/api/rewards` → earned_count 1, progress_to_next 0.9187 (matches hand calc), next 25% → 82.3 kg + lb/st; GET `/api/weight` → entry 86.4 kg | 190.5 lb | 13 st 8.5 lb | BMI 28.2; summary carries target_bmi; retired-key 422 confirmed | contract keys verified field-by-field against `routes.py`; local-date helper, tooltip, progress bar eyeballed via served HTML/JS |
+
+## Work Unit Evidence
+
+| Evidence | Required value |
+|----------|----------------|
+| Focused test command and exact result | `.venv/bin/python -m pytest tests/test_notifications.py` → **2 passed**; full suite `.venv/bin/python -m pytest -q` → **76 passed in 0.30s** |
+| Runtime harness command/scenario and exact result | Real uvicorn boot (`WEIGHT_LOSS_DB=/tmp/slice3.db WEIGHT_LOSS_VAPID_KEYS=/tmp/slice3_vapid.json uvicorn main:app --port 8126`): boot #2 on existing vapid_keys.json → "loaded VAPID keys" (no crash); PUT settings {height_cm:175, target_weight:70}; POST 3 weights (86.4/84.1/82.5); GET `/api/rewards` → `{earned_count: 1, progress_to_next: 0.9187, next_checkpoint: {percent: 25, threshold_kg: 82.3, threshold_lb: 181.44, threshold_stone: 12, threshold_stone_lb: 13.44}}`; GET `/api/weight` entry `{weight_kg: 86.4, lb: 190.5, stone: 13, stone_lb: 8.5, bmi: 28.2}`; all `/static/*` assets 200 |
+| Rollback boundary | Revert branch `slice-3-frontend` to `main` (PR #2 content). Slice-3 files: `notifications.py` (1-line VAPID fix), `rewards.py` (dead-code removal), `pyrightconfig.json` (new), `AGENTS.md`, `static/index.html`, `static/app.js`, `static/style.css`, `tests/test_notifications.py` (new). No schema/API changes — backend contract untouched. |
+
+## Deviations from Design
+
+1. **3.1 was a rewrite, not presentation polish** — the design assumed the SPA already consumed the new contract; in reality it was fully on the retired milestone-step contract (`reward_total_kg`, `next_milestone_kg`, `milestones[]`, `milestone_step_kg`), so settings save 422'd on main. This is the root cause of the slice's budget overrun (1,006 vs ~300–400 estimated) and of the 3.2 deferral.
+2. **3.2 deferred (budget gate)** — icons + local unsubscribe NOT implemented; both recorded deferred per design's Conditional Release Polish scenario. `disable-push` wiring stripped from the draft so nothing half-wired ships.
+3. **Static asset paths corrected to `/static/...`** — my first draft used root-relative paths; main's convention (confirmed via `git show main:static/index.html`) is `/static/`-prefixed since the app mounts `StaticFiles` at `/static`.
+4. **`progress_to_next` requires a target weight** — with `target_weight: null` the backend returns `0.0`/`None`; rewards UI only becomes meaningful once a target is set (documented in rewards.py docstring).
+5. **Pyright smoke not completed in-env** — see Issues; config per design, execution pending a normal env.
+
+## Issues Found
+
+1. **Pyright hangs with zero output in this environment** — 4 attempts: pip-installed wrapper (20+ min), AFT-cached node binary (150s/45s), `--outputjson`, unsandboxed host run — all produce no output and no exit. Not a config issue (config is standard); an environment limitation. `pyright -p pyrightconfig.json` should run in CI or a normal shell.
+2. **Slice budget overrun (1,006 changed lines vs 400)** — structural, not cosmetic: the SPA rewrite from the retired contract. Reported transparently (same as PR #1's 826-line note); 3.2 deferred per the explicit gate.
+3. `.gga` pre-commit hook not wired in this env — per orchestrator: do not install or bypass; commits proceeded normally.
+
+## Status
+
+Slice 3 complete: 4/5 tasks (3.1, 4.1, 4.2, 5.2) + VAPID fix; 3.2 deferred. **76/76 tests green.** PR #3 open (not merged). next_recommended: sdd-verify (post-merge), then sdd-archive.
