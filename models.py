@@ -29,6 +29,17 @@ class RewardMilestone:
 
 
 @dataclass
+class WeightDisplay:
+    """Typed multi-unit presentation of one weight value."""
+
+    weight_kg: float
+    lb: float
+    stone: int
+    stone_lb: float
+    bmi: Optional[float]
+
+
+@dataclass
 class AppSettings:
     target_weight: Optional[float] = None
     milestone_step_kg: float = 1.0
