@@ -8,12 +8,12 @@
 | 400-line budget risk | High |
 | Chained PRs recommended | Yes |
 | Suggested split | PR 1 foundation; PR 2 backend; PR 3 frontend/tooling |
-| Delivery strategy | ask-on-risk |
-| Chain strategy | pending user choice |
+| Delivery strategy | ask-on-risk (resolved: chained PRs, stacked-to-main) |
+| Chain strategy | stacked-to-main |
 
-Decision needed before apply: Yes
+Decision needed before apply: Yes — resolved: chained PRs, stacked-to-main
 Chained PRs recommended: Yes
-Chain strategy: pending
+Chain strategy: stacked-to-main
 400-line budget risk: High
 
 ### Suggested Work Units
@@ -26,10 +26,10 @@ Chain strategy: pending
 
 ## Phase 1: Foundation — units, rewards, persistence
 
-- [ ] 1.1 Add RED tests in `tests/test_units.py` for kg/lb, stone decomposition, BMI, and missing height; create `units.py` pure display helpers (~100 lines).
-- [ ] 1.2 Replace step-based RED cases in `tests/test_rewards.py` with five thresholds, equality, regression, re-earn, override/earliest start, and band progress; redesign `rewards.py` (~160 lines).
-- [ ] 1.3 Add RED migration/settings tests in `tests/test_api.py`/`tests/test_weight.py` for local timestamps, `active_rewards`, `height_cm`, and retired-key rejection; update `models.py`, `constants.py`, and `database.py` (~220 lines).
-- [ ] 1.4 Reconcile active rewards transactionally after startup, weight upsert/delete, and reward-affecting settings updates; wire startup reconciliation in `main.py` and prove earliest/latest-entry changes (~100 lines).
+- [x] 1.1 Add RED tests in `tests/test_units.py` for kg/lb, stone decomposition, BMI, and missing height; create `units.py` pure display helpers (~100 lines).
+- [x] 1.2 Replace step-based RED cases in `tests/test_rewards.py` with five thresholds, equality, regression, re-earn, override/earliest start, and band progress; redesign `rewards.py` (~160 lines).
+- [x] 1.3 Add RED migration/settings tests in `tests/test_api.py`/`tests/test_weight.py` for local timestamps, `active_rewards`, `height_cm`, and retired-key rejection; update `models.py`, `constants.py`, and `database.py` (~220 lines).
+- [x] 1.4 Reconcile active rewards transactionally after startup, weight upsert/delete, and reward-affecting settings updates; wire startup reconciliation in `main.py` and prove earliest/latest-entry changes (~100 lines).
 
 ## Phase 2: Backend — API and scheduler
 
@@ -48,5 +48,5 @@ Chain strategy: pending
 
 ## Phase 5: Commit and release gate
 
-- [ ] 5.1 Before implementation, commit the scaffold plus OpenSpec/tooling baseline as `chore: establish weight tracker baseline`, excluding DB, VAPID keys, and `.venv` (~0 lines).
+- [x] 5.1 Before implementation, commit the scaffold plus OpenSpec/tooling baseline as `chore: establish weight tracker baseline`, excluding DB, VAPID keys, and `.venv` (~0 lines).
 - [ ] 5.2 After tests, Pyright, backup/rollback checks, and forecast gate pass, commit work units conventionally without AI attribution (~0 lines).
