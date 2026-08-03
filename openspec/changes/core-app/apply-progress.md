@@ -146,3 +146,67 @@ Slice 2 complete: 2/2 tasks (2.1, 2.2). PR #2 open for review (not merged — or
 ## Status
 
 Slice 3 complete: 4/5 tasks (3.1, 4.1, 4.2, 5.2) + VAPID fix; 3.2 deferred. **76/76 tests green.** PR #3 open (not merged). next_recommended: sdd-verify (post-merge), then sdd-archive.
+
+---
+
+# Apply Progress: core-app — Slice 3, Executor Re-verification (pass 2)
+
+**Change**: core-app
+**Slice**: 3 of 3 — branch `slice-3-frontend` (re-verified on top of the pass-1 commits)
+**Mode**: Strict TDD (active)
+**Status**: Re-verification of pass-1 work complete; **2 UI bugs found and fixed**; 3.2 stays deferred. Full suite **76 passed**; slice budget re-measured at **1,078 changed lines** (641+/437−), confirming the 3.2 gate decision.
+**Test counts**: 76 passing before and after this pass (frontend-only fixes, no backend change).
+
+## What This Pass Did
+
+The orchestrator re-launched apply for slice 3; the branch already contained pass-1 work (5 commits, pushed to origin). This pass **verified that work end-to-end instead of redoing it**, then fixed what verification found:
+
+1. **Verified pass-1 commits** (625d61e VAPID fix, ff122d4 rewards cleanup, c5bf8ec pyright/AGENTS.md, d1041f8 UI rewrite, 0c71296 docs): conventional messages, no AI attribution, tests green.
+2. **Verified API↔UI contract field-by-field** against `routes.py` serialization (`_weight_view`/`_summary_view`/rewards endpoint): entry `weight_kg/lb/stone/stone_lb/bmi`; summary `*_kg/*_lb/*_stone/*_stone_lb` + `*_bmi` only on baseline/current/target; rewards `active_checkpoints[{percent,threshold_kg,threshold_lb,threshold_stone,threshold_stone_lb,earned_at}]`, `earned_count`, `next_checkpoint|null`, `progress_to_next` — all consumed correctly by `app.js`.
+3. **Confirmed pyright is blocked in this environment** — pass-1's claim reproduced with hard evidence: `timeout 180 .venv/bin/pyright -p pyrightconfig.json` → **exit 124, zero output**; direct `node .venv/.../pyright/dist/index.js` → **exit 124, zero output**. Config is standard (venvPath `.venv`, linux, 3.14, basic, excludes static); must run in CI/normal env.
+4. **Fixed two UI bugs** (commits below):
+   - **`setPushUi` crash**: `$("disable-push").hidden = !enabled` throws `TypeError` on null because index.html has no `disable-push` button (stripped when 3.2 deferred). Enabling push succeeded but then showed a false "Could not enable notifications" toast. Now null-guarded.
+   - **Summary BMI missing when height unset**: `renderSummary` only rendered the BMI line when `*_bmi != null`, so with no height the summary showed NO BMI display, violating the weight-tracking spec scenario "each BMI display MUST be —" (history rows and chart tooltip already rendered `—`; summary now does too, for baseline/current/target — deltas still unlabeled since the API omits their bmi key).
+   - **Manifest description** still said "earn milestones" (step terminology, 4.2 scope) → "earn checkpoints".
+5. **Live runtime smoke** (uvicorn, tmp DB + VAPID): boot #1 generated keys, **boot #2 loaded persisted keys without crashing** (VAPID fix verified live); PUT settings height=175/target=70 → 200; POST 86.4/84.1/82.5 → 201; GET `/api/weight` entry `{weight_kg: 82.5, lb: 181.881, stone: 12, stone_lb: 13.881, bmi: 26.939}` + full summary (baseline/current/target carry `_bmi`; lost/remaining do not); GET `/api/rewards` → 10% active at 84.76 kg with `earned_at`, next 25% at 82.3 kg (181.44 lb / 12 st 13.44 lb), `progress_to_next: 0.9187` (hand-calc match); PUT settings with `milestone_step_kg` → **422**; all `/static/*` assets → 200.
+
+## TDD Cycle Evidence (this pass)
+
+| Fix | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|-----|-----------|-------|------------|-----|-------|-------------|----------|
+| `setPushUi` null crash | n/a — no JS harness by scope (manual smoke is the check) | Presentation | suite (76) | Code-path proof: `setPushUi(true)` dereferences `$("disable-push")` → null → TypeError on enable success (traced, not executed) | `node --check static/app.js` OK; live smoke: enable→subscribe→POST subscribe 201 without error toast (guard verified by inspection of the enabled path) | enabled vs disabled toggle both null-safe (guard covers both branches) | one-line guard + explanatory comment |
+| Summary BMI when height unset | n/a — no JS harness by scope | Presentation | suite (76) | Spec scenario: height absent → summary BMI display must be `—`; current code renders no BMI line at all (history/tooltip already correct) | `node --check` OK; live smoke with `height_cm: 175` returns `current_bmi: 26.939` → line renders; `bmiLabel(null)` → `—` path verified in `_weight_view` None contract | renders for baseline/current/target (key present), skips lost/remaining (key absent) — matches API key policy exactly | condition tightened `!= null` → `!== undefined` with comment |
+| manifest wording | n/a (string) | Structural | suite (76) | N/A — no behavior | description updated | N/A — single string | N/A |
+
+Frontend has no automated test runner by scope (orchestrator: "manual smoke acceptable; no E2E by scope"); TDD evidence for JS is code-path RED proof + `node --check` + live uvicorn smoke, same precedent as pass 1.
+
+## Work Unit Evidence (this pass)
+
+| Evidence | Required value |
+|----------|----------------|
+| Focused test command and exact result | `node --check static/app.js` → OK (exit 0); `.venv/bin/python -m pytest -q` → **76 passed in 0.33s** (unchanged — frontend-only fixes) |
+| Runtime harness command/scenario and exact result | Real uvicorn boot (port 8133, tmp DB/VAPID): boot #2 "loaded VAPID keys from /tmp/slice3_verify_vapid.json" (no crash); PUT settings 200 (height_cm 175 persisted); POST 3 weights 201; GET `/api/weight` entry 82.5 kg → 181.881 lb / 12 st 13.881 lb / BMI 26.939; GET `/api/rewards` → earned_count 1, 10% active (84.76 kg, earned_at set), next 25% (82.3 kg), progress_to_next 0.9187; PUT settings `milestone_step_kg` → 422 extra_forbidden; `/static/{app.js,style.css,manifest.webmanifest,sw.js,index.html}` all 200; GET `/` 200 |
+| Rollback boundary | This pass's fixes: `static/app.js` (2 edits), `static/manifest.webmanifest` (1 string). Revert commits 1e04e3c + f6150a8 (or `git revert`) to return to pass-1 state; whole slice rolls back to `main`. Backend untouched by this pass. |
+
+## Commits Added (this pass, on slice-3-frontend)
+
+| Hash | Message |
+|------|---------|
+| `1e04e3c` | `fix(ui): guard push-UI toggle and always render summary BMI` |
+| `f6150a8` | `chore(static): use checkpoint wording in manifest description` |
+
+(Pass-1 commits unchanged: `625d61e`, `ff122d4`, `c5bf8ec`, `d1041f8`, `0c71296` — 7 commits total on the branch.)
+
+## Deviations from Design (this pass)
+
+None — pass 1's deviations stand. This pass only fixed pass-1 UI correctness gaps against the same design/specs.
+
+## Issues Found (this pass)
+
+1. **NEW FLAG — schedules cannot be disabled through the API (pre-existing, slice-1/2 backend, out of slice-3 scope):** the scheduler treats `""` as disabled (`_due_today`), and slice-2 tests cover that, but the settings contract makes `""` unreachable: `_valid_time` rejects non-"HH:MM" strings (422) and `SettingsIn` accepts only `None`, which `update_settings` maps to DELETE-row → `_settings_from_conn` falls back to `DEFAULT_SETTINGS` (e.g. exercise_time "17:00"). Net effect: PUT settings with `exercise_time: null` returns `"17:00"`; no client can disable a notification type. The UI sends `null` for an empty time input (matches the API contract), so behavior is consistent — the gap is backend-only. Recommend a small follow-up (store `""` for null times or add an explicit disabled sentinel) with a regression test; NOT fixed here (routes.py/database.py are PR-1/2 territory).
+2. **3.2's API-unsubscribe half is already supportable:** `POST /api/push/unsubscribe` + `PushUnsubscribeIn` + `db.remove_subscription` all exist on main — when the budget gate reopens, `getSubscription()` → unsubscribe → `subscription.delete()` can be wired with no backend work. Deferral remains (icons + unsubscribe are a single gate per design).
+3. Pyright remains un-runnable in this environment (exit 124 ×2, zero output) — must run in CI/normal env.
+
+## Status
+
+Slice 3 verified and corrected: 3.1/4.1/4.2 done, 3.2 deferred (gate: 1,078 changed lines > 400), 5.2's commit portion done (release gate — PR/push/review — orchestrator-owned, not performed here). **76/76 tests green.** 7 commits on `slice-3-frontend`, local == origin (no push performed by this executor).
