@@ -93,7 +93,10 @@ function renderSummary(s) {
     name.className = "stat-label";
     name.textContent = label;
     stat.append(value, name);
-    if (s[`${key}_bmi`] != null) {
+    // *_bmi is always present on real weights (baseline/current/target) but
+    // null when height is unset; render the line so the spec's "BMI —"
+    // shows instead of nothing. Deltas (lost/remaining) never carry a bmi key.
+    if (s[`${key}_bmi`] !== undefined) {
       const bmi = document.createElement("div");
       bmi.className = "stat-sub";
       bmi.textContent = `BMI ${bmiLabel(s[`${key}_bmi`])}`;
@@ -420,7 +423,10 @@ async function testPush() {
 
 function setPushUi(enabled) {
   $("enable-push").hidden = enabled;
-  $("disable-push").hidden = !enabled;
+  const disable = $("disable-push");
+  // 3.2 deferred: the local-unsubscribe button is not in the DOM yet, so the
+  // toggle must tolerate its absence (never throw on enable success).
+  if (disable) disable.hidden = !enabled;
   $("test-push").hidden = !enabled;
 }
 
