@@ -39,7 +39,7 @@ Chain strategy: stacked-to-main
 ## Phase 3: Frontend — presentation and optional polish
 
 - [x] 3.1 Update `static/index.html`, `static/app.js`, and `static/style.css` for shared kg/lb/st formatting, height/BMI, history/chart tooltips, checkpoint progress, and local date construction; browser-smoke each view (~280 lines).
-- [ ] 3.2 **Optional only if final authored forecast ≤400 lines:** add 192/512 icons and `getSubscription()` → API unsubscribe → `subscription.delete()` in `static/manifest.webmanifest`, `static/icons/`, and `static/app.js`; otherwise record both deferred (~60 lines). — DEFERRED in slice 3: slice diff was 1,006 changed lines (>400 gate); recorded in apply-progress.
+- [x] 3.2 **Optional only if final authored forecast ≤400 lines:** add 192/512 icons and `getSubscription()` → API unsubscribe → `subscription.delete()` in `static/manifest.webmanifest`, `static/icons/`, and `static/app.js`; otherwise record both deferred (~60 lines). — COMPLETED VIA DEFERRAL BRANCH (task's own "otherwise"): final authored forecast 1,142 changed lines > 400 gate, so both halves (icons + local unsubscribe) recorded deferred in apply-progress; backend `POST /api/push/unsubscribe` already exists on main for a future re-open.
 
 ## Phase 4: Tooling and cleanup
 
