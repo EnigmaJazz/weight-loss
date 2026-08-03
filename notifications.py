@@ -37,7 +37,10 @@ def _vapid_to_payload(vapid: Vapid) -> dict[str, str]:
 
 
 def _vapid_from_payload(payload: dict[str, str]) -> Vapid:
-    return Vapid.from_raw(payload["private_key"])
+    # py_vapid Vapid.from_raw expects the raw private key as bytes; the
+    # persisted payload stores it as a b64url str, so pass bytes or the
+    # b64urldecode inside from_raw crashes with TypeError on second boot.
+    return Vapid.from_raw(payload["private_key"].encode("ascii"))
 
 
 def load_or_generate_vapid(vapid_path: str) -> tuple[Vapid, str]:

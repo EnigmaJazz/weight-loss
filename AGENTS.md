@@ -9,7 +9,7 @@ project-specific.
 - Python 3.14, FastAPI 0.141.x, uvloop event loop
 - pytest + pytest-asyncio (strict mode) — async tests need `@pytest.mark.asyncio`
 - httpx ASGITransport for in-process API tests
-- dataclasses for internal state objects (WeightEntry, RewardMilestone, etc.)
+- dataclasses for internal state objects (WeightEntry, ActiveCheckpoint, RewardState, etc.)
 - SQLite (`weight_loss.db`) via the stdlib `sqlite3` module
 - Web Push via `pywebpush` + `py_vapid` (VAPID keys persisted to `vapid_keys.json`)
 
@@ -18,13 +18,16 @@ project-specific.
 - `main.py` — FastAPI app factory (`create_app`) + lifespan wiring + `init_app_state`
 - `routes.py` — all `/api/*` endpoints, request-body validation, serialization
 - `database.py` — SQLite schema, `Database` class (single connection + lock), row → dataclass mapping, `run_db` thread helper
-- `rewards.py` — pure milestone logic: `compute_baseline`, `compute_lost`, `milestone_levels`, `next_milestone`
-- `notifications.py` — VAPID load/generate/persist, `send_push`, `send_to_all` (pywebpush)
+- `database.py` — SQLite schema, `Database` class (single connection + lock), row → dataclass mapping, `run_db` thread helper, `_local_now` wall-clock timestamps, `active_rewards` reconciliation
+- `units.py` — pure conversions: `kg_to_lb`, `kg_to_stone`, `calculate_bmi`, `weight_display` (returns raw values; rounding for display is the SPA's job)
+- `rewards.py` — checkpoint rewards: `CHECKPOINTS` (10/25/50/75/100), `checkpoint_thresholds`, `active_checkpoints`, `next_checkpoint`, `progress_to_next_checkpoint`, `reward_state`, `compute_baseline`/`compute_current`/`compute_lost`, `remaining_to_target`
+- `notifications.py` — VAPID load/generate/persist (persisted payload loads via `_vapid_from_payload`), `send_push`, `send_to_all` (pywebpush)
 - `scheduler.py` — asyncio background loop, daily due-check, dedupe via `notifications_sent`
 - `constants.py` — logger factory (`get_logger`), defaults, DB path, VAPID path, notification messages
-- `models.py` — dataclasses: `WeightEntry`, `PushSubscription`, `RewardMilestone`, `AppSettings`
-- `static/` — vanilla JS SPA (index.html, app.js, style.css, sw.js, manifest.webmanifest)
-- `tests/` — conftest harness + weight/rewards/api/scheduler regression tests
+- `models.py` — dataclasses: `WeightEntry`, `PushSubscription`, `ActiveCheckpoint`, `RewardState`, `AppSettings` (`height_cm`), `WeightDisplay`
+- `static/` — vanilla JS SPA (index.html, app.js, style.css, sw.js, manifest.webmanifest); formats the API's raw kg/lb/st/BMI values
+- `tests/` — conftest harness + weight/rewards/api/scheduler/notifications regression tests
+- `pyrightconfig.json` — pyright config pinned to the `.venv` interpreter (pythonPlatform linux)
 
 ## Hard rules
 
