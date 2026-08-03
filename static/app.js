@@ -7,27 +7,9 @@ const $ = (id) => document.getElementById(id);
 const toastEl = $("toast");
 
 /* ---- formatting -------------------------------------------------------- */
-
-function fmt1(v) {
-  return v == null ? "—" : Number(v).toFixed(1);
-}
-
-/** "82.5 kg (181.9 lb; 13 st 0.4 lb)" from flat keys; null-safe. */
-function weightLabel(kg, lb, stone, stoneLb) {
-  if (kg == null) return "—";
-  const parts = [];
-  parts.push(`${fmt1(kg)} kg`);
-  if (lb != null) parts.push(`${fmt1(lb)} lb`);
-  if (stone != null && stoneLb != null) {
-    parts.push(`${Math.round(stone)} st ${fmt1(stoneLb)} lb`);
-  }
-  return parts.join(" (") + (parts.length > 1 ? ")" : "");
-}
-
-/** Summary rows use prefixed keys: prefix_kg, prefix_lb, prefix_stone, prefix_stone_lb. */
-function summaryLabel(o, prefix) {
-  return weightLabel(o[`${prefix}_kg`], o[`${prefix}_lb`], o[`${prefix}_stone`], o[`${prefix}_stone_lb`]);
-}
+/* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
+ * before app.js) so node:test can pin the exact display contract. */
+const { fmt1, weightLabel, summaryLabel } = globalThis.WeightFormat;
 
 function bmiLabel(bmi) {
   return bmi == null ? "—" : fmt1(bmi);
