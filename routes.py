@@ -49,7 +49,13 @@ def _valid_date(value: str) -> str:
 
 
 def _valid_time(value: Optional[str]) -> Optional[str]:
-    if value is None:
+    """Validate a notification schedule time.
+
+    Accepts strict "HH:MM" for enabled schedules, "" as the disabled
+    sentinel (persisted unchanged), and None (JSON null) as the
+    restore-default operation that removes the override.
+    """
+    if not value:
         return value
     parts = value.split(":")
     if len(parts) != 2 or not all(p.isdigit() and len(p) == 2 for p in parts):
