@@ -19,3 +19,6 @@ vapid_keys.json
 
 # Codegraph / tools
 .codegraph/
+
+# Gentle AI provider config
+.gga
