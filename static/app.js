@@ -305,8 +305,10 @@ async function saveSettings(ev) {
     return v === "" ? null : Number(v);
   };
   const time = (id) => {
+    // Empty input disables the schedule (the "" sentinel); never null,
+    // which would remove the override and restore the default instead.
     const v = $(id).value.trim();
-    return v === "" ? null : v;
+    return v;
   };
   try {
     await fetchJson("/api/settings", {
