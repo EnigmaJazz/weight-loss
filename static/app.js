@@ -294,6 +294,7 @@ function renderSettings(s) {
   $("height-cm").value = s.height_cm ?? "";
   $("tip-time").value = s.tip_time ?? "";
   $("reminder-time").value = s.reminder_time ?? "";
+  $("reminder-weekday").value = s.reminder_weekday ?? 0;
   $("exercise-time").value = s.exercise_time ?? "";
   $("start-override").value = s.start_weight_override ?? "";
 }
@@ -319,6 +320,7 @@ async function saveSettings(ev) {
         height_cm: num("height-cm"),
         tip_time: time("tip-time"),
         reminder_time: time("reminder-time"),
+        reminder_weekday: Number($("reminder-weekday").value),
         exercise_time: time("exercise-time"),
         start_weight_override: num("start-override"),
       }),

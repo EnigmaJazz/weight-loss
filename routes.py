@@ -117,6 +117,7 @@ class SettingsIn(BaseModel):
     target_weight: Optional[float] = Field(default=None, gt=0)
     tip_time: Optional[str] = None
     reminder_time: Optional[str] = None
+    reminder_weekday: Optional[int] = Field(default=None, ge=0, le=6)
     exercise_time: Optional[str] = None
     start_weight_override: Optional[float] = Field(default=None, gt=0)
     height_cm: Optional[float] = Field(default=None, gt=0)

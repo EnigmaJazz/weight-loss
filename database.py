@@ -200,6 +200,9 @@ class Database:
             reminder_time=str(
                 stored.get("reminder_time", DEFAULT_SETTINGS["reminder_time"])
             ),
+            reminder_weekday=_optional_int(
+                stored.get("reminder_weekday", DEFAULT_SETTINGS["reminder_weekday"])
+            ),
             exercise_time=str(
                 stored.get("exercise_time", DEFAULT_SETTINGS["exercise_time"])
             ),
@@ -313,6 +316,12 @@ def _optional_float(value: Optional[str]) -> Optional[float]:
     if value is None or value == "":
         return None
     return float(value)
+
+
+def _optional_int(value: Optional[str]) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    return int(value)
 
 
 def _local_now() -> str:

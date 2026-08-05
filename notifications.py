@@ -80,13 +80,21 @@ def _subscription_info(subscription: PushSubscription) -> dict[str, Any]:
 
 
 def send_push(
-    subscription: PushSubscription, title: str, body: str, vapid: Vapid
+    subscription: PushSubscription,
+    title: str,
+    body: str,
+    vapid: Vapid,
+    notif_type: str = "test",
 ) -> bool:
-    """Send one push notification. Returns True on success, False on failure."""
+    """Send one push notification. Returns True on success, False on failure.
+
+    The notification type becomes the service-worker tag so daily tip,
+    weekly weigh-in, and exercise notifications display independently instead
+    of collapsing onto the same slot."""
     try:
         webpush(
             subscription_info=_subscription_info(subscription),
-            data=json.dumps({"title": title, "body": body}),
+            data=json.dumps({"title": title, "body": body, "tag": notif_type}),
             vapid_private_key=vapid,
             vapid_claims={"sub": VAPID_SUBJECT},
             ttl=3600,
@@ -104,12 +112,16 @@ async def send_to_all(
     title: str,
     body: str,
     vapid: Vapid,
+    notif_type: str = "test",
 ) -> int:
     """Send a notification to every subscription. Returns successful-send count."""
     subs = list(subscriptions)
     if not subs:
         return 0
     results = await asyncio.gather(
-        *(asyncio.to_thread(send_push, sub, title, body, vapid) for sub in subs)
+        *(
+            asyncio.to_thread(send_push, sub, title, body, vapid, notif_type)
+            for sub in subs
+        )
     )
     return sum(1 for ok in results if ok)

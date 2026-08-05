@@ -30,10 +30,16 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "target_weight": None,
     "tip_time": "09:00",
     "reminder_time": "20:00",
+    "reminder_weekday": 0,  # Monday=0 ... Sunday=6 (datetime.weekday())
     "exercise_time": "17:00",
     "start_weight_override": None,
     "height_cm": None,
 }
+
+# Notification types and whether each fires daily or weekly (fixed weekday).
+# tip/exercise: daily; reminder (weigh-in): weekly on reminder_weekday.
+DAILY_NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "exercise")
+WEEKLY_NOTIFICATION_TYPES: tuple[str, ...] = ("reminder",)
 
 NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "reminder", "exercise")
 
