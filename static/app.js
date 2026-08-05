@@ -587,6 +587,24 @@ function setPushUi(enabled) {
   $("test-push").hidden = !enabled;
 }
 
+async function restorePushUi() {
+  // On a fresh page load the buttons default to "not enabled"; check the
+  // real subscription so an already-enabled device stays showing Disable/Test
+  // instead of flipping back to Enable after every refresh.
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setPushUi(false);
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    setPushUi(!!sub);
+  } catch (_) {
+    /* push stays optional; keep the Enable button */
+    setPushUi(false);
+  }
+}
+
 /* ---- init -------------------------------------------------------------- */
 
 function syncWeightUnitUi() {
@@ -661,6 +679,7 @@ async function init() {
     } catch (err) {
       toast(`Could not load data: ${err.message}`);
     }
+    await restorePushUi();
   }
 }
 
