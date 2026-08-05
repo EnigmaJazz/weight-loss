@@ -396,6 +396,28 @@ async function enablePush() {
   }
 }
 
+async function disablePush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      setPushUi(false);
+      toast("Notifications are already off");
+      return;
+    }
+    await fetchJson("/api/push/unsubscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: sub.endpoint }),
+    });
+    await sub.unsubscribe();
+    toast("Notifications disabled");
+    setPushUi(false);
+  } catch (err) {
+    toast(`Could not disable notifications: ${err.message}`);
+  }
+}
+
 async function testPush() {
   try {
     const res = await fetchJson("/api/push/test", { method: "POST" });
@@ -407,10 +429,7 @@ async function testPush() {
 
 function setPushUi(enabled) {
   $("enable-push").hidden = enabled;
-  const disable = $("disable-push");
-  // 3.2 deferred: the local-unsubscribe button is not in the DOM yet, so the
-  // toggle must tolerate its absence (never throw on enable success).
-  if (disable) disable.hidden = !enabled;
+  $("disable-push").hidden = !enabled;
   $("test-push").hidden = !enabled;
 }
 
@@ -420,6 +439,7 @@ async function init() {
   $("entry-form").addEventListener("submit", addEntry);
   $("settings-form").addEventListener("submit", saveSettings);
   $("enable-push").addEventListener("click", enablePush);
+  $("disable-push").addEventListener("click", disablePush);
   $("test-push").addEventListener("click", testPush);
   $("entry-date").value = todayLocal();
 
