@@ -35,9 +35,13 @@ async def test_index_html_loads_auth_helpers_before_app(client):
     assert resp.status_code == 200
     html = resp.text
     # auth.js must load before app.js (app.js reads globalThis.AuthForm at
-    # module scope), and format.js keeps its existing load order.
-    assert html.index('src="/static/auth.js"') < html.index('src="/static/app.js"')
-    assert 'src="/static/format.js"' in html
+    # module scope), and format.js keeps its existing load order. The srcs
+    # carry a ?v= cache-busting stamp.
+    auth_at = html.find('src="/static/auth.js')
+    app_at = html.find('src="/static/app.js')
+    assert auth_at != -1 and app_at != -1 and auth_at < app_at
+    assert 'src="/static/format.js' in html
+    assert '?v=' in html  # cache busting is active
 
 
 @pytest.mark.asyncio
