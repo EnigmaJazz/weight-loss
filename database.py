@@ -8,7 +8,14 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Optional
 
 from constants import DEFAULT_SETTINGS, get_logger
-from models import AppSettings, PushSubscription, Session, User, WeightEntry
+from models import (
+    AppSettings,
+    PushSubscription,
+    ResetToken,
+    Session,
+    User,
+    WeightEntry,
+)
 from rewards import reward_state
 
 logger = get_logger("database")
@@ -77,11 +84,22 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         salt TEXT NOT NULL,
-        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        email TEXT
     );
     """,
     """
     CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL
+    );
+    """,
+    # ---- email password reset (password-reset) ----
+    """
+    CREATE TABLE IF NOT EXISTS reset_tokens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         token_hash TEXT NOT NULL UNIQUE,
@@ -158,6 +176,14 @@ class DuplicateUsernameError(Exception):
     """Raised when create_user hits the username UNIQUE constraint."""
 
 
+class DuplicateEmailError(Exception):
+    """Raised when a user/email insert or update hits the email UNIQUE index.
+
+    Account recovery is only safe when an email belongs to exactly one account:
+    a shared address would let one owner reset the other's password.
+    """
+
+
 class Database:
     """Thin wrapper around one SQLite connection, serialized by a lock.
 
@@ -195,6 +221,26 @@ class Database:
             for statement in SCHEMA_STATEMENTS:
                 conn.execute(statement)
             self._migrate_legacy_schema(conn)
+            self._migrate_users_schema(conn)
+
+    def _migrate_users_schema(self, conn: sqlite3.Connection) -> None:
+        """Add the users.email column and its partial UNIQUE index to databases
+        created before password-reset support. Idempotent: fresh schemas already
+        carry the column, so the ALTER runs at most once; the index is
+        create-if-missing. Runs inside the caller's transaction."""
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        if "email" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        # Partial index: non-NULL emails must be unique (account recovery is
+        # only safe with exclusive email ownership); NULLs stay unlimited so
+        # accounts that never set an email are unaffected.
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email"
+            " ON users(email) WHERE email IS NOT NULL"
+        )
 
     def _migrate_legacy_schema(self, conn: sqlite3.Connection) -> None:
         """Rebuild pre-auth tables in place, DISCARDING legacy data. Runs
@@ -332,18 +378,27 @@ class Database:
 
     # ---- identity: users ----
 
-    def create_user(self, username: str, password_hash: str, salt: str) -> User:
-        """Insert a user; raise DuplicateUsernameError on a taken username.
+    def create_user(
+        self,
+        username: str,
+        password_hash: str,
+        salt: str,
+        email: Optional[str] = None,
+    ) -> User:
+        """Insert a user; raise DuplicateUsernameError on a taken username and
+        DuplicateEmailError on an email already owned by another account.
 
         Every account starts with an empty dataset; legacy pre-auth rows were
         discarded during migration, so there is no backfill to claim.
         """
         with self._tx() as conn:
+            if email is not None and self._email_taken(conn, email):
+                raise DuplicateEmailError(email)
             try:
                 cursor = conn.execute(
-                    "INSERT INTO users (username, password_hash, salt, created_at)"
-                    " VALUES (?, ?, ?, ?)",
-                    (username, password_hash, salt, _utc_now()),
+                    "INSERT INTO users (username, password_hash, salt, created_at, email)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (username, password_hash, salt, _utc_now(), email),
                 )
             except sqlite3.IntegrityError as exc:
                 raise DuplicateUsernameError(username) from exc
@@ -352,7 +407,7 @@ class Database:
                 raise RuntimeError("user insert produced no row id")
             user_id = int(lastrowid)
             row = conn.execute(
-                "SELECT id, username, password_hash, salt, created_at"
+                "SELECT id, username, password_hash, salt, created_at, email"
                 " FROM users WHERE id = ?",
                 (user_id,),
             ).fetchone()
@@ -360,21 +415,61 @@ class Database:
             raise RuntimeError("user insert produced no row")
         return _user_from_row(row)
 
+    @staticmethod
+    def _email_taken(conn: sqlite3.Connection, email: str) -> bool:
+        """Whether any user row already owns this email (partial-index check)."""
+        row = conn.execute(
+            "SELECT 1 FROM users WHERE email = ? LIMIT 1", (email,)
+        ).fetchone()
+        return row is not None
+
     def get_user_by_username(self, username: str) -> Optional[User]:
         """Fetch a user by its stored (lowercased) username."""
         with self._tx() as conn:
             row = conn.execute(
-                "SELECT id, username, password_hash, salt, created_at"
+                "SELECT id, username, password_hash, salt, created_at, email"
                 " FROM users WHERE username = ?",
                 (username,),
             ).fetchone()
         return _user_from_row(row) if row is not None else None
 
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """Fetch the user owning this (normalized, lowercased) email. The
+        partial UNIQUE index guarantees at most one owner."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT id, username, password_hash, salt, created_at, email"
+                " FROM users WHERE email = ?",
+                (email,),
+            ).fetchone()
+        return _user_from_row(row) if row is not None else None
+
+    def set_user_email(self, user_id: int, email: str) -> User:
+        """Set (or replace) a user's email; raises DuplicateEmailError when the
+        address is already owned by a different account. Returns the updated
+        user."""
+        with self._tx() as conn:
+            taken = conn.execute(
+                "SELECT 1 FROM users WHERE email = ? AND id != ? LIMIT 1",
+                (email, user_id),
+            ).fetchone()
+            if taken is not None:
+                raise DuplicateEmailError(email)
+            conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
+            row = conn.execute(
+                "SELECT id, username, password_hash, salt, created_at, email"
+                " FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("user update produced no row")
+        return _user_from_row(row)
+
     def list_users(self) -> list[User]:
         """All users in registration order — the scheduler's iteration source."""
         with self._tx() as conn:
             rows = conn.execute(
-                "SELECT id, username, password_hash, salt, created_at"
+                "SELECT id, username, password_hash, salt, created_at, email"
                 " FROM users ORDER BY id"
             ).fetchall()
         return [_user_from_row(row) for row in rows]
@@ -407,7 +502,7 @@ class Database:
         """Resolve a session token hash to its user, excluding expired rows."""
         with self._tx() as conn:
             row = conn.execute(
-                "SELECT u.id, u.username, u.password_hash, u.salt, u.created_at"
+                "SELECT u.id, u.username, u.password_hash, u.salt, u.created_at, u.email"
                 " FROM sessions s JOIN users u ON u.id = s.user_id"
                 " WHERE s.token_hash = ? AND s.expires_at > ?",
                 (token_hash, _utc_now()),
@@ -422,6 +517,15 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def delete_sessions_for_user(self, user_id: int) -> int:
+        """Revoke every session for a user (password reset, log out everywhere);
+        return the number of rows removed."""
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM sessions WHERE user_id = ?", (user_id,)
+            )
+            return cursor.rowcount
+
     def delete_expired_sessions(self, now: str) -> int:
         """Sweep sessions expired by the given UTC cutoff; return the count."""
         with self._tx() as conn:
@@ -429,6 +533,73 @@ class Database:
                 "DELETE FROM sessions WHERE expires_at <= ?", (now,)
             )
             return cursor.rowcount
+
+    # ---- identity: password-reset tokens -------
+
+    def create_reset_token(
+        self, user_id: int, token_hash: str, expires_at: str
+    ) -> ResetToken:
+        """Insert a one-time reset token, opportunistically sweeping expired
+        ones first (same pattern as create_session)."""
+        with self._tx() as conn:
+            conn.execute(
+                "DELETE FROM reset_tokens WHERE expires_at <= ?", (_utc_now(),)
+            )
+            cursor = conn.execute(
+                "INSERT INTO reset_tokens (user_id, token_hash, created_at, expires_at)"
+                " VALUES (?, ?, ?, ?)",
+                (user_id, token_hash, _utc_now(), expires_at),
+            )
+            row = conn.execute(
+                "SELECT id, user_id, token_hash, created_at, expires_at"
+                " FROM reset_tokens WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("reset token insert produced no row")
+        return _reset_token_from_row(row)
+
+    def get_user_by_reset_token(self, token_hash: str) -> Optional[User]:
+        """Resolve a one-time reset token hash to its user, excluding expired
+        rows. Missing and expired tokens both resolve to None so the route
+        treats them identically."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT u.id, u.username, u.password_hash, u.salt, u.created_at, u.email"
+                " FROM reset_tokens t JOIN users u ON u.id = t.user_id"
+                " WHERE t.token_hash = ? AND t.expires_at > ?",
+                (token_hash, _utc_now()),
+            ).fetchone()
+        return _user_from_row(row) if row is not None else None
+
+    def delete_reset_token(self, token_hash: str) -> bool:
+        """Consume a one-time reset token; return whether a row was removed."""
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM reset_tokens WHERE token_hash = ?", (token_hash,)
+            )
+            return cursor.rowcount > 0
+
+    def reset_user_password(
+        self,
+        user_id: int,
+        password_hash: str,
+        salt: str,
+        token_hash: str,
+    ) -> None:
+        """Atomic password reset: update the scrypt hash/salt, consume the
+        one-time token, and revoke every session for the user — all inside
+        one transaction, so a crash cannot leave a usable token or live
+        sessions behind a rotated password."""
+        with self._tx() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, salt = ? WHERE id = ?",
+                (password_hash, salt, user_id),
+            )
+            conn.execute(
+                "DELETE FROM reset_tokens WHERE token_hash = ?", (token_hash,)
+            )
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
 
     # ---- settings ----
 
@@ -561,6 +732,17 @@ def _user_from_row(row: sqlite3.Row) -> User:
         password_hash=row["password_hash"],
         salt=row["salt"],
         created_at=row["created_at"],
+        email=row["email"],
+    )
+
+
+def _reset_token_from_row(row: sqlite3.Row) -> ResetToken:
+    return ResetToken(
+        id=row["id"],
+        user_id=row["user_id"],
+        token_hash=row["token_hash"],
+        created_at=row["created_at"],
+        expires_at=row["expires_at"],
     )
 
 

@@ -10,7 +10,13 @@ const toastEl = $("toast");
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
 const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm } = globalThis.WeightFormat;
-const { normalizeUsername, validateUsername, validatePassword } = globalThis.AuthForm;
+const {
+  normalizeUsername,
+  validateUsername,
+  validatePassword,
+  normalizeEmail,
+  validateEmail,
+} = globalThis.AuthForm;
 
 function bmiLabel(bmi) {
   return bmi == null ? "—" : fmt1(bmi);
@@ -50,6 +56,7 @@ const authScreen = $("auth-screen");
 const trackerEl = $("tracker");
 const authForm = $("auth-form");
 let authMode = "login";
+let resetToken = null;
 
 function setAuthMode(mode) {
   authMode = mode;
@@ -58,12 +65,39 @@ function setAuthMode(mode) {
   $("auth-submit").textContent = signup ? "Create account" : "Log in";
   $("auth-toggle").textContent = signup ? "Log in" : "Create account";
   $("auth-password").autocomplete = signup ? "new-password" : "current-password";
+  // The email field belongs to signup (registration requires it); login needs
+  // only username + password. Toggle required so the hidden field never blocks
+  // submit (a hidden required input makes the browser refuse the form).
+  $("auth-email").hidden = !signup;
+  $("auth-email-label").hidden = !signup;
+  $("auth-email").required = signup;
+}
+
+function showAuthForm() {
+  $("auth-form").hidden = false;
+  $("forgot-form").hidden = true;
+  $("reset-form").hidden = true;
+}
+
+function showForgotForm() {
+  setAuthMode("login");
+  $("auth-form").hidden = true;
+  $("forgot-form").hidden = false;
+  $("reset-form").hidden = true;
+}
+
+function showResetForm() {
+  setAuthMode("login");
+  $("auth-form").hidden = true;
+  $("forgot-form").hidden = true;
+  $("reset-form").hidden = false;
 }
 
 function showAuthScreen() {
   authScreen.hidden = false;
   trackerEl.hidden = true;
   $("logout-btn").hidden = true;
+  showAuthForm();
 }
 
 function showTracker() {
@@ -86,18 +120,80 @@ async function submitAuth(ev) {
     toast(passwordError);
     return;
   }
+  const body = { username, password };
+  if (authMode === "signup") {
+    const email = normalizeEmail($("auth-email").value);
+    const emailError = validateEmail(email);
+    if (emailError) {
+      toast(emailError);
+      return;
+    }
+    body.email = email;
+  }
   const endpoint = authMode === "signup" ? "/api/auth/register" : "/api/auth/login";
   try {
     await fetchJson(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify(body),
     });
     $("auth-password").value = "";
     showTracker();
     await loadData();
   } catch (err) {
     toast(`${authMode === "signup" ? "Signup" : "Login"} failed: ${err.message}`);
+  }
+}
+
+async function submitForgot(ev) {
+  ev.preventDefault();
+  const email = normalizeEmail($("forgot-email").value);
+  const emailError = validateEmail(email);
+  if (emailError) {
+    toast(emailError);
+    return;
+  }
+  try {
+    const res = await fetchJson("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    // Always the same generic message — the API never reveals whether the
+    // email is registered, and neither does the UI.
+    $("forgot-email").value = "";
+    toast(res.message || "If that email exists, a reset link is on its way");
+  } catch (err) {
+    toast(`Request failed: ${err.message}`);
+  }
+}
+
+async function submitReset(ev) {
+  ev.preventDefault();
+  const password = $("reset-password").value;
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    toast(passwordError);
+    return;
+  }
+  if (password !== $("reset-confirm").value) {
+    toast("Passwords do not match");
+    return;
+  }
+  try {
+    await fetchJson("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: resetToken, password }),
+    });
+    resetToken = null;
+    $("reset-password").value = "";
+    $("reset-confirm").value = "";
+    setAuthMode("login");
+    showAuthForm();
+    toast("Password reset — log in with your new password");
+  } catch (err) {
+    toast(`Reset failed: ${err.message}`);
   }
 }
 
@@ -644,6 +740,10 @@ async function init() {
   $("auth-toggle").addEventListener("click", () =>
     setAuthMode(authMode === "signup" ? "login" : "signup")
   );
+  $("forgot-link").addEventListener("click", showForgotForm);
+  $("forgot-back").addEventListener("click", showAuthForm);
+  $("forgot-form").addEventListener("submit", submitForgot);
+  $("reset-form").addEventListener("submit", submitReset);
   $("logout-btn").addEventListener("click", logout);
   $("entry-form").addEventListener("submit", addEntry);
   $("settings-form").addEventListener("submit", saveSettings);
@@ -664,6 +764,15 @@ async function init() {
     });
   }
 
+  // A password-reset link (?reset=<token>) deep-links straight to the reset
+  // form; strip the token from the URL so it is not left in the address bar.
+  const params = new URLSearchParams(location.search);
+  const reset = params.get("reset");
+  if (reset) {
+    resetToken = reset;
+    history.replaceState(null, "", location.pathname);
+  }
+
   let authenticated = false;
   try {
     await fetchJson("/api/auth/me");
@@ -680,6 +789,8 @@ async function init() {
       toast(`Could not load data: ${err.message}`);
     }
     await restorePushUi();
+  } else if (resetToken) {
+    showResetForm();
   }
 }
 

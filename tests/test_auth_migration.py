@@ -178,6 +178,55 @@ def test_fresh_db_creates_user_columns_directly(tmp_path):
         db.close()
 
 
+def test_users_table_gains_email_column_idempotently(tmp_path):
+    """A database created before password-reset support (users without an
+    email column) gains it on boot, preserving existing accounts; a second
+    boot leaves the schema untouched."""
+    db_path = str(tmp_path / "pre_email.db")
+    vapid_path = str(tmp_path / "vapid_keys.json")
+    pre = Database(db_path)
+    with pre._tx() as conn:
+        conn.execute(
+            "CREATE TABLE users ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            " username TEXT NOT NULL UNIQUE,"
+            " password_hash TEXT NOT NULL,"
+            " salt TEXT NOT NULL,"
+            " created_at TEXT NOT NULL DEFAULT (datetime('now'))"
+            ")"
+        )
+        conn.execute(
+            "CREATE TABLE sessions ("
+            " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            " user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+            " token_hash TEXT NOT NULL UNIQUE,"
+            " created_at TEXT NOT NULL DEFAULT (datetime('now')),"
+            " expires_at TEXT NOT NULL"
+            ")"
+        )
+        conn.execute(
+            "INSERT INTO users (username, password_hash, salt)"
+            " VALUES ('james', 'hash', 'salt')"
+        )
+    pre.close()
+
+    for _ in range(2):
+        app = create_app(
+            db_path=db_path, vapid_path=vapid_path, start_scheduler=False
+        )
+        init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+        db = app.state.db
+        columns = {
+            row["name"]
+            for row in db.conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        assert "email" in columns
+        # the pre-existing account survives with a NULL email
+        user = db.get_user_by_username("james")
+        assert user is not None
+        assert user.email is None
+
+
 # ---- every new account starts empty --------------------------------------
 
 
@@ -213,7 +262,11 @@ async def test_registered_users_start_empty_after_migration(tmp_path):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.post(
             "/api/auth/register",
-            json={"username": "alice", "password": "password123"},
+            json={
+                "username": "alice",
+                "password": "password123",
+                "email": "alice@example.com",
+            },
         )
         assert resp.status_code == 201
         alice_id = resp.json()["id"]
@@ -228,7 +281,11 @@ async def test_registered_users_start_empty_after_migration(tmp_path):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as bc:
         resp = await bc.post(
             "/api/auth/register",
-            json={"username": "bob", "password": "password123"},
+            json={
+                "username": "bob",
+                "password": "password123",
+                "email": "bob@example.com",
+            },
         )
         assert resp.status_code == 201
         bob_id = resp.json()["id"]

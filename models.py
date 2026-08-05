@@ -11,10 +11,22 @@ class User:
     password_hash: str
     salt: str
     created_at: str
+    email: Optional[str] = None
 
 
 @dataclass
 class Session:
+    id: int
+    user_id: int
+    token_hash: str
+    created_at: str
+    expires_at: str
+
+
+@dataclass
+class ResetToken:
+    """A one-time password-reset token row; only the SHA-256 hash is stored."""
+
     id: int
     user_id: int
     token_hash: str

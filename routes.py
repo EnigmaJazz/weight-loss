@@ -1,6 +1,7 @@
 """HTTP API routes for the weight-loss tracker."""
 
 import asyncio
+import re
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -10,16 +11,21 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+import mailer
 from auth import (
     generate_password_salt,
+    generate_reset_token,
     generate_session_token,
     hash_password,
+    hash_reset_token,
     hash_session_token,
     verify_password,
 )
 from constants import (
     NOTIFICATION_MESSAGES,
     NOTIFICATION_TYPES,
+    PUBLIC_URL,
+    RESET_TOKEN_EXPIRY_SECONDS,
     SESSION_COOKIE_NAME,
     SESSION_COOKIE_PATH,
     SESSION_COOKIE_SAMESITE,
@@ -29,7 +35,7 @@ from constants import (
     TEST_NOTIFICATION_TITLE,
     get_logger,
 )
-from database import Database, DuplicateUsernameError, run_db
+from database import Database, DuplicateEmailError, DuplicateUsernameError, run_db
 from models import User, WeightEntry
 import notifications
 from rewards import (
@@ -68,12 +74,32 @@ async def require_user(
 
 # ---- authentication ----------------------------------------------------
 
+# Basic email format check shared by every validator that accepts an email:
+# local@domain.tld with no spaces. Normalization (strip + lowercase) happens
+# here too so storage, lookup, and the client mirror the username pattern.
+_EMAIL_MAX_LENGTH = 254
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _valid_email(value: str) -> str:
+    normalized = value.strip().lower()
+    if len(normalized) > _EMAIL_MAX_LENGTH or not _EMAIL_RE.match(normalized):
+        raise ValueError("email must be a valid address")
+    return normalized
+
+
+def _valid_password(value: str) -> str:
+    if len(value) < 8:
+        raise ValueError("password must be at least 8 characters")
+    return value
+
 
 class RegisterIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     username: str
     password: str
+    email: str
 
     @field_validator("username")
     @classmethod
@@ -88,9 +114,12 @@ class RegisterIn(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        if len(value) < 8:
-            raise ValueError("password must be at least 8 characters")
-        return value
+        return _valid_password(value)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _valid_email(value)
 
 
 class LoginIn(BaseModel):
@@ -103,6 +132,46 @@ class LoginIn(BaseModel):
     @classmethod
     def normalize_username(cls, value: str) -> str:
         return value.strip().lower()
+
+
+class EmailIn(BaseModel):
+    """Body for PUT /api/auth/me — set or update the account email."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _valid_email(value)
+
+
+class ForgotPasswordIn(BaseModel):
+    """Body for POST /api/auth/forgot-password — an account email."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _valid_email(value)
+
+
+class ResetPasswordIn(BaseModel):
+    """Body for POST /api/auth/reset-password — a one-time token + new password."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str
+    password: str
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _valid_password(value)
 
 
 # ---- request bodies -----------------------------------------------------
@@ -267,6 +336,7 @@ def _user_view(user: User) -> dict[str, Any]:
     return {
         "id": user.id,
         "username": user.username,
+        "email": user.email,
         "created_at": user.created_at,
     }
 
@@ -318,9 +388,13 @@ async def register(
     salt = generate_password_salt()
     password_hash = await asyncio.to_thread(hash_password, payload.password, salt)
     try:
-        user = await run_db(db.create_user, payload.username, password_hash, salt)
+        user = await run_db(
+            db.create_user, payload.username, password_hash, salt, payload.email
+        )
     except DuplicateUsernameError:
         raise HTTPException(status_code=409, detail="username already taken")
+    except DuplicateEmailError:
+        raise HTTPException(status_code=409, detail="email already in use")
     await _establish_session(response, db, user)
     logger.info("registered user %s", user.username)
     return _user_view(user)
@@ -347,6 +421,25 @@ async def me(user: User = Depends(require_user)) -> dict[str, Any]:
     return _user_view(user)
 
 
+@router.put("/api/auth/me")
+async def update_me(
+    payload: EmailIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    """Set or update the authenticated account's email (required for accounts
+    created before registration collected one).
+
+    The address must not already belong to another account: account recovery
+    is only safe when an email has exactly one owner."""
+    try:
+        updated = await run_db(db.set_user_email, user.id, payload.email)
+    except DuplicateEmailError:
+        raise HTTPException(status_code=409, detail="email already in use")
+    logger.info("updated email for user %s", user.username)
+    return _user_view(updated)
+
+
 @router.post("/api/auth/logout")
 async def logout(
     request: Request,
@@ -359,6 +452,69 @@ async def logout(
     response.delete_cookie(SESSION_COOKIE_NAME, path=SESSION_COOKIE_PATH)
     logger.info("logged out user %s", user.username)
     return {"ok": True}
+
+
+@router.post("/api/auth/forgot-password")
+async def forgot_password(
+    payload: ForgotPasswordIn,
+    db: Database = Depends(get_db),
+) -> dict[str, str]:
+    """Issue a one-time reset token and email its link.
+
+    Always returns 200 with the same generic message whether or not the email
+    is registered, so the endpoint never reveals account existence (no user
+    enumeration). When SMTP is unconfigured or delivery fails, the raw token
+    is logged as a dev fallback instead of the request failing.
+    """
+    user = await run_db(db.get_user_by_email, payload.email)
+    if user is not None:
+        token = generate_reset_token()
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            seconds=RESET_TOKEN_EXPIRY_SECONDS
+        )
+        await run_db(
+            db.create_reset_token,
+            user.id,
+            hash_reset_token(token),
+            expires_at.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+        reset_url = f"{PUBLIC_URL}/?reset={token}"
+        sent = await asyncio.to_thread(
+            mailer.send_reset_email, payload.email, reset_url
+        )
+        if not sent:
+            # SMTP unconfigured or delivery failed: keep the flow working in
+            # dev; the operator recovers the link from this log line.
+            logger.warning(
+                "password reset email not sent to %s; dev fallback token: %s",
+                payload.email,
+                token,
+            )
+    return {"message": "If that email exists, a reset link is on its way"}
+
+
+@router.post("/api/auth/reset-password")
+async def reset_password(
+    payload: ResetPasswordIn,
+    db: Database = Depends(get_db),
+) -> dict[str, str]:
+    """Set a new password with a one-time reset token.
+
+    Missing, expired, and already-used tokens are all rejected identically
+    (422). A successful reset rotates the scrypt hash/salt, consumes the
+    token, and revokes every session for the account atomically.
+    """
+    token_hash = hash_reset_token(payload.token)
+    user = await run_db(db.get_user_by_reset_token, token_hash)
+    if user is None:
+        raise HTTPException(status_code=422, detail="invalid or expired reset token")
+    salt = generate_password_salt()
+    password_hash = await asyncio.to_thread(hash_password, payload.password, salt)
+    await run_db(
+        db.reset_user_password, user.id, password_hash, salt, token_hash
+    )
+    logger.info("password reset for user %s", user.username)
+    return {"message": "password reset — you can log in now"}
 
 
 # ---- weight -------------------------------------------------------------

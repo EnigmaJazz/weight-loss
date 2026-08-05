@@ -7,7 +7,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import auth from "../../static/auth.js";
 
-const { normalizeUsername, validateUsername, validatePassword } = auth;
+const {
+  normalizeUsername,
+  validateUsername,
+  validatePassword,
+  normalizeEmail,
+  validateEmail,
+} = auth;
 
 /* ---- normalizeUsername -------------------------------------------------- */
 
@@ -86,4 +92,42 @@ test("validatePassword rejects a 7-character password", () => {
 test("validatePassword rejects empty and null input", () => {
   assert.match(validatePassword(""), /8/);
   assert.match(validatePassword(null), /8/);
+});
+
+/* ---- normalizeEmail / validateEmail ------------------------------------- */
+
+test("normalizeEmail trims and lowercases mixed-case input", () => {
+  assert.equal(normalizeEmail("  Alice@Example.COM "), "alice@example.com");
+});
+
+test("normalizeEmail is null-safe", () => {
+  assert.equal(normalizeEmail(null), "");
+  assert.equal(normalizeEmail(undefined), "");
+});
+
+test("validateEmail accepts a plain valid address", () => {
+  assert.equal(validateEmail("alice@example.com"), null);
+});
+
+test("validateEmail accepts a one-letter domain label", () => {
+  assert.equal(validateEmail("a@b.co"), null);
+});
+
+test("validateEmail rejects addresses without a dot in the domain", () => {
+  // mirrors backend: basic local@domain.tld format required
+  assert.match(validateEmail("a@b"), /email/);
+});
+
+test("validateEmail rejects missing local or domain parts", () => {
+  assert.match(validateEmail("@example.com"), /email/);
+  assert.match(validateEmail("alice@"), /email/);
+});
+
+test("validateEmail rejects whitespace inside the address", () => {
+  assert.match(validateEmail("a b@example.com"), /email/);
+});
+
+test("validateEmail rejects empty and null input", () => {
+  assert.match(validateEmail(""), /email/);
+  assert.match(validateEmail(null), /email/);
 });

@@ -3,14 +3,17 @@
  * browser and `module.exports` for node:test. static/index.html loads this
  * BEFORE app.js.
  *
- * Rules mirror routes.py RegisterIn/LoginIn exactly:
+ * Rules mirror routes.py RegisterIn/EmailIn/ForgotPasswordIn exactly:
  *   username: strip().lower() then 3-32 chars, no whitespace
- *   password: at least 8 characters (raw, untrimmed) */
+ *   password: at least 8 characters (raw, untrimmed)
+ *   email:    strip().lower() then a basic local@domain.tld format */
 "use strict";
 (function (global) {
   const USERNAME_MIN = 3;
   const USERNAME_MAX = 32;
   const PASSWORD_MIN = 8;
+  const EMAIL_MAX = 254;
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
   /** Trim + lowercase, the backend's normalize step. Null-safe. */
   function normalizeUsername(value) {
@@ -39,7 +42,27 @@
     return null;
   }
 
-  const api = { normalizeUsername, validateUsername, validatePassword };
+  /** Trim + lowercase, the backend's email normalize step. Null-safe. */
+  function normalizeEmail(value) {
+    return String(value ?? "").trim().toLowerCase();
+  }
+
+  /** Returns an error message string, or null when the email is valid. */
+  function validateEmail(value) {
+    const email = normalizeEmail(value);
+    if (email.length > EMAIL_MAX || !EMAIL_RE.test(email)) {
+      return "Enter a valid email address";
+    }
+    return null;
+  }
+
+  const api = {
+    normalizeUsername,
+    validateUsername,
+    validatePassword,
+    normalizeEmail,
+    validateEmail,
+  };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.AuthForm = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
