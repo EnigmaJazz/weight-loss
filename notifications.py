@@ -28,13 +28,13 @@ def _vapid_to_payload(vapid: Vapid) -> dict[str, str]:
     private_raw = (
         vapid.private_key.private_numbers().private_value.to_bytes(32, "big")
     )
-    public_der = vapid.public_key.public_bytes(
-        serialization.Encoding.DER,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
+    public_raw = vapid.public_key.public_bytes(
+        serialization.Encoding.X962,
+        serialization.PublicFormat.UncompressedPoint,
     )
     return {
         "private_key": b64urlencode(private_raw),
-        "public_key": b64urlencode(public_der),
+        "public_key": b64urlencode(public_raw),
     }
 
 
@@ -58,7 +58,18 @@ def load_or_generate_vapid(vapid_path: str) -> tuple[Vapid, str]:
         with open(vapid_path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
         logger.info("generated and persisted VAPID keys to %s", vapid_path)
-    return vapid, payload["public_key"]
+    # Always expose the raw uncompressed EC point (65 bytes) for Web Push.
+    # Older persisted payloads stored DER (91 bytes) which pushManager
+    # rejects as an invalid applicationServerKey.
+    if vapid.public_key is None:
+        raise ValueError("VAPID public key is not available")
+    public_key = b64urlencode(
+        vapid.public_key.public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.UncompressedPoint,
+        )
+    )
+    return vapid, public_key
 
 
 def _subscription_info(subscription: PushSubscription) -> dict[str, Any]:

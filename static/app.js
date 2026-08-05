@@ -373,7 +373,7 @@ async function enablePush() {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       throw new Error("Push notifications are not supported in this browser");
     }
-    const reg = await navigator.serviceWorker.register("/static/sw.js");
+    const reg = await navigator.serviceWorker.register("/sw.js");
     await navigator.serviceWorker.ready;
     const { public_key: publicKey } = await fetchJson("/api/push/vapid-public-key");
     const sub = await reg.pushManager.subscribe({
@@ -444,7 +444,7 @@ async function init() {
   $("entry-date").value = todayLocal();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/static/sw.js").catch(() => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
       /* push stays optional */
     });
   }
