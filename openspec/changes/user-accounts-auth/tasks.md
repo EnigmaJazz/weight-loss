@@ -21,15 +21,15 @@ Chain strategy: pending
 
 - [x] 1.1 **RED:** test scrypt and tokens in `tests/test_auth.py`; **GREEN:** add typed helpers in `auth.py`; **TRIANGULATE/REFACTOR:** centralize parameters and constant-time comparison. Test: `.venv/bin/python -m pytest tests/test_auth.py`; harness: N/A, pure module; rollback: `auth.py`.
 - [x] 1.2 **RED/GREEN:** add `User`/`Session`, constants, schema, and storage in `models.py`, `constants.py`, `database.py`; verify foreign keys, expiry, hashed tokens. Test: `.venv/bin/python -m pytest tests/test_auth.py`; harness: SQLite; rollback: identity schema.
-- [ ] 1.3 **RED/GREEN:** seed legacy tables in `tests/test_auth_migration.py`; implement transactional rebuild and backfill in `database.py`. Test: `.venv/bin/python -m pytest tests/test_auth_migration.py`; harness: seeded SQLite boot; rollback: migration; restore DB backup in deployment.
+- [x] 1.3 **RED/GREEN:** seed legacy tables in `tests/test_auth_migration.py`; implement transactional rebuild in `database.py` discarding legacy pre-auth rows (no backfill — every account starts empty). Test: `.venv/bin/python -m pytest tests/test_auth_migration.py`; harness: seeded SQLite boot; rollback: migration; restore DB backup in deployment.
 - [x] 1.4 **RED:** test register/login/logout/me and cookies; **GREEN:** wire async routes in `routes.py` and `main.py`; **TRIANGULATE/REFACTOR:** enforce validation and JSON mutations. Test: `.venv/bin/python -m pytest tests/test_auth_api.py`; harness: ASGITransport + auth fixture; rollback: auth routes.
 
 ## Phase 2: User Scoping and Scheduler (PR 2)
 
-- [ ] 2.1 **RED:** add unauthenticated/isolation cases and auth helpers in `tests/conftest.py`, `tests/test_user_isolation.py`; **GREEN:** require user IDs and scope five tables in `database.py`. Test: `.venv/bin/python -m pytest tests/test_user_isolation.py`; harness: two ASGI clients; rollback: scoped persistence.
-- [ ] 2.2 **RED/GREEN:** scope protected endpoints in `routes.py` and startup reconciliation in `main.py`; enforce cross-user delete 404. Test: `.venv/bin/python -m pytest tests/test_api.py tests/test_user_isolation.py`; harness: ASGITransport + stubbed push; rollback: routes/reconciliation.
-- [ ] 2.3 **RED/GREEN:** test independent dedupe, disabled schedules, and zero subscribers in `tests/test_scheduler.py`; implement the per-user loop in `scheduler.py`. Test: `.venv/bin/python -m pytest tests/test_scheduler.py`; harness: fake clock + stub sender; rollback: scheduler loop.
-- [ ] 2.4 **TRIANGULATE/REFACTOR:** adapt DB tests and verify async boundaries. Test: `.venv/bin/python -m pytest`; harness: project conftest; rollback: test adaptations.
+- [x] 2.1 **RED:** add unauthenticated/isolation cases and auth helpers in `tests/conftest.py`, `tests/test_user_isolation.py`; **GREEN:** require user IDs and scope five tables in `database.py`. Test: `.venv/bin/python -m pytest tests/test_user_isolation.py`; harness: two ASGI clients; rollback: scoped persistence.
+- [x] 2.2 **RED/GREEN:** scope protected endpoints in `routes.py` and startup reconciliation in `main.py`; enforce cross-user delete 404. Test: `.venv/bin/python -m pytest tests/test_api.py tests/test_user_isolation.py`; harness: ASGITransport + stubbed push; rollback: routes/reconciliation.
+- [x] 2.3 **RED/GREEN:** test independent dedupe, disabled schedules, and zero subscribers in `tests/test_scheduler.py`; implement the per-user loop in `scheduler.py`. Test: `.venv/bin/python -m pytest tests/test_scheduler.py`; harness: fake clock + stub sender; rollback: scheduler loop.
+- [x] 2.4 **TRIANGULATE/REFACTOR:** adapt DB tests and verify async boundaries. Test: `.venv/bin/python -m pytest`; harness: project conftest; rollback: test adaptations.
 
 ## Phase 3: SPA and Rollout Verification (PR 3)
 

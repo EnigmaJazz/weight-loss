@@ -10,7 +10,7 @@ Add revocable cookie sessions within the module-per-concern architecture. `auth.
 |---|---|---|
 | HttpOnly cookie plus SQLite session | JWT; HTTP Basic | Supports revocation, avoids localStorage XSS exposure and new dependencies. |
 | stdlib scrypt (`n=2**14,r=8,p=1,dklen=32`) with independent 16-byte salts | Argon2; PBKDF2 | Memory-hard and dependency-free; parameters remain centralized and testable. |
-| First registrant atomically claims all sentinel-owned legacy rows | Discard data; admin claim flow | Preserves real settings without adding product ceremony; later users cannot claim them. |
+| First registrant starts empty; legacy rows discarded | Admin claim flow; preserve as defaults | Legacy pre-auth rows were smoke-test artifacts, not real user data; every account sets its own values. |
 | `SameSite=Lax` plus same-origin, JSON-only mutations | CSRF token | Adequate for this local/same-origin SPA: cross-site forms cannot issue JSON/DELETE and cross-site POST cookies are blocked. Hardened cross-origin deployments must add CSRF tokens. |
 
 ## Data Flow
@@ -60,7 +60,7 @@ Required leading `user_id` is added to `list_entries`, `get_entry_by_date`, `ups
 
 ## Migration / Rollout
 
-Back up `weight_loss.db`. `init_schema` inspects `PRAGMA table_info`; fresh databases create the target schema directly. Legacy migration uses one `BEGIN IMMEDIATE` and individual `conn.execute` calls—not `executescript`, which can disrupt explicit boundaries with `isolation_level=None`. Rebuild `weight_entries` with `UNIQUE(user_id,date)`, `active_rewards` with `PRIMARY KEY(user_id,checkpoint_percent)`, `notifications_sent` with `PRIMARY KEY(user_id,date,type)`, and `settings` with `PRIMARY KEY(user_id,key)`: create `_new`, copy rows with `user_id=0`, drop old, rename. Add `push_subscriptions.user_id NOT NULL DEFAULT 0`; endpoint stays globally unique and conflict reassigns ownership. First-user creation updates sentinel rows in all five tables within the same `BEGIN IMMEDIATE`; later registrations skip this. Startup reconciles every `list_users()` result.
+Back up `weight_loss.db`. `init_schema` inspects `PRAGMA table_info`; fresh databases create the target schema directly. Legacy migration uses one `BEGIN IMMEDIATE` and individual `conn.execute` calls—not `executescript`, which can disrupt explicit boundaries with `isolation_level=None`. Rebuild `weight_entries` with `UNIQUE(user_id,date)`, `active_rewards` with `PRIMARY KEY(user_id,checkpoint_percent)`, `notifications_sent` with `PRIMARY KEY(user_id,date,type)`, and `settings` with `PRIMARY KEY(user_id,key)`: create `_new`, discard legacy rows (no copy), drop old, rename. Add `push_subscriptions.user_id NOT NULL DEFAULT 0` then delete legacy subscriptions; endpoint stays globally unique and conflict reassigns ownership. No backfill: every account starts empty. Startup reconciles every `list_users()` result.
 
 The scheduler loops users; settings, subscriptions, and dedupe are scoped, and zero subscriptions consume no key. The SPA calls `/api/auth/me` before `loadData`, gates on 401, and logs out through the API. Fetch already defaults credentials to `same-origin`; the wrapper centralizes 401 handling without forcing `include`.
 

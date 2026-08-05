@@ -7,6 +7,9 @@ import pytest_asyncio
 import notifications as notifications_module
 from main import create_app, init_app_state
 
+DEFAULT_PASSWORD = "password123"
+AUTH_USERNAME = "tester"  # the username the auth_client fixture registers
+
 
 @pytest_asyncio.fixture
 async def app(tmp_path):
@@ -19,9 +22,58 @@ async def app(tmp_path):
 
 @pytest_asyncio.fixture
 async def client(app):
+    """Bare client with no session cookie — for auth-flow and 401 tests."""
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest_asyncio.fixture
+async def auth_client(app):
+    """Client already registered + logged in as a fresh user (fresh per-test DB,
+    so the fixed username never collides). Protected-endpoint tests use this."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post(
+            "/api/auth/register",
+            json={"username": AUTH_USERNAME, "password": DEFAULT_PASSWORD},
+        )
+        assert resp.status_code == 201, resp.text
+        yield ac
+
+
+@pytest_asyncio.fixture
+async def pair(app):
+    """Two authenticated clients (alice, bob) on the same app for isolation
+    tests: each registers its own account, so each owns an independent session."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as alice, httpx.AsyncClient(transport=transport, base_url="http://test") as bob:
+        await register_user(alice, "alice")
+        await register_user(bob, "bob")
+        yield alice, bob
+
+
+async def register_user(client, username, password=DEFAULT_PASSWORD):
+    """Register a user through the API; returns the new user's id."""
+    resp = await client.post(
+        "/api/auth/register", json={"username": username, "password": password}
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+def auth_user_id(app) -> int:
+    """The user id of the account the auth_client fixture registered."""
+    user = app.state.db.get_user_by_username(AUTH_USERNAME)
+    assert user is not None
+    return user.id
+
+
+def make_user(db, username="user"):
+    """Create a user directly in the DB (no API, no scrypt); returns the User."""
+    return db.create_user(username, "hash", "salt")
 
 
 @pytest.fixture(autouse=True)
