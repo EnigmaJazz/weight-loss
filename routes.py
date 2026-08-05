@@ -1,22 +1,36 @@
 """HTTP API routes for the weight-loss tracker."""
 
+import asyncio
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from auth import (
+    generate_password_salt,
+    generate_session_token,
+    hash_password,
+    hash_session_token,
+    verify_password,
+)
 from constants import (
     NOTIFICATION_MESSAGES,
     NOTIFICATION_TYPES,
+    SESSION_COOKIE_NAME,
+    SESSION_COOKIE_PATH,
+    SESSION_COOKIE_SAMESITE,
+    SESSION_COOKIE_SECURE,
+    SESSION_EXPIRY_SECONDS,
     TEST_NOTIFICATION_BODY,
     TEST_NOTIFICATION_TITLE,
     get_logger,
 )
-from database import Database, run_db
-from models import WeightEntry
+from database import Database, DuplicateUsernameError, run_db
+from models import User, WeightEntry
 import notifications
 from rewards import (
     compute_baseline,
@@ -33,6 +47,62 @@ logger = get_logger("routes")
 
 async def get_db(request: Request) -> Database:
     return request.app.state.db
+
+
+async def require_user(
+    request: Request, db: Database = Depends(get_db)
+) -> User:
+    """Resolve the session cookie to a User, or raise 401.
+
+    Missing, unknown, and expired sessions are all treated identically:
+    401, never 403, so no information about session state leaks.
+    """
+    token = request.cookies.get(SESSION_COOKIE_NAME)
+    if not token:
+        raise HTTPException(status_code=401, detail="not authenticated")
+    user = await run_db(db.get_user_by_session, hash_session_token(token))
+    if user is None:
+        raise HTTPException(status_code=401, detail="not authenticated")
+    return user
+
+
+# ---- authentication ----------------------------------------------------
+
+
+class RegisterIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not (3 <= len(normalized) <= 32):
+            raise ValueError("username must be 3-32 characters")
+        if any(ch.isspace() for ch in normalized):
+            raise ValueError("username must not contain whitespace")
+        return normalized
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if len(value) < 8:
+            raise ValueError("password must be at least 8 characters")
+        return value
+
+
+class LoginIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str
+    password: str
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        return value.strip().lower()
 
 
 # ---- request bodies -----------------------------------------------------
@@ -187,6 +257,108 @@ def _summary_view(
         if name in ("baseline", "current", "target"):
             summary[f"{name}_bmi"] = view["bmi"]
     return summary
+
+
+# ---- auth helpers ------------------------------------------------------
+
+
+def _user_view(user: User) -> dict[str, Any]:
+    """Public identity fields only — never password_hash or salt."""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "created_at": user.created_at,
+    }
+
+
+def _session_expiry() -> datetime:
+    """UTC instant 30 days from now; DB row and cookie share it."""
+    return datetime.now(timezone.utc) + timedelta(seconds=SESSION_EXPIRY_SECONDS)
+
+
+def _set_session_cookie(
+    response: Response, token: str, expires_at: datetime
+) -> None:
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=SESSION_EXPIRY_SECONDS,
+        expires=expires_at,
+        path=SESSION_COOKIE_PATH,
+        httponly=True,
+        samesite=SESSION_COOKIE_SAMESITE,
+        secure=SESSION_COOKIE_SECURE,
+    )
+
+
+async def _establish_session(
+    response: Response, db: Database, user: User
+) -> None:
+    """Create a session row and stamp its token on the response cookie."""
+    token = generate_session_token()
+    expires_at = _session_expiry()
+    await run_db(
+        db.create_session,
+        user.id,
+        hash_session_token(token),
+        expires_at.strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    _set_session_cookie(response, token, expires_at)
+
+
+# ---- authentication routes ----------------------------------------------
+
+
+@router.post("/api/auth/register", status_code=201)
+async def register(
+    payload: RegisterIn,
+    response: Response,
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    salt = generate_password_salt()
+    password_hash = await asyncio.to_thread(hash_password, payload.password, salt)
+    try:
+        user = await run_db(db.create_user, payload.username, password_hash, salt)
+    except DuplicateUsernameError:
+        raise HTTPException(status_code=409, detail="username already taken")
+    await _establish_session(response, db, user)
+    logger.info("registered user %s", user.username)
+    return _user_view(user)
+
+
+@router.post("/api/auth/login")
+async def login(
+    payload: LoginIn,
+    response: Response,
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    user = await run_db(db.get_user_by_username, payload.username)
+    if user is None or not await asyncio.to_thread(
+        verify_password, payload.password, user.salt, user.password_hash
+    ):
+        raise HTTPException(status_code=401, detail="invalid username or password")
+    await _establish_session(response, db, user)
+    logger.info("logged in user %s", user.username)
+    return _user_view(user)
+
+
+@router.get("/api/auth/me")
+async def me(user: User = Depends(require_user)) -> dict[str, Any]:
+    return _user_view(user)
+
+
+@router.post("/api/auth/logout")
+async def logout(
+    request: Request,
+    response: Response,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, bool]:
+    token = request.cookies.get(SESSION_COOKIE_NAME, "")
+    await run_db(db.delete_session, hash_session_token(token))
+    response.delete_cookie(SESSION_COOKIE_NAME, path=SESSION_COOKIE_PATH)
+    logger.info("logged out user %s", user.username)
+    return {"ok": True}
 
 
 # ---- weight -------------------------------------------------------------
