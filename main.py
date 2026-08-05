@@ -8,7 +8,14 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from constants import DB_PATH, INDEX_HTML_PATH, STATIC_DIR, VAPID_KEYS_PATH, get_logger
+from constants import (
+    DB_PATH,
+    INDEX_HTML_PATH,
+    STATIC_DIR,
+    SW_PATH,
+    VAPID_KEYS_PATH,
+    get_logger,
+)
 from database import Database
 from notifications import load_or_generate_vapid
 from routes import router
@@ -63,6 +70,13 @@ def create_app(
     @app.get("/")
     async def index() -> FileResponse:
         return FileResponse(INDEX_HTML_PATH)
+
+    @app.get("/sw.js")
+    async def service_worker() -> FileResponse:
+        # Serve the service worker from the web root so its scope covers /
+        # (a SW at /static/ cannot claim the root scope; push registration
+        # relies on it controlling the page).
+        return FileResponse(SW_PATH)
 
     return app
 

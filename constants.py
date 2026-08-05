@@ -20,6 +20,7 @@ VAPID_KEYS_PATH = os.environ.get(
 )
 STATIC_DIR = str(BASE_DIR / "static")
 INDEX_HTML_PATH = str(BASE_DIR / "static" / "index.html")
+SW_PATH = str(BASE_DIR / "static" / "sw.js")
 
 APP_NAME = "Weight Loss Tracker"
 
