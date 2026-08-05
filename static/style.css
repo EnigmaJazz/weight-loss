@@ -11,6 +11,12 @@
 
 * { box-sizing: border-box; }
 
+/* Make the `hidden` attribute bulletproof: #tracker carries display:flex
+ * (to preserve the card spacing when the tracker div wraps the sections),
+ * and an author display rule would otherwise override the UA's
+ * [hidden] { display: none }. This keeps the gate's hidden state reliable. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -27,6 +33,12 @@ header {
 }
 
 header h1 { margin: 0; font-size: 1.5rem; }
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
 .tagline { margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.9rem; }
 
 main {
@@ -36,6 +48,21 @@ main {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* The tracker wraps all data sections so the gate can hide them together;
+ * it reproduces main's flex column so the cards keep their original spacing. */
+#tracker {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* auth gate card: narrower than the tracker, centered. */
+#auth-screen {
+  max-width: 24rem;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .card {
