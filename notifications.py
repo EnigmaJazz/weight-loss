@@ -23,6 +23,8 @@ def _generate_vapid() -> Vapid:
 
 
 def _vapid_to_payload(vapid: Vapid) -> dict[str, str]:
+    if vapid.private_key is None or vapid.public_key is None:
+        raise ValueError("VAPID keys must be generated before serialization")
     private_raw = (
         vapid.private_key.private_numbers().private_value.to_bytes(32, "big")
     )

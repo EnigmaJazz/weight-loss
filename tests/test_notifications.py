@@ -18,10 +18,12 @@ def test_vapid_from_payload_roundtrips_public_key():
 
     from cryptography.hazmat.primitives import serialization
 
+    assert vapid.public_key is not None
     original_der = vapid.public_key.public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
     )
+    assert loaded.public_key is not None
     loaded_der = loaded.public_key.public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
