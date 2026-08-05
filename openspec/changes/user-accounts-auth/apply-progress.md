@@ -141,3 +141,75 @@ All Phase-1/Phase-2 tasks complete (1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4). **1
 **Changes**: `LEGACY_TABLE_REBUILDS` copy steps removed (tables rebuild empty); `push_subscriptions` legacy rows deleted post-ALTER; `create_user` claim logic removed; `SENTINEL_USER_ID` removed; migration tests rewritten (`test_auth_migration.py` asserts discard + fresh-start); weight-tracking delta spec's backfill requirement replaced with "Legacy Pre-Auth Data Is Discarded on Migration".
 
 **Evidence**: `tests/test_auth_migration.py` + `test_user_isolation.py` → 33 passed; full suite → 168 passed; pyright 0 errors.
+
+---
+
+# Slice 3 of 3 (PR 3): SPA auth gate + rollout polish
+
+**Change**: user-accounts-auth
+**Branch**: `auth/slice-3` (from `main`; stacked-to-main — PR 2 `auth/slice-2` merged via PR #8; unit-input PR #9 merged before this slice, preserved intact)
+**Mode**: Strict TDD (active, openspec/config.yaml `strict_tdd: true`)
+**Status**: All Phase-3 tasks complete (3.1, 3.2, 3.3) — all 9 change tasks now [x].
+**Test counts**: 168 passing at start → **172 passing at end** (+4 `test_spa_gate.py`) + **33 node:test** at end (16 auth-form new + 11 unit-input + 6 weight-label).
+
+## Completed Tasks
+
+- [x] 3.1 **Migration discard confirmed end-to-end** — `tests/test_auth_migration.py` (5 tests) already exercises the LIVE boot path: a seeded legacy DB is migrated by `create_app` → `init_app_state` → `init_schema`, and the discard contract (all five tables empty post-migration, idempotent across reboots, every registrant starts empty) is asserted. Slice 3 re-ran the file as evidence; no new test needed. (Task text still says "backfill" — superseded by the slice-2 maintainer amendment; see Deviations.)
+- [x] 3.2 **SPA auth gate** — `static/auth.js` (new pure helpers mirroring routes.py validation), `static/index.html` (auth-screen card first, all tracker sections wrapped in `<div id="tracker" hidden>`, logout button in header, auth.js loaded before app.js), `static/app.js` (init gates on `GET /api/auth/me` before `loadData`; fetchJson centralizes 401 → showAuthScreen; signup/login submit via AuthForm validation; logout clears fields and returns to the gate), `static/style.css` (`[hidden]{display:none !important}` so the flex #tracker wrapper hides reliably; header-row; tracker flex spacing; gate card). Unit-input toggles (weight-unit/height-unit) and every existing element preserved — verified live after login. Tests: `tests/frontend/auth-form.test.mjs` (16 node:test) + `tests/test_spa_gate.py` (4 pytest: gate markup delivered, script load order, auth.js served, same-origin fetch posture).
+- [x] 3.3 **TRIANGULATE/REFACTOR + rollout polish** — `tests/smoke-ui.sh` rewritten auth-first: gate assertions on load, fresh-account signup, tracker asserts, kg + st-lb (unit-toggle) entries, settings/BMI, rewards, logout → gate (19 browser steps, all green live). Full suite re-run; design.md rollback section verified present (no edit needed); the only compatibility path left was the smoke script's unauthenticated-open assumption, now removed.
+
+## TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.1 | tests/test_auth_migration.py (5: live boot discard, idempotent reboot, fresh-DB columns, first user empty, registered users empty) | Integration (seeded SQLite boot) | suite (168) | N/A — RED/GREEN established in slice 2 (documented there); slice 3 re-verifies the live boot path | ✅ 5/5 on file | ✅ discard vs idempotent vs fresh; first vs later registrant (from slice 2) | ➖ None needed (no code change) |
+| 3.2a | tests/frontend/auth-form.test.mjs (16: normalizeUsername ×3, validateUsername ×8, validatePassword ×5) | Unit (node:test, real static/auth.js) | N/A (new file) | ✅ 1 file-level failure (module not found — static/auth.js absent) | ✅ 16/16 | ✅ ≥2 cases per rule: happy + 3/32-char boundaries, internal/trailing space, empty/null, 8-char boundary, no-trim | ✅ constants extracted (USERNAME_MIN/MAX, PASSWORD_MIN); UMD matches format.js pattern |
+| 3.2b | tests/test_spa_gate.py (4: gate markup + hidden tracker, script load order, auth.js served, same-origin posture) | Integration (ASGITransport, served HTML/JS) | suite (168) | ✅ 3 failed / 1 passed (gate markup absent; posture guard held already) | ✅ 4/4 on file | ✅ served-artifact asserts + live browser behavior via smoke-ui.sh | ➖ None needed |
+| 3.3 | tests/smoke-ui.sh (19 browser steps) | E2E (playwright-cli, real browser) | N/A (rewrite) | ✅ old script failed live (tracker asserted before auth) — expected break | ✅ 19/19 live | ✅ gate-first + signup + kg + st-lb + settings + logout all asserted | ✅ helpers extracted (assert_visibility, unique username) |
+
+### Test Summary
+- **Total tests written**: 20 (16 node:test + 4 pytest)
+- **Total tests passing**: 172 pytest + 33 node:test
+- **Layers used**: Unit (16), Integration (4), E2E (19 browser steps in smoke-ui.sh)
+- **Approval tests**: 1 (same-origin fetch posture guard — held unchanged)
+- **Pure functions created**: 3 (normalizeUsername, validateUsername, validatePassword)
+
+## Work Unit Evidence
+
+| Evidence | Required value |
+|----------|----------------|
+| Focused test command and exact result | `node --test tests/frontend/auth-form.test.mjs` → RED: 1 failed (module not found); GREEN: **16 passed / 0 failed**. `.venv/bin/python -m pytest tests/test_spa_gate.py -q` → RED: 3 failed / 1 passed; GREEN: **4 passed**. `.venv/bin/python -m pytest tests/test_auth_migration.py -q` → **5 passed**. Full suite: `.venv/bin/python -m pytest -q` → **172 passed in 3.44s**; all node files → **33 passed** (16+11+6). `node --check static/app.js static/auth.js static/format.js` → clean. `.venv/bin/pyright tests/test_spa_gate.py` → **0 errors, 0 warnings** |
+| Runtime harness command/scenario and exact result | Live uvicorn boot (tmp DB/VAPID, port 8795, real HTTP): `GET /` → 200 with `id="auth-screen"` and `id="tracker" hidden`; `GET /api/auth/me` → **401**; register `LiveUser` → **201** (`username: "liveuser"`); `me` with session → **200**; Set-Cookie carries `HttpOnly; Max-Age=2592000; Path=/; SameSite=lax` (no Secure on local HTTP — correct); logout → **200 {"ok":true}**; `me` after logout → **401** (revoked). Browser (playwright-cli): `tests/smoke-ui.sh http://localhost:8795` → **19/19 passed** (gate on load → signup → tracker → kg entry → st+lb unit-toggle entry → settings/BMI → rewards → logout → gate). Explicit login path: gate visible → login as `liveuser` → tracker visible, auth screen hidden, 5 summary stats rendered. |
+| Rollback boundary | Commit `bf39cf1` `feat(ui): gate app behind login and add signup screen` (all production + tests). Reverting it removes `static/auth.js`, the gate markup/logout in `static/index.html`, the auth-gate wiring in `static/app.js`, the `[hidden]`/header-row/tracker styles in `static/style.css`, `tests/frontend/auth-form.test.mjs`, `tests/test_spa_gate.py`, and the smoke-ui.sh rewrite — no backend file is touched by this slice, so unrelated work is untouched. Docs commit separately reverts tasks.md + apply-progress.md. |
+
+## Commits
+
+| Hash | Message |
+|------|---------|
+| bf39cf1 | `feat(ui): gate app behind login and add signup screen` — production + tests (gga pre-commit review passed) |
+| (docs commit) | `docs(openspec): record user-accounts-auth slice-3 apply progress` — tasks.md checkboxes + apply-progress.md |
+
+## Deviations from Design
+
+1. **No page reload after auth** (orchestrator text: "on success reloads into the app"): implemented as `showTracker()` + `loadData()` — functionally identical to init's authenticated path with no flash; design.md's "SPA calls /api/auth/me before loadData, gates on 401" matches exactly.
+2. **Task 3.1 text is stale**: says "assert first/later registrant backfill across five tables", but the maintainer's slice-2 amendment dropped the backfill (legacy rows discarded; every account starts empty). The live boot discard path is what's asserted; the file already covers it (5 tests). Marked complete with that evidence; no code change.
+3. **`tests/test_spa_gate.py` instead of test_api.py** (tasks.md 3.2 suggests test_api.py): a dedicated per-feature file follows the project's test-file pattern (test_auth_api.py, test_user_isolation.py); the served-HTML assertions don't belong in the API regression file.
+4. **`[hidden] { display: none !important; }` added to style.css** (design silent on mechanism): required because the tracker wrapper carries `display:flex` (to preserve card spacing), which would otherwise override the UA's `[hidden]` rule and leak the tracker. Behavior-equivalent for all pre-existing hidden elements (toast, push buttons, unit inputs) — verified live.
+5. **Tracker children not re-indented in index.html**: sections stay at their original indentation under the new `<div id="tracker" hidden>` wrapper, deliberately — re-indenting ~90 lines would bury the gate diff in whitespace churn. HTML is valid; the closing `</div>` marks the boundary.
+6. **design.md rollback section**: already documents "stop the app, revert code, restore the pre-migration DB backup" — task 3.3 asked to document rollback there; verified present, no edit needed.
+
+## Issues Found
+
+1. **node --test directory form broken** (pre-existing, environment): `node --test tests/frontend/` (trailing slash) fails under Node v26.3.0 with MODULE_NOT_FOUND (the arg is treated as a module path). The canonical per-file invocation works: 33 passed. Not introduced by this slice.
+2. **Smoke script break was expected**: the old smoke-ui.sh opened the SPA unauthenticated and asserted tracker content — it broke the moment the gate landed. Rewritten auth-first (task 3.3); a fresh unique username per run (`smoke<epoch>`) avoids 409s on persistent DBs.
+3. **Wrong-password login keeps the typed username** (UX choice, not a bug): fetchJson's 401 hook also fires during a failed login — the gate is already visible, so it is a no-op; the catch handler toasts the real error and the fields stay intact for correction.
+
+## Discoveries Worth Persisting
+
+- The `hidden` attribute is defeatable by any author `display` rule on the same element (the UA's `[hidden]{display:none}` loses to author CSS). With `[hidden]{display:none !important}` in style.css, the SPA can safely combine `hidden` with display-bearing containers (the flex #tracker wrapper). Future elements that set `display` and need hiding can keep using the attribute — the guard makes it reliable.
+- Client-side validation lives in `static/auth.js` (UMD, same pattern as format.js) mirroring routes.py exactly (username strip().lower(), 3–32, no whitespace; password ≥ 8 untrimmed) — the SPA and node:test share the one real artifact.
+- Fetch already sends cookies same-origin by default; the gate needs no `credentials` option. The regression guard `assert "credentials" not in app.js` pins that posture (no include → no cross-origin cookie leak).
+
+## Status
+
+All Phase-3 tasks complete (3.1, 3.2, 3.3) — the change's 9 tasks are all [x]. **172/172 pytest + 33/33 node tests green**, pyright clean, browser smoke 19/19 live. Branch `auth/slice-3` committed and ready for push/PR (orchestrator-owned). next_recommended: verify.

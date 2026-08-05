@@ -10,6 +10,7 @@ const toastEl = $("toast");
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
 const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm } = globalThis.WeightFormat;
+const { normalizeUsername, validateUsername, validatePassword } = globalThis.AuthForm;
 
 function bmiLabel(bmi) {
   return bmi == null ? "—" : fmt1(bmi);
@@ -24,6 +25,12 @@ function toast(msg) {
 
 async function fetchJson(url, options) {
   const res = await fetch(url, options);
+  if (res.status === 401) {
+    // Session missing/expired/revoked: hide the tracker and return to the
+    // gate. Also reached by a wrong-password login, where the gate is already
+    // visible — harmless, the caller surfaces the actual error.
+    showAuthScreen();
+  }
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -35,6 +42,75 @@ async function fetchJson(url, options) {
     throw new Error(`${res.status}: ${detail}`);
   }
   return res.json();
+}
+
+/* ---- authentication gate ------------------------------------------------ */
+
+const authScreen = $("auth-screen");
+const trackerEl = $("tracker");
+const authForm = $("auth-form");
+let authMode = "login";
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === "signup";
+  $("auth-title").textContent = signup ? "Create account" : "Log in";
+  $("auth-submit").textContent = signup ? "Create account" : "Log in";
+  $("auth-toggle").textContent = signup ? "Log in" : "Create account";
+  $("auth-password").autocomplete = signup ? "new-password" : "current-password";
+}
+
+function showAuthScreen() {
+  authScreen.hidden = false;
+  trackerEl.hidden = true;
+  $("logout-btn").hidden = true;
+}
+
+function showTracker() {
+  authScreen.hidden = true;
+  trackerEl.hidden = false;
+  $("logout-btn").hidden = false;
+}
+
+async function submitAuth(ev) {
+  ev.preventDefault();
+  const username = normalizeUsername($("auth-username").value);
+  const password = $("auth-password").value;
+  const usernameError = validateUsername(username);
+  const passwordError = validatePassword(password);
+  if (usernameError) {
+    toast(usernameError);
+    return;
+  }
+  if (passwordError) {
+    toast(passwordError);
+    return;
+  }
+  const endpoint = authMode === "signup" ? "/api/auth/register" : "/api/auth/login";
+  try {
+    await fetchJson(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    $("auth-password").value = "";
+    showTracker();
+    await loadData();
+  } catch (err) {
+    toast(`${authMode === "signup" ? "Signup" : "Login"} failed: ${err.message}`);
+  }
+}
+
+async function logout() {
+  try {
+    await fetchJson("/api/auth/logout", { method: "POST" });
+  } catch (_) {
+    /* session already gone — the gate still opens below */
+  }
+  setAuthMode("login");
+  $("auth-username").value = "";
+  $("auth-password").value = "";
+  showAuthScreen();
 }
 
 /* ---- data -------------------------------------------------------------- */
@@ -500,6 +576,11 @@ function syncHeightUnitUi() {
 }
 
 async function init() {
+  authForm.addEventListener("submit", submitAuth);
+  $("auth-toggle").addEventListener("click", () =>
+    setAuthMode(authMode === "signup" ? "login" : "signup")
+  );
+  $("logout-btn").addEventListener("click", logout);
   $("entry-form").addEventListener("submit", addEntry);
   $("settings-form").addEventListener("submit", saveSettings);
   $("enable-push").addEventListener("click", enablePush);
@@ -517,10 +598,21 @@ async function init() {
     });
   }
 
+  let authenticated = false;
   try {
-    await loadData();
-  } catch (err) {
-    toast(`Could not load data: ${err.message}`);
+    await fetchJson("/api/auth/me");
+    authenticated = true;
+  } catch (_) {
+    /* 401 (or a network error) leaves the gate visible. No scary toast on a
+       fresh visit — the auth form surfaces errors when the user submits. */
+  }
+  if (authenticated) {
+    showTracker();
+    try {
+      await loadData();
+    } catch (err) {
+      toast(`Could not load data: ${err.message}`);
+    }
   }
 }
 
