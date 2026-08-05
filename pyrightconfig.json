@@ -1,7 +1,19 @@
 {
-  "venvPath": ".venv",
+  "venvPath": ".",
+  "venv": ".venv",
   "pythonPlatform": "linux",
   "pythonVersion": "3.14",
   "typeCheckingMode": "basic",
-  "exclude": ["**/__pycache__", "**/.git", "static"]
+  "exclude": [
+    "**/__pycache__",
+    "**/.git",
+    "**/.venv",
+    "static",
+    ".codegraph",
+    ".cortexkit",
+    ".playwright",
+    ".playwright-cli",
+    ".pytest_cache",
+    ".atl"
+  ]
 }

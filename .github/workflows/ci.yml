@@ -34,11 +34,10 @@ jobs:
         run: node --test tests/frontend/weight-label.test.mjs
 
       - name: Run pyright type check
-        # Pyright 1.1.411 hangs with zero output on Python 3.14 (reproduced
-        # locally and on clean CI runners, exit 124 after timeout). Kept as a
-        # non-blocking signal so the type check still surfaces without gating
-        # delivery; investigate the hang separately.
-        continue-on-error: true
+        # Root-caused: pyrightconfig used wrong venvPath semantics and did not
+        # exclude .venv, so pyright scanned the 142M venv as project source and
+        # hung (exit 124). Fixed config (venvPath "." + venv ".venv" + exclude
+        # **/.venv) and the 3 real type errors it surfaced. Blocking again.
         run: |
           .venv/bin/pip install pyright
           timeout 120 .venv/bin/pyright -p pyrightconfig.json
