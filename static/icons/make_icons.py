@@ -18,8 +18,8 @@ log = logging.getLogger("make_icons")
 
 # App palette (matches manifest theme_color)
 BG = (47, 125, 84)       # #2f7d54
-FOX = (216, 121, 53)     # #d87935 warm orange
-FOX_DARK = (150, 78, 28) # darker orange for ear tips / shading
+FOX = (235, 137, 44)     # #eb892c vivid fox orange
+FOX_DARK = (180, 92, 22)  # #b45c16 deeper orange for ear shading
 WHITE = (252, 248, 240)  # #fcf8f0 muzzle / cheek / eye whites
 NOSE = (38, 32, 30)      # #26201e near-black nose / eyes
 
@@ -75,15 +75,15 @@ def render(size: int) -> bytes:
     px = bytearray()
     s = size / 512.0
 
-    # Head: rounded heart-ish shape — wide at the cheekbones, rounded chin.
+    # Head: triangular heart — wide at the top, tapering to a pointed chin.
     head = [
         (178 * s, 152 * s),   # left top (inner ear base)
         (334 * s, 152 * s),   # right top
-        (392 * s, 258 * s),   # right cheek
-        (342 * s, 372 * s),   # lower right
-        (256 * s, 410 * s),   # rounded chin
-        (170 * s, 372 * s),   # lower left
-        (120 * s, 258 * s),   # left cheek
+        (374 * s, 262 * s),   # right cheek (pulled in)
+        (316 * s, 368 * s),   # lower right
+        (256 * s, 416 * s),   # pointed chin
+        (196 * s, 368 * s),   # lower left
+        (138 * s, 262 * s),   # left cheek (pulled in)
     ]
     # Ears: tall triangles above the head top corners.
     left_ear = [(172 * s, 160 * s), (118 * s, 28 * s), (252 * s, 92 * s)]
@@ -93,16 +93,15 @@ def render(size: int) -> bytes:
     # Dark inner ear: smaller triangle inside each ear.
     left_inner = [(190 * s, 128 * s), (158 * s, 74 * s), (218 * s, 100 * s)]
     right_inner = [(322 * s, 128 * s), (354 * s, 74 * s), (294 * s, 100 * s)]
-    # Wide cream lower face (the emoji's muzzle): flares out to the cheeks and
-    # rounds at the chin — NOT a thin blaze.
+    # Wide cream lower face: triangular, tapering to the pointed chin.
     face = [
-        (196 * s, 246 * s),   # left top (near the eye)
-        (316 * s, 246 * s),   # right top
-        (348 * s, 320 * s),   # right cheek flare
-        (308 * s, 392 * s),   # lower right
-        (256 * s, 408 * s),   # rounded chin
-        (204 * s, 392 * s),   # lower left
-        (164 * s, 320 * s),   # left cheek flare
+        (202 * s, 252 * s),   # left top (near the eye)
+        (310 * s, 252 * s),   # right top
+        (330 * s, 322 * s),   # right cheek flare
+        (290 * s, 392 * s),   # lower right
+        (256 * s, 414 * s),   # pointed chin
+        (222 * s, 392 * s),   # lower left
+        (182 * s, 322 * s),   # left cheek flare
     ]
     # Eyes and nose.
     eye_l = (212 * s, 196 * s)
