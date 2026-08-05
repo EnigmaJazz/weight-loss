@@ -51,7 +51,7 @@
             <option value="st-lb">st + lb</option>
           </select>
           <label for="entry-weight">Weight (kg)</label>
-          <input type="number" id="entry-weight" step="0.1" min="1" max="700" placeholder="e.g. 82.5" required>
+          <input type="number" id="entry-weight" step="any" min="1" max="700" placeholder="e.g. 82.5">
           <div id="entry-st-lb" hidden>
             <label for="entry-stone">Stone</label>
             <input type="number" id="entry-stone" step="1" min="0" placeholder="e.g. 13">
@@ -80,15 +80,25 @@
       <section class="card">
         <h2>Settings</h2>
         <form id="settings-form" autocomplete="off">
-          <label for="target-weight">Target weight (kg)</label>
-          <input type="number" id="target-weight" step="0.1" min="1" max="700" placeholder="e.g. 70.0">
+          <label for="target-weight">Target weight</label>
+          <select id="target-unit">
+            <option value="kg">kg</option>
+            <option value="st-lb">st + lb</option>
+          </select>
+          <input type="number" id="target-weight" step="any" min="1" max="700" placeholder="e.g. 70.0">
+          <div id="target-st-lb" hidden>
+            <label for="target-stone">Stone</label>
+            <input type="number" id="target-stone" step="1" min="0" placeholder="e.g. 11">
+            <label for="target-lb">Pounds</label>
+            <input type="number" id="target-lb" step="any" min="0" max="14" placeholder="e.g. 0">
+          </div>
           <label for="height-unit">Height unit</label>
           <select id="height-unit">
             <option value="cm">cm</option>
             <option value="ft-in">ft + in</option>
           </select>
           <label for="height-cm">Height (cm)</label>
-          <input type="number" id="height-cm" step="0.1" min="50" max="250" placeholder="e.g. 175">
+          <input type="number" id="height-cm" step="any" min="50" max="250" placeholder="e.g. 175">
           <div id="height-ft-in" hidden>
             <label for="height-ft">Feet</label>
             <input type="number" id="height-ft" step="1" min="0" placeholder="e.g. 5">

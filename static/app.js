@@ -412,12 +412,38 @@ async function saveSettings(ev) {
   } else {
     heightCm = num("height-cm");
   }
+  let targetKg;
+  if ($("target-unit").value === "st-lb") {
+    const stoneRaw = $("target-stone").value.trim();
+    const lbRaw = $("target-lb").value.trim();
+    if (stoneRaw === "" || lbRaw === "") {
+      toast("Enter both stone and pounds for the target");
+      return;
+    }
+    const stone = Number(stoneRaw);
+    const lb = Number(lbRaw);
+    if (!Number.isInteger(stone) || stone < 0) {
+      toast("Target stone must be a whole number, 0 or more");
+      return;
+    }
+    if (!(lb >= 0) || lb >= 14) {
+      toast("Target pounds must be at least 0 and less than 14");
+      return;
+    }
+    if (stone === 0 && lb === 0) {
+      toast("Target weight must be greater than 0");
+      return;
+    }
+    targetKg = stoneLbToKg(stone, lb);
+  } else {
+    targetKg = num("target-weight");
+  }
   try {
     await fetchJson("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        target_weight: num("target-weight"),
+        target_weight: targetKg,
         height_cm: heightCm,
         tip_time: time("tip-time"),
         reminder_time: time("reminder-time"),
@@ -567,12 +593,32 @@ function syncWeightUnitUi() {
   const stLb = $("weight-unit").value === "st-lb";
   $("entry-weight").hidden = stLb;
   $("entry-st-lb").hidden = !stLb;
+  // Toggle required so the hidden field never blocks submit (a hidden
+  // required input makes the browser refuse to submit the form with a
+  // cryptic "invalid form control is not focusable" error).
+  $("entry-weight").required = !stLb;
+  $("entry-stone").required = stLb;
+  $("entry-lb").required = stLb;
 }
 
 function syncHeightUnitUi() {
   const ftIn = $("height-unit").value === "ft-in";
   $("height-cm").hidden = ftIn;
   $("height-ft-in").hidden = !ftIn;
+  // Toggle required so the hidden cm field never blocks submit (same
+  // hidden-required pitfall as the weight unit).
+  $("height-cm").required = !ftIn;
+  $("height-ft").required = ftIn;
+  $("height-in").required = ftIn;
+}
+
+function syncTargetUnitUi() {
+  const stLb = $("target-unit").value === "st-lb";
+  $("target-weight").hidden = stLb;
+  $("target-st-lb").hidden = !stLb;
+  $("target-weight").required = !stLb;
+  $("target-stone").required = stLb;
+  $("target-lb").required = stLb;
 }
 
 async function init() {
@@ -589,8 +635,10 @@ async function init() {
   $("entry-date").value = todayLocal();
   $("weight-unit").addEventListener("change", syncWeightUnitUi);
   $("height-unit").addEventListener("change", syncHeightUnitUi);
+  $("target-unit").addEventListener("change", syncTargetUnitUi);
   syncWeightUnitUi();
   syncHeightUnitUi();
+  syncTargetUnitUi();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {
