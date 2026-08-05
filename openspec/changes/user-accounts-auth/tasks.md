@@ -21,7 +21,7 @@ Chain strategy: pending
 
 - [x] 1.1 **RED:** test scrypt and tokens in `tests/test_auth.py`; **GREEN:** add typed helpers in `auth.py`; **TRIANGULATE/REFACTOR:** centralize parameters and constant-time comparison. Test: `.venv/bin/python -m pytest tests/test_auth.py`; harness: N/A, pure module; rollback: `auth.py`.
 - [x] 1.2 **RED/GREEN:** add `User`/`Session`, constants, schema, and storage in `models.py`, `constants.py`, `database.py`; verify foreign keys, expiry, hashed tokens. Test: `.venv/bin/python -m pytest tests/test_auth.py`; harness: SQLite; rollback: identity schema.
-- [x] 1.3 **RED/GREEN:** seed legacy tables in `tests/test_auth_migration.py`; implement transactional rebuild and backfill in `database.py`. Test: `.venv/bin/python -m pytest tests/test_auth_migration.py`; harness: seeded SQLite boot; rollback: migration; restore DB backup in deployment.
+- [x] 1.3 **RED/GREEN:** seed legacy tables in `tests/test_auth_migration.py`; implement transactional rebuild in `database.py` discarding legacy pre-auth rows (no backfill — every account starts empty). Test: `.venv/bin/python -m pytest tests/test_auth_migration.py`; harness: seeded SQLite boot; rollback: migration; restore DB backup in deployment.
 - [x] 1.4 **RED:** test register/login/logout/me and cookies; **GREEN:** wire async routes in `routes.py` and `main.py`; **TRIANGULATE/REFACTOR:** enforce validation and JSON mutations. Test: `.venv/bin/python -m pytest tests/test_auth_api.py`; harness: ASGITransport + auth fixture; rollback: auth routes.
 
 ## Phase 2: User Scoping and Scheduler (PR 2)
