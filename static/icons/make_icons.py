@@ -64,41 +64,53 @@ def in_circle(
     return (px - cx) ** 2 + (py - cy) ** 2 <= r * r
 
 
+def in_ellipse(
+    px: float, py: float, cx: float, cy: float, rx: float, ry: float
+) -> bool:
+    return ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1.0
+
+
 def render(size: int) -> bytes:
     """Return raw RGBA pixels for a fox-face icon at `size` square."""
     px = bytearray()
     s = size / 512.0
 
-    # Head: a downward-pointing pentagon — widest at the cheeks (~y=250),
-    # narrowing to a muzzle tip at the bottom (~y=395).
+    # Head: rounded heart-ish shape — wide at the cheekbones, rounded chin.
     head = [
-        (176 * s, 150 * s),   # left top (inner ear base)
-        (336 * s, 150 * s),   # right top
-        (388 * s, 250 * s),   # right cheek
-        (300 * s, 385 * s),   # right muzzle side
-        (212 * s, 385 * s),   # left muzzle side
-        (124 * s, 250 * s),   # left cheek
+        (178 * s, 152 * s),   # left top (inner ear base)
+        (334 * s, 152 * s),   # right top
+        (392 * s, 258 * s),   # right cheek
+        (342 * s, 372 * s),   # lower right
+        (256 * s, 410 * s),   # rounded chin
+        (170 * s, 372 * s),   # lower left
+        (120 * s, 258 * s),   # left cheek
     ]
     # Ears: tall triangles above the head top corners.
-    left_ear = [(170 * s, 160 * s), (120 * s, 30 * s), (250 * s, 95 * s)]
-    right_ear = [(342 * s, 160 * s), (392 * s, 30 * s), (262 * s, 95 * s)]
-    left_ear_tip = [(158 * s, 118 * s), (136 * s, 52 * s), (200 * s, 82 * s)]
-    right_ear_tip = [(354 * s, 118 * s), (376 * s, 52 * s), (312 * s, 82 * s)]
-    # White blaze: the classic fox marking — white runs from between the
-    # eyes down the face, widening into the muzzle at the chin.
-    blaze = [
-        (256 * s, 165 * s),   # top center (between the eyes)
-        (236 * s, 300 * s),   # left of the muzzle
-        (206 * s, 388 * s),   # chin left
-        (306 * s, 388 * s),   # chin right
-        (276 * s, 300 * s),   # right of the muzzle
+    left_ear = [(172 * s, 160 * s), (118 * s, 28 * s), (252 * s, 92 * s)]
+    right_ear = [(340 * s, 160 * s), (394 * s, 28 * s), (260 * s, 92 * s)]
+    left_ear_tip = [(158 * s, 116 * s), (134 * s, 48 * s), (202 * s, 80 * s)]
+    right_ear_tip = [(354 * s, 116 * s), (378 * s, 48 * s), (310 * s, 80 * s)]
+    # Dark inner ear: smaller triangle inside each ear.
+    left_inner = [(190 * s, 128 * s), (158 * s, 74 * s), (218 * s, 100 * s)]
+    right_inner = [(322 * s, 128 * s), (354 * s, 74 * s), (294 * s, 100 * s)]
+    # Wide cream lower face (the emoji's muzzle): flares out to the cheeks and
+    # rounds at the chin — NOT a thin blaze.
+    face = [
+        (196 * s, 246 * s),   # left top (near the eye)
+        (316 * s, 246 * s),   # right top
+        (348 * s, 320 * s),   # right cheek flare
+        (308 * s, 392 * s),   # lower right
+        (256 * s, 408 * s),   # rounded chin
+        (204 * s, 392 * s),   # lower left
+        (164 * s, 320 * s),   # left cheek flare
     ]
     # Eyes and nose.
-    eye_l = (212 * s, 205 * s)
-    eye_r = (300 * s, 205 * s)
-    eye_radius = 10 * s
-    nose = (256 * s, 350 * s)
-    nose_r = 10 * s
+    eye_l = (212 * s, 196 * s)
+    eye_r = (300 * s, 196 * s)
+    eye_radius = 11 * s
+    nose = (256 * s, 356 * s)
+    nose_rx = 13 * s
+    nose_ry = 9 * s
 
     for y in range(size):
         for x in range(size):
@@ -111,15 +123,19 @@ def render(size: int) -> bytes:
                 color = FOX_DARK
             if point_in_triangle(x, y, *right_ear_tip):
                 color = FOX_DARK
+            if point_in_triangle(x, y, *left_inner):
+                color = FOX_DARK
+            if point_in_triangle(x, y, *right_inner):
+                color = FOX_DARK
             if point_in_polygon(x, y, head):
                 color = FOX
-            if point_in_polygon(x, y, blaze):
+            if point_in_polygon(x, y, face):
                 color = WHITE
             if in_circle(x, y, eye_l[0], eye_l[1], eye_radius):
                 color = NOSE
             if in_circle(x, y, eye_r[0], eye_r[1], eye_radius):
                 color = NOSE
-            if in_circle(x, y, nose[0], nose[1], nose_r):
+            if in_ellipse(x, y, nose[0], nose[1], nose_rx, nose_ry):
                 color = NOSE
             px += bytes(color) + b"\xff"
     return bytes(px)
