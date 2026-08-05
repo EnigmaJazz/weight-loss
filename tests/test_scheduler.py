@@ -102,9 +102,44 @@ async def test_due_checks_with_no_subscriptions(tmp_path, monkeypatch):
 
     now = datetime(2026, 8, 2, 21, 0)  # tip, reminder, and exercise all due
     count = await run_due_checks(app.state, now)
-    assert count == 3
-    assert calls == [0, 0, 0]
-    # Still marked sent so the type fires once per day regardless.
+    # Sending to zero subscribers is a no-op: it must NOT consume the day's
+    # dedupe, otherwise the notification silently never fires once the user
+    # enables push later that day.
+    assert count == 0
+    assert calls == []
+    assert not app.state.db.is_notification_sent("2026-08-02", "tip")
+
+
+@pytest.mark.asyncio
+async def test_due_checks_fires_after_subscriber_joins(tmp_path, monkeypatch):
+    # Regression: a 09:00 tick with zero subscribers must not mark the day
+    # sent; the same type fires later that day once a subscriber exists.
+    calls = []
+
+    async def fake_send_to_all(subscriptions, title, body, vapid):
+        calls.append(len(subscriptions))
+        return 0
+
+    monkeypatch.setattr(notifications_module, "send_to_all", fake_send_to_all)
+
+    db_path = str(tmp_path / "sched.db")
+    vapid_path = str(tmp_path / "vapid_keys.json")
+    app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
+    init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+
+    # First tick: tip due, no subscribers -> nothing sent, no dedupe.
+    now = datetime(2026, 8, 2, 9, 0)
+    count = await run_due_checks(app.state, now)
+    assert count == 0
+    assert not app.state.db.is_notification_sent("2026-08-02", "tip")
+
+    # User enables push: a subscription exists now.
+    app.state.db.add_subscription("https://fcm.example/abc", "k1", "k2")
+
+    # Second tick same day: tip is still due, no dedupe exists -> fires.
+    count = await run_due_checks(app.state, datetime(2026, 8, 2, 21, 0))
+    assert count == 3  # tip, reminder, exercise are all due at 21:00
+    assert calls == [1, 1, 1]
     assert app.state.db.is_notification_sent("2026-08-02", "tip")
 
 
@@ -123,6 +158,7 @@ async def test_scheduler_persists_sent_at_from_tick(tmp_path, monkeypatch):
     vapid_path = str(tmp_path / "vapid_keys.json")
     app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
     init_app_state(app, db_path=db_path, vapid_path=vapid_path)
+    app.state.db.add_subscription("https://fcm.example/a", "k1", "k2")
 
     now = datetime(2026, 8, 2, 9, 30)
     count = await run_due_checks(app.state, now)
@@ -153,6 +189,7 @@ async def test_dst_repeated_hour_sends_once(tmp_path, monkeypatch):
     app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
     init_app_state(app, db_path=db_path, vapid_path=vapid_path)
     app.state.db.update_settings({"tip_time": "01:00"})
+    app.state.db.add_subscription("https://fcm.example/a", "k1", "k2")
 
     repeated_hour = datetime(2026, 11, 1, 1, 30)  # first occurrence
     count = await run_due_checks(app.state, repeated_hour)
@@ -182,6 +219,7 @@ async def test_dst_skipped_time_fires_on_next_tick(tmp_path, monkeypatch):
     app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
     init_app_state(app, db_path=db_path, vapid_path=vapid_path)
     app.state.db.update_settings({"exercise_time": "02:30"})
+    app.state.db.add_subscription("https://fcm.example/a", "k1", "k2")
 
     # 03:00 local: tip/reminder not due, the skipped 02:30 exercise IS due.
     now = datetime(2026, 3, 8, 3, 0)

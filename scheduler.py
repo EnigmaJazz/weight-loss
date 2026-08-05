@@ -36,6 +36,17 @@ async def run_due_checks(app_state: Any, now: datetime) -> int:
             continue
         title, body = NOTIFICATION_MESSAGES[notif_type]
         subscriptions = await run_db(db.list_subscriptions)
+        if not subscriptions:
+            # Nothing was delivered, so do NOT consume the day's dedupe: a
+            # send to zero subscribers is a no-op, and marking it sent would
+            # silently skip the notification for the rest of the day once the
+            # user enables push (reported: "timed notifications never fire").
+            logger.info(
+                "skipped %s notification for %s (no subscriptions)",
+                notif_type,
+                today,
+            )
+            continue
         await notifications.send_to_all(subscriptions, title, body, app_state.vapid)
         # Persist the tick's own local wall time (not a fresh now()) so sent_at
         # always matches the moment the schedule actually fired.
