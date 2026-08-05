@@ -62,7 +62,9 @@ jobs:
       - name: Install playwright-cli and Chromium
         run: |
           npm install -g @playwright/cli@latest
-          npx playwright install chromium
+          playwright-cli install --skills
+          # verify the CLI's exact bundled Chromium revision is present
+          ls ~/.cache/ms-playwright/
 
       - name: Boot app on scratch DB
         run: |
