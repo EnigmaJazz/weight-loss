@@ -16,6 +16,16 @@
 set -u
 
 BASE_URL="${1:-http://localhost:8000}"
+# Browser selection: system Chrome when present (CI runners have it),
+# else the bundled Playwright Chromium (local dev machines).
+# Override with SMOKE_BROWSER=chromium|chrome|firefox|webkit.
+if [ -n "${SMOKE_BROWSER:-}" ]; then
+  BROWSER="$SMOKE_BROWSER"
+elif command -v google-chrome >/dev/null 2>&1 || [ -x /usr/bin/google-chrome ]; then
+  BROWSER=chrome
+else
+  BROWSER=chromium
+fi
 TEST_WEIGHT="88.8"
 TEST_DATE="$(date +%F)"
 PASS=0
@@ -57,7 +67,7 @@ echo "   target: $BASE_URL  (test entry: $TEST_DATE $TEST_WEIGHT kg)"
 # ---- 1. page loads ---------------------------------------------------------
 
 echo "-- page load"
-playwright-cli open "$BASE_URL" --browser=chromium >/dev/null 2>&1 || { echo "error: could not open browser"; exit 1; }
+playwright-cli open "$BASE_URL" --browser="$BROWSER" >/dev/null 2>&1 || { echo "error: could not open browser ($BROWSER)"; exit 1; }
 
 TITLE="$(playwright-cli --raw eval 'document.title' 2>&1 | tr -d '"')"
 if [ "$TITLE" = "Weight Loss Tracker" ]; then
