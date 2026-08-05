@@ -33,8 +33,8 @@ Chain strategy: pending
 
 ## Phase 3: SPA and Rollout Verification (PR 3)
 
-- [ ] 3.1 **RED/GREEN:** assert first/later registrant backfill across five tables in `tests/test_auth_migration.py`; stabilize atomic/idempotent behavior. Test: `.venv/bin/python -m pytest tests/test_auth_migration.py`; harness: seeded DB + ASGI registration; rollback: backfill behavior.
-- [ ] 3.2 **RED/GREEN:** test auth gate, 401 recovery, identity, and logout; update `static/index.html`, `static/app.js`, `static/style.css`. Test: `.venv/bin/python -m pytest tests/test_api.py`; harness: API/HTML smoke, no browser harness; rollback: SPA auth UI.
-- [ ] 3.3 **TRIANGULATE/REFACTOR:** run `.venv/bin/python -m pytest`, document rollback in `design.md`, and remove compatibility paths. Harness: full suite; rollback: polish files.
+- [x] 3.1 **RED/GREEN:** assert first/later registrant backfill across five tables in `tests/test_auth_migration.py`; stabilize atomic/idempotent behavior. Test: `.venv/bin/python -m pytest tests/test_auth_migration.py`; harness: seeded DB + ASGI registration; rollback: backfill behavior.
+- [x] 3.2 **RED/GREEN:** test auth gate, 401 recovery, identity, and logout; update `static/index.html`, `static/app.js`, `static/style.css`. Test: `.venv/bin/python -m pytest tests/test_api.py`; harness: API/HTML smoke, no browser harness; rollback: SPA auth UI.
+- [x] 3.3 **TRIANGULATE/REFACTOR:** run `.venv/bin/python -m pytest`, document rollback in `design.md`, and remove compatibility paths. Harness: full suite; rollback: polish files.
 
 Threat matrix: rows N/A; no tests apply.
