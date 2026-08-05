@@ -59,6 +59,7 @@ class AppSettings:
     target_weight: Optional[float] = None
     tip_time: str = "09:00"
     reminder_time: str = "20:00"
+    reminder_weekday: Optional[int] = 0  # Monday=0 ... Sunday=6
     exercise_time: str = "17:00"
     start_weight_override: Optional[float] = None
     height_cm: Optional[float] = None
@@ -71,3 +72,9 @@ class AppSettings:
             "exercise": self.exercise_time,
         }
         return times.get(notif_type, "")
+
+    def weekday_for(self, notif_type: str) -> Optional[int]:
+        """Fixed weekday (0=Mon .. 6=Sun) for weekly types; None for daily."""
+        if notif_type == "reminder":
+            return self.reminder_weekday
+        return None

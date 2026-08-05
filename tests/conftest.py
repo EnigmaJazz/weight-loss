@@ -29,7 +29,7 @@ def stub_push(monkeypatch):
     """Never send a real web push in tests; record calls for assertions."""
     sent: list = []
 
-    async def fake_send_to_all(subscriptions, title, body, vapid):
+    async def fake_send_to_all(subscriptions, title, body, vapid, notif_type="test"):
         count = 0
         for sub in subscriptions:
             sent.append(
