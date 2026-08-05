@@ -75,34 +75,28 @@ def render(size: int) -> bytes:
     px = bytearray()
     s = size / 512.0
 
-    # Head: triangular heart — wide at the top, tapering to a pointed chin.
+    # Head: triangular — wide at the top, tapering to a pointed chin. The
+    # top edge is raised so the ears' flat bases tuck inside it (seamless).
     head = [
-        (178 * s, 152 * s),   # left top (inner ear base)
-        (334 * s, 152 * s),   # right top
-        (374 * s, 262 * s),   # right cheek (pulled in)
-        (316 * s, 368 * s),   # lower right
-        (256 * s, 416 * s),   # pointed chin
-        (196 * s, 368 * s),   # lower left
-        (138 * s, 262 * s),   # left cheek (pulled in)
+        (160 * s, 140 * s),   # left top
+        (352 * s, 140 * s),   # right top
+        (388 * s, 268 * s),   # right cheek
+        (320 * s, 372 * s),   # lower right
+        (256 * s, 420 * s),   # pointed chin
+        (192 * s, 372 * s),   # lower left
+        (124 * s, 268 * s),   # left cheek
     ]
-    # Ears: tall triangles above the head top corners.
-    left_ear = [(172 * s, 160 * s), (118 * s, 28 * s), (252 * s, 92 * s)]
-    right_ear = [(340 * s, 160 * s), (394 * s, 28 * s), (260 * s, 92 * s)]
-    left_ear_tip = [(158 * s, 116 * s), (134 * s, 48 * s), (202 * s, 80 * s)]
-    right_ear_tip = [(354 * s, 116 * s), (378 * s, 48 * s), (310 * s, 80 * s)]
+    # Ears: tall triangles with a FLAT base below the head's top edge, so the
+    # base sits inside the head silhouette and there is no floating gap.
+    left_ear = [(118 * s, 26 * s), (160 * s, 165 * s), (250 * s, 165 * s)]
+    right_ear = [(394 * s, 26 * s), (262 * s, 165 * s), (352 * s, 165 * s)]
+    left_ear_tip = [(140 * s, 58 * s), (132 * s, 108 * s), (186 * s, 94 * s)]
+    right_ear_tip = [(372 * s, 58 * s), (380 * s, 108 * s), (326 * s, 94 * s)]
     # Dark inner ear: smaller triangle inside each ear.
-    left_inner = [(190 * s, 128 * s), (158 * s, 74 * s), (218 * s, 100 * s)]
-    right_inner = [(322 * s, 128 * s), (354 * s, 74 * s), (294 * s, 100 * s)]
-    # Wide cream lower face: triangular, tapering to the pointed chin.
-    face = [
-        (202 * s, 252 * s),   # left top (near the eye)
-        (310 * s, 252 * s),   # right top
-        (330 * s, 322 * s),   # right cheek flare
-        (290 * s, 392 * s),   # lower right
-        (256 * s, 414 * s),   # pointed chin
-        (222 * s, 392 * s),   # lower left
-        (182 * s, 322 * s),   # left cheek flare
-    ]
+    left_inner = [(172 * s, 132 * s), (160 * s, 86 * s), (206 * s, 106 * s)]
+    right_inner = [(340 * s, 132 * s), (352 * s, 86 * s), (306 * s, 106 * s)]
+    # White lower face: a clean triangle tapering to the pointed chin.
+    face = [(225 * s, 255 * s), (287 * s, 255 * s), (256 * s, 414 * s)]
     # Eyes and nose.
     eye_l = (212 * s, 196 * s)
     eye_r = (300 * s, 196 * s)
