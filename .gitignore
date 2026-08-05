@@ -25,3 +25,6 @@ vapid_keys.json
 
 # Playwright CLI local config
 .playwright/
+
+# Playwright CLI session state
+.playwright-cli/
