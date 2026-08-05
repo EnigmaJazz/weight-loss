@@ -133,3 +133,11 @@ RED correction note (tests only, not implementation): two API tests initially fa
 ## Status
 
 All Phase-1/Phase-2 tasks complete (1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4). **169/169 pytest + 6/6 node tests green**, pyright clean. Branch `auth/slice-2` committed and ready for push/PR (orchestrator-owned). next_recommended: apply slice 3 (SPA + rollout polish).
+
+## Slice 2 Amendment (maintainer decision): drop the legacy backfill
+
+**Decision**: the legacy pre-auth rows (target 70 / height 175, etc.) were smoke-test artifacts, not real per-user config. Per maintainer, the first-registrant backfill was removed: **legacy rows are discarded during migration; every account (including the first) starts empty** and sets its own target/height/schedules.
+
+**Changes**: `LEGACY_TABLE_REBUILDS` copy steps removed (tables rebuild empty); `push_subscriptions` legacy rows deleted post-ALTER; `create_user` claim logic removed; `SENTINEL_USER_ID` removed; migration tests rewritten (`test_auth_migration.py` asserts discard + fresh-start); weight-tracking delta spec's backfill requirement replaced with "Legacy Pre-Auth Data Is Discarded on Migration".
+
+**Evidence**: `tests/test_auth_migration.py` + `test_user_isolation.py` → 33 passed; full suite → 168 passed; pyright 0 errors.

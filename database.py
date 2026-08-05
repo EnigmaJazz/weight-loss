@@ -14,8 +14,7 @@ from rewards import reward_state
 logger = get_logger("database")
 
 # Sentinel owner for legacy single-user rows: 0 is not a real user id (users
-# ids start at 1); the first registrant atomically claims every user_id = 0 row.
-SENTINEL_USER_ID = 0
+# ids start at 1; legacy pre-auth rows are discarded during migration.
 
 # One statement per element: init_schema runs each inside the explicit
 # transaction (BEGIN) instead of executescript, which would implicitly COMMIT
@@ -93,9 +92,11 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
 )
 
 # Legacy (pre-auth) tables whose UNIQUE/PK constraints cannot be changed in
-# place: rebuild via create `_new` -> copy rows with the sentinel owner ->
-# drop old -> rename, all inside the caller's transaction. The four table
-# rebuilds mirror the target schema; push_subscriptions only needs the column
+# place: rebuild via create `_new` -> copy rows -> drop old -> rename, all
+# inside the caller's transaction. Legacy pre-auth rows are DISCARDED (they
+# were smoke-test artifacts, not real per-user data); every new account starts
+# fresh and sets its own target/height/schedules. The four table rebuilds
+# mirror the target schema; push_subscriptions only needs the column
 # (its endpoint stays globally UNIQUE) and is handled separately.
 LEGACY_TABLE_REBUILDS: tuple[tuple[str, str, str], ...] = (
     (
@@ -103,15 +104,14 @@ LEGACY_TABLE_REBUILDS: tuple[tuple[str, str, str], ...] = (
         """
         CREATE TABLE weight_entries_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL DEFAULT 0,
+            user_id INTEGER NOT NULL,
             date TEXT NOT NULL,
             weight_kg REAL NOT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE (user_id, date)
         );
         """,
-        "INSERT INTO weight_entries_new (id, user_id, date, weight_kg, created_at)"
-        " SELECT id, 0, date, weight_kg, created_at FROM weight_entries;",
+        "",  # legacy rows discarded — no copy
     ),
     (
         "active_rewards",
@@ -124,8 +124,7 @@ LEGACY_TABLE_REBUILDS: tuple[tuple[str, str, str], ...] = (
             PRIMARY KEY (user_id, checkpoint_percent)
         );
         """,
-        "INSERT INTO active_rewards_new (user_id, checkpoint_percent, threshold_kg, earned_at)"
-        " SELECT 0, checkpoint_percent, threshold_kg, earned_at FROM active_rewards;",
+        "",  # legacy rows discarded — no copy
     ),
     (
         "notifications_sent",
@@ -138,8 +137,7 @@ LEGACY_TABLE_REBUILDS: tuple[tuple[str, str, str], ...] = (
             PRIMARY KEY (user_id, date, type)
         );
         """,
-        "INSERT INTO notifications_sent_new (user_id, date, type, sent_at)"
-        " SELECT 0, date, type, sent_at FROM notifications_sent;",
+        "",  # legacy rows discarded — no copy
     ),
     (
         "settings",
@@ -151,8 +149,7 @@ LEGACY_TABLE_REBUILDS: tuple[tuple[str, str, str], ...] = (
             PRIMARY KEY (user_id, key)
         );
         """,
-        "INSERT INTO settings_new (user_id, key, value)"
-        " SELECT 0, key, value FROM settings;",
+        "",  # legacy rows discarded — no copy
     ),
 )
 
@@ -212,13 +209,16 @@ class Database:
         for table, create_sql, copy_sql in LEGACY_TABLE_REBUILDS:
             conn.execute(f"DROP TABLE IF EXISTS {table}_new")
             conn.execute(create_sql)
-            conn.execute(copy_sql)
+            if copy_sql:
+                conn.execute(copy_sql)
             conn.execute(f"DROP TABLE {table}")
             conn.execute(f"ALTER TABLE {table}_new RENAME TO {table}")
         conn.execute(
             "ALTER TABLE push_subscriptions"
             " ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0"
         )
+        # Legacy pre-auth subscription rows have no owner and are discarded.
+        conn.execute("DELETE FROM push_subscriptions WHERE user_id = 0")
 
     # ---- weight entries ----
 
@@ -278,9 +278,7 @@ class Database:
 
     def reconcile_active_rewards(self) -> None:
         """Reconcile the persisted checkpoint set for every registered user in
-        its own transaction (startup entry point after the schema is created).
-        Unclaimed sentinel rows have no owner yet and are left untouched until
-        the first registrant claims them."""
+        its own transaction (startup entry point after the schema is created)."""
         with self._tx() as conn:
             rows = conn.execute("SELECT id FROM users ORDER BY id").fetchall()
             for row in rows:
@@ -337,9 +335,8 @@ class Database:
     def create_user(self, username: str, password_hash: str, salt: str) -> User:
         """Insert a user; raise DuplicateUsernameError on a taken username.
 
-        The first user atomically claims every sentinel-owned (user_id = 0)
-        legacy row in the same transaction — the one-shot first-registrant
-        backfill. Guarded by the users-table count, so it can never re-run.
+        Every account starts with an empty dataset; legacy pre-auth rows were
+        discarded during migration, so there is no backfill to claim.
         """
         with self._tx() as conn:
             try:
@@ -354,19 +351,6 @@ class Database:
             if lastrowid is None:
                 raise RuntimeError("user insert produced no row id")
             user_id = int(lastrowid)
-            count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            if count == 1:
-                for table in (
-                    "weight_entries",
-                    "push_subscriptions",
-                    "active_rewards",
-                    "notifications_sent",
-                    "settings",
-                ):
-                    conn.execute(
-                        f"UPDATE {table} SET user_id = ? WHERE user_id = ?",
-                        (user_id, SENTINEL_USER_ID),
-                    )
             row = conn.execute(
                 "SELECT id, username, password_hash, salt, created_at"
                 " FROM users WHERE id = ?",

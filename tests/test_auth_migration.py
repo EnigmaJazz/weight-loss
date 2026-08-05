@@ -1,9 +1,10 @@
-"""Legacy single-user DB migration: user_id columns, transactional table
-rebuilds, and the one-shot first-registrant backfill of sentinel-owned rows.
+"""Legacy single-user DB migration: user_id columns and transactional table
+rebuilds.
 
 Seeds a database with the pre-auth schema (no user_id anywhere), boots the app
-so init_schema migrates it, then registers users to prove the first account
-claims every legacy row atomically and later accounts get empty data.
+so init_schema migrates it, and verifies the legacy rows are DISCARDED — every
+new account starts fresh and sets its own target/height/schedules (the old
+pre-auth rows were smoke-test artifacts, not real per-user data).
 """
 
 import httpx
@@ -118,7 +119,7 @@ def _has_user_column(db: Database, table: str) -> bool:
 
 
 @pytest.mark.asyncio
-async def test_boot_migrates_legacy_schema_preserving_rows(tmp_path):
+async def test_boot_migrates_legacy_schema_discarding_rows(tmp_path):
     db_path = str(tmp_path / "legacy.db")
     vapid_path = str(tmp_path / "vapid_keys.json")
     _seed_legacy_db(db_path)
@@ -137,13 +138,13 @@ async def test_boot_migrates_legacy_schema_preserving_rows(tmp_path):
     ):
         assert _has_user_column(db, table), table
 
-    # Data survived the rebuilds, still sentinel-owned (no users exist yet).
-    assert db.conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 6
-    assert db.conn.execute("SELECT COUNT(*) FROM weight_entries").fetchone()[0] == 2
-    assert db.conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()[0] == 1
-    assert db.conn.execute("SELECT COUNT(*) FROM notifications_sent").fetchone()[0] == 1
-    assert _count_where(db, "settings", 0) == 6
-    assert _count_where(db, "weight_entries", 0) == 2
+    # Legacy pre-auth rows are DISCARDED: no user owns them and no account
+    # should inherit smoke-test artifacts. Every table is empty.
+    assert db.conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM weight_entries").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM notifications_sent").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM active_rewards").fetchone()[0] == 0
 
 
 @pytest.mark.asyncio
@@ -156,8 +157,8 @@ async def test_migration_is_idempotent_across_reboots(tmp_path):
         app = create_app(db_path=db_path, vapid_path=vapid_path, start_scheduler=False)
         init_app_state(app, db_path=db_path, vapid_path=vapid_path)
         db = app.state.db
-        assert db.conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 6
-        assert db.conn.execute("SELECT COUNT(*) FROM weight_entries").fetchone()[0] == 2
+        assert db.conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 0
+        assert db.conn.execute("SELECT COUNT(*) FROM weight_entries").fetchone()[0] == 0
 
 
 def test_fresh_db_creates_user_columns_directly(tmp_path):
@@ -177,34 +178,13 @@ def test_fresh_db_creates_user_columns_directly(tmp_path):
         db.close()
 
 
-# ---- first-registrant backfill -------------------------------------------
+# ---- every new account starts empty --------------------------------------
 
 
-def test_first_user_claims_sentinel_rows_atomically(tmp_path):
-    db = Database(str(tmp_path / "backfill.db"))
+def test_first_user_starts_empty(tmp_path):
+    db = Database(str(tmp_path / "fresh.db"))
     db.init_schema()
     try:
-        with db._tx() as conn:
-            conn.execute(
-                "INSERT INTO settings (user_id, key, value) VALUES (0, 'target_weight', '70.0')"
-            )
-            conn.execute(
-                "INSERT INTO weight_entries (user_id, date, weight_kg)"
-                " VALUES (0, '2026-08-01', 100.0)"
-            )
-            conn.execute(
-                "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)"
-                " VALUES (0, 'https://push.example.com/s', 'p', 'a')"
-            )
-            conn.execute(
-                "INSERT INTO notifications_sent (user_id, date, type)"
-                " VALUES (0, '2026-08-02', 'tip')"
-            )
-            conn.execute(
-                "INSERT INTO active_rewards (user_id, checkpoint_percent, threshold_kg)"
-                " VALUES (0, 10, 98.0)"
-            )
-
         alice = db.create_user("alice", "hash", "salt")
         for table in (
             "settings",
@@ -213,39 +193,15 @@ def test_first_user_claims_sentinel_rows_atomically(tmp_path):
             "notifications_sent",
             "active_rewards",
         ):
-            assert _count_where(db, table, alice.id) == 1, table
-            assert _count_where(db, table, 0) == 0, table
-    finally:
-        db.close()
-
-
-def test_later_user_cannot_claim_existing_rows(tmp_path):
-    db = Database(str(tmp_path / "backfill.db"))
-    db.init_schema()
-    try:
-        with db._tx() as conn:
-            conn.execute(
-                "INSERT INTO settings (user_id, key, value) VALUES (0, 'target_weight', '70.0')"
-            )
-        alice = db.create_user("alice", "hash", "salt")
-        bob = db.create_user("bob", "hash", "salt")
-
-        # bob's registration must not move or copy alice's claimed settings.
-        assert _count_where(db, "settings", alice.id) == 1
-        assert _count_where(db, "settings", bob.id) == 0
-        row = db.conn.execute(
-            "SELECT value FROM settings WHERE user_id = ? AND key = 'target_weight'",
-            (alice.id,),
-        ).fetchone()
-        assert row is not None and row[0] == "70.0"
+            assert _count_where(db, table, alice.id) == 0, table
     finally:
         db.close()
 
 
 @pytest.mark.asyncio
-async def test_first_registrant_claims_legacy_rows_via_api(tmp_path):
-    """End-to-end: a legacy DB's settings survive for the first account and
-    later accounts start empty — the spec's backfill scenarios."""
+async def test_registered_users_start_empty_after_migration(tmp_path):
+    """End-to-end: after migrating a legacy DB, every registrant (first and
+    later) starts with empty data and sets their own settings."""
     db_path = str(tmp_path / "legacy.db")
     vapid_path = str(tmp_path / "vapid_keys.json")
     _seed_legacy_db(db_path)
@@ -262,26 +218,12 @@ async def test_first_registrant_claims_legacy_rows_via_api(tmp_path):
         assert resp.status_code == 201
         alice_id = resp.json()["id"]
 
-        # Alice's API view reflects the claimed legacy data.
+        # Alice starts with empty data — no legacy backfill.
         settings = (await ac.get("/api/settings")).json()
-        assert settings["target_weight"] == 70.0
-        assert settings["height_cm"] == 175.0
+        assert settings["target_weight"] is None
+        assert settings["height_cm"] is None
         weight = (await ac.get("/api/weight")).json()
-        assert [entry["date"] for entry in weight["entries"]] == [
-            "2026-08-02",
-            "2026-08-01",
-        ]
-
-        # All five tables now belong to alice; nothing stays sentinel-owned.
-        for table in (
-            "weight_entries",
-            "push_subscriptions",
-            "active_rewards",
-            "notifications_sent",
-            "settings",
-        ):
-            assert _count_where(app.state.db, table, alice_id) > 0, table
-            assert _count_where(app.state.db, table, 0) == 0, table
+        assert weight["entries"] == []
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as bc:
         resp = await bc.post(
@@ -291,10 +233,17 @@ async def test_first_registrant_claims_legacy_rows_via_api(tmp_path):
         assert resp.status_code == 201
         bob_id = resp.json()["id"]
 
-        # Bob starts with empty data; alice's legacy settings are untouched.
+        # Bob also starts empty; nothing was inherited by either account.
         settings = (await bc.get("/api/settings")).json()
         assert settings["target_weight"] is None
         weight = (await bc.get("/api/weight")).json()
         assert weight["entries"] == []
-        assert _count_where(app.state.db, "settings", bob_id) == 0
-        assert _count_where(app.state.db, "settings", alice_id) == 6
+        for table in (
+            "settings",
+            "weight_entries",
+            "push_subscriptions",
+            "notifications_sent",
+            "active_rewards",
+        ):
+            assert _count_where(app.state.db, table, alice_id) == 0, table
+            assert _count_where(app.state.db, table, bob_id) == 0, table

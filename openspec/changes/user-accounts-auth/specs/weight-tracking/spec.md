@@ -19,21 +19,21 @@ Every weight and settings endpoint MUST require an authenticated user. `GET /api
 - WHEN user A reads weight history and settings
 - THEN only user A's values MUST be returned
 
-### Requirement: First-Registrant Legacy Settings Backfill
+### Requirement: Legacy Pre-Auth Data Is Discarded on Migration
 
-On creation of the first account, all unowned legacy settings MUST be assigned to that account in the same atomic operation. The backfill MUST run at most once and MUST NOT transfer settings to later accounts or overwrite their settings.
+When a pre-auth database is migrated, all legacy rows MUST be discarded — no account inherits them. Every account, including the first, MUST start with an empty dataset and set its own target, height, and schedules. The discard MUST be atomic with the schema rebuild and MUST NOT run again on already-migrated databases.
 
-#### Scenario: First account claims legacy settings
+#### Scenario: First account starts empty after migration
 
-- GIVEN legacy settings exist and no account exists
-- WHEN the first account is registered
-- THEN all legacy settings MUST belong to that account without partial assignment
+- GIVEN legacy settings and entries exist and no account exists
+- WHEN the database is migrated and the first account is registered
+- THEN the account MUST have no settings, entries, rewards, subscriptions, or dedupe rows
 
-#### Scenario: Later account cannot claim legacy settings
+#### Scenario: Later accounts also start empty
 
-- GIVEN the first-account backfill has completed
-- WHEN another account is registered
-- THEN no existing setting ownership MUST change
+- GIVEN a migrated database
+- WHEN any account is registered
+- THEN it MUST start with an empty dataset and no inherited data MUST change
 
 ## MODIFIED Requirements
 
