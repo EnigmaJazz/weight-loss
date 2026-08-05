@@ -25,7 +25,11 @@ def _session_token(resp) -> str:
 async def _register(client, username="alice", password="password123"):
     return await client.post(
         "/api/auth/register",
-        json={"username": username, "password": password},
+        json={
+            "username": username,
+            "password": password,
+            "email": f"{username}@example.com",
+        },
     )
 
 
@@ -38,6 +42,7 @@ async def test_register_creates_lowercased_user_and_session(client):
     assert resp.status_code == 201
     body = resp.json()
     assert body["username"] == "alice"  # lowercased
+    assert body["email"] == "alice@example.com"  # normalized with the username
     assert body["id"] >= 1
     assert body["created_at"]
     # only public identity fields are returned
@@ -47,6 +52,7 @@ async def test_register_creates_lowercased_user_and_session(client):
     me = await client.get("/api/auth/me")
     assert me.status_code == 200
     assert me.json()["username"] == "alice"
+    assert me.json()["email"] == "alice@example.com"
 
 
 @pytest.mark.asyncio

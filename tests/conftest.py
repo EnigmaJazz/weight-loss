@@ -36,7 +36,11 @@ async def auth_client(app):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.post(
             "/api/auth/register",
-            json={"username": AUTH_USERNAME, "password": DEFAULT_PASSWORD},
+            json={
+                "username": AUTH_USERNAME,
+                "password": DEFAULT_PASSWORD,
+                "email": f"{AUTH_USERNAME}@example.com",
+            },
         )
         assert resp.status_code == 201, resp.text
         yield ac
@@ -58,7 +62,12 @@ async def pair(app):
 async def register_user(client, username, password=DEFAULT_PASSWORD):
     """Register a user through the API; returns the new user's id."""
     resp = await client.post(
-        "/api/auth/register", json={"username": username, "password": password}
+        "/api/auth/register",
+        json={
+            "username": username,
+            "password": password,
+            "email": f"{username}@example.com",
+        },
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]

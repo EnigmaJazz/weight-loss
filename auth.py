@@ -10,6 +10,7 @@ import hmac
 import secrets
 
 from constants import (
+    RESET_TOKEN_BYTES,
     SCRIPT_DKLEN,
     SCRIPT_N,
     SCRIPT_P,
@@ -48,5 +49,15 @@ def generate_session_token() -> str:
 
 
 def hash_session_token(token: str) -> str:
+    """Return the SHA-256 hex digest that is stored instead of the raw token."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def generate_reset_token() -> str:
+    """Return a fresh random one-time password-reset secret (never persisted)."""
+    return secrets.token_urlsafe(RESET_TOKEN_BYTES)
+
+
+def hash_reset_token(token: str) -> str:
     """Return the SHA-256 hex digest that is stored instead of the raw token."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

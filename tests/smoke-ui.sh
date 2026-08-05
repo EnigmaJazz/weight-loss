@@ -34,6 +34,7 @@ ST_DATE="$(date -d "yesterday" +%F 2>/dev/null || date -v-1d +%F)"
 # Fresh unique account per run, so reruns against a persistent DB don't 409.
 TEST_USER="smoke$(date +%s)"
 TEST_PASSWORD="password123"
+TEST_EMAIL="${TEST_USER}@example.com"
 PASS=0
 FAIL=0
 declare -a FAILED_STEPS=()
@@ -107,6 +108,8 @@ assert_visibility "auth screen shown on load" "#auth-screen" "visible"
 echo "-- signup"
 playwright-cli click "#auth-toggle" >/dev/null 2>&1
 playwright-cli fill "#auth-username" "$TEST_USER" >/dev/null 2>&1
+# registration requires an email; the field is only visible in signup mode
+playwright-cli fill "#auth-email" "$TEST_EMAIL" >/dev/null 2>&1
 playwright-cli fill "#auth-password" "$TEST_PASSWORD" >/dev/null 2>&1
 playwright-cli click "#auth-form button[type=submit]" >/dev/null 2>&1
 sleep 1

@@ -111,6 +111,19 @@ button.secondary {
 
 button.secondary:hover { background: #eef7f1; }
 
+/* subtle text-style button for secondary auth actions (e.g. forgot password) */
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+button.link:hover { color: var(--accent); background: none; }
+
 .hint { font-size: 0.82rem; color: var(--muted); margin: 0.5rem 0 0; }
 .error { color: var(--danger); }
 

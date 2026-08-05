@@ -25,13 +25,35 @@
         <form id="auth-form" autocomplete="off">
           <label for="auth-username">Username</label>
           <input type="text" id="auth-username" name="username" autocomplete="username" required>
+          <label for="auth-email" id="auth-email-label" hidden>Email</label>
+          <input type="email" id="auth-email" name="email" autocomplete="email" hidden>
           <label for="auth-password">Password</label>
           <input type="password" id="auth-password" name="password" autocomplete="current-password" required>
           <button type="submit" id="auth-submit">Log in</button>
         </form>
         <p class="hint">
           <button type="button" id="auth-toggle" class="secondary">Create account</button>
+          <button type="button" id="forgot-link" class="link">Forgot password?</button>
         </p>
+
+        <form id="forgot-form" autocomplete="off" hidden>
+          <p class="hint">Enter the email on your account and we'll send a reset link.</p>
+          <label for="forgot-email">Email</label>
+          <input type="email" id="forgot-email" name="email" autocomplete="email" required>
+          <button type="submit" id="forgot-submit">Send reset link</button>
+          <p class="hint">
+            <button type="button" id="forgot-back" class="secondary">Back to login</button>
+          </p>
+        </form>
+
+        <form id="reset-form" autocomplete="off" hidden>
+          <p class="hint">Choose a new password for your account.</p>
+          <label for="reset-password">New password</label>
+          <input type="password" id="reset-password" name="password" autocomplete="new-password" required>
+          <label for="reset-confirm">Confirm new password</label>
+          <input type="password" id="reset-confirm" autocomplete="new-password" required>
+          <button type="submit" id="reset-submit">Reset password</button>
+        </form>
       </section>
 
       <div id="tracker" hidden>
