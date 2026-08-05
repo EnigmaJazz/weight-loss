@@ -75,16 +75,16 @@ def render(size: int) -> bytes:
     px = bytearray()
     s = size / 512.0
 
-    # Head: triangular — wide at the top, tapering to a pointed chin. The
-    # top edge is raised so the ears' flat bases tuck inside it (seamless).
+    # Head: a clean triangle — top edge under the ears, sides tapering
+    # directly to the pointed chin (no cheek bulge).
     head = [
-        (160 * s, 140 * s),   # left top
-        (352 * s, 140 * s),   # right top
-        (388 * s, 268 * s),   # right cheek
-        (320 * s, 372 * s),   # lower right
-        (256 * s, 420 * s),   # pointed chin
-        (192 * s, 372 * s),   # lower left
-        (124 * s, 268 * s),   # left cheek
+        (164 * s, 140 * s),   # left top
+        (348 * s, 140 * s),   # right top
+        (332 * s, 300 * s),   # right mid (pulled in)
+        (284 * s, 402 * s),   # lower right
+        (256 * s, 424 * s),   # pointed chin
+        (228 * s, 402 * s),   # lower left
+        (180 * s, 300 * s),   # left mid (pulled in)
     ]
     # Ears: tall triangles with a FLAT base below the head's top edge, so the
     # base sits inside the head silhouette and there is no floating gap.
