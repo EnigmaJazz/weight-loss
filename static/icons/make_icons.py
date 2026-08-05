@@ -84,11 +84,15 @@ def render(size: int) -> bytes:
     right_ear = [(342 * s, 160 * s), (392 * s, 30 * s), (262 * s, 95 * s)]
     left_ear_tip = [(158 * s, 118 * s), (136 * s, 52 * s), (200 * s, 82 * s)]
     right_ear_tip = [(354 * s, 118 * s), (376 * s, 52 * s), (312 * s, 82 * s)]
-    # White muzzle: wedge at the bottom center.
-    muzzle = [(256 * s, 282 * s), (206 * s, 388 * s), (306 * s, 388 * s)]
-    # White cheeks: thin wedges under each eye.
-    left_cheek = [(172 * s, 205 * s), (130 * s, 300 * s), (228 * s, 250 * s)]
-    right_cheek = [(340 * s, 205 * s), (382 * s, 300 * s), (284 * s, 250 * s)]
+    # White blaze: the classic fox marking — white runs from between the
+    # eyes down the face, widening into the muzzle at the chin.
+    blaze = [
+        (256 * s, 165 * s),   # top center (between the eyes)
+        (236 * s, 300 * s),   # left of the muzzle
+        (206 * s, 388 * s),   # chin left
+        (306 * s, 388 * s),   # chin right
+        (276 * s, 300 * s),   # right of the muzzle
+    ]
     # Eyes and nose.
     eye_l = (212 * s, 205 * s)
     eye_r = (300 * s, 205 * s)
@@ -109,11 +113,7 @@ def render(size: int) -> bytes:
                 color = FOX_DARK
             if point_in_polygon(x, y, head):
                 color = FOX
-            if point_in_triangle(x, y, *left_cheek):
-                color = WHITE
-            if point_in_triangle(x, y, *right_cheek):
-                color = WHITE
-            if point_in_triangle(x, y, *muzzle):
+            if point_in_polygon(x, y, blaze):
                 color = WHITE
             if in_circle(x, y, eye_l[0], eye_l[1], eye_radius):
                 color = NOSE
