@@ -9,7 +9,7 @@ const toastEl = $("toast");
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, summaryLabel } = globalThis.WeightFormat;
+const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm } = globalThis.WeightFormat;
 
 function bmiLabel(bmi) {
   return bmi == null ? "—" : fmt1(bmi);
@@ -311,13 +311,38 @@ async function saveSettings(ev) {
     const v = $(id).value.trim();
     return v;
   };
+  let heightCm;
+  if ($("height-unit").value === "ft-in") {
+    const ftRaw = $("height-ft").value.trim();
+    const inRaw = $("height-in").value.trim();
+    if (ftRaw === "" && inRaw === "") {
+      heightCm = null; // height unset, same as an empty cm field
+    } else if (ftRaw === "" || inRaw === "") {
+      toast("Enter both feet and inches, or leave both empty to unset height");
+      return;
+    } else {
+      const ft = Number(ftRaw);
+      const inches = Number(inRaw);
+      if (!(ft >= 0)) {
+        toast("Feet must be 0 or more");
+        return;
+      }
+      if (!(inches >= 0) || inches >= 12) {
+        toast("Inches must be at least 0 and less than 12");
+        return;
+      }
+      heightCm = ftInToCm(ft, inches);
+    }
+  } else {
+    heightCm = num("height-cm");
+  }
   try {
     await fetchJson("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         target_weight: num("target-weight"),
-        height_cm: num("height-cm"),
+        height_cm: heightCm,
         tip_time: time("tip-time"),
         reminder_time: time("reminder-time"),
         reminder_weekday: Number($("reminder-weekday").value),
@@ -344,7 +369,32 @@ function todayLocal() {
 async function addEntry(ev) {
   ev.preventDefault();
   const date = $("entry-date").value || todayLocal();
-  const weightKg = Number($("entry-weight").value);
+  let weightKg;
+  if ($("weight-unit").value === "st-lb") {
+    const stoneRaw = $("entry-stone").value.trim();
+    const lbRaw = $("entry-lb").value.trim();
+    if (stoneRaw === "" || lbRaw === "") {
+      toast("Enter both stone and pounds");
+      return;
+    }
+    const stone = Number(stoneRaw);
+    const lb = Number(lbRaw);
+    if (!Number.isInteger(stone) || stone < 0) {
+      toast("Stone must be a whole number, 0 or more");
+      return;
+    }
+    if (!(lb >= 0) || lb >= 14) {
+      toast("Pounds must be at least 0 and less than 14");
+      return;
+    }
+    if (stone === 0 && lb === 0) {
+      toast("Weight must be greater than 0");
+      return;
+    }
+    weightKg = stoneLbToKg(stone, lb);
+  } else {
+    weightKg = Number($("entry-weight").value);
+  }
   try {
     await fetchJson("/api/weight", {
       method: "POST",
@@ -437,6 +487,18 @@ function setPushUi(enabled) {
 
 /* ---- init -------------------------------------------------------------- */
 
+function syncWeightUnitUi() {
+  const stLb = $("weight-unit").value === "st-lb";
+  $("entry-weight").hidden = stLb;
+  $("entry-st-lb").hidden = !stLb;
+}
+
+function syncHeightUnitUi() {
+  const ftIn = $("height-unit").value === "ft-in";
+  $("height-cm").hidden = ftIn;
+  $("height-ft-in").hidden = !ftIn;
+}
+
 async function init() {
   $("entry-form").addEventListener("submit", addEntry);
   $("settings-form").addEventListener("submit", saveSettings);
@@ -444,6 +506,10 @@ async function init() {
   $("disable-push").addEventListener("click", disablePush);
   $("test-push").addEventListener("click", testPush);
   $("entry-date").value = todayLocal();
+  $("weight-unit").addEventListener("change", syncWeightUnitUi);
+  $("height-unit").addEventListener("change", syncHeightUnitUi);
+  syncWeightUnitUi();
+  syncHeightUnitUi();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {

@@ -24,7 +24,21 @@
     return weightLabel(o[`${prefix}_kg`], o[`${prefix}_lb`], o[`${prefix}_stone`], o[`${prefix}_stone_lb`]);
   }
 
-  const api = { fmt1, weightLabel, summaryLabel };
+  /** stone + lb -> kg. The exact international pound (1 lb = 0.45359237 kg),
+   * inverse of units.py's KG_TO_LB = 2.2046226218. Null-safe, rounding-free
+   * (raw value; display rounding is the SPA's job). */
+  function stoneLbToKg(stone, lb) {
+    if (stone == null || lb == null) return null;
+    return (stone * 14 + lb) * 0.45359237;
+  }
+
+  /** ft + in -> cm (1 in = 2.54 cm exactly). Null-safe, rounding-free. */
+  function ftInToCm(ft, inches) {
+    if (ft == null || inches == null) return null;
+    return (ft * 12 + inches) * 2.54;
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
