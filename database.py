@@ -92,7 +92,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
 )
 
 # Legacy (pre-auth) tables whose UNIQUE/PK constraints cannot be changed in
-# place: rebuild via create `_new` -> copy rows -> drop old -> rename, all
+# place: rebuild via create `_new` -> discard rows -> drop old -> rename, all
 # inside the caller's transaction. Legacy pre-auth rows are DISCARDED (they
 # were smoke-test artifacts, not real per-user data); every new account starts
 # fresh and sets its own target/height/schedules. The four table rebuilds
@@ -197,8 +197,8 @@ class Database:
             self._migrate_legacy_schema(conn)
 
     def _migrate_legacy_schema(self, conn: sqlite3.Connection) -> None:
-        """Rebuild pre-auth tables in place, preserving data under the
-        sentinel owner. Runs inside the caller's transaction (all-or-nothing);
+        """Rebuild pre-auth tables in place, DISCARDING legacy data. Runs
+        inside the caller's transaction (all-or-nothing);
         idempotent — a migrated or fresh schema is left untouched."""
         columns = {
             row["name"]
