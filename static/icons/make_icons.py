@@ -95,8 +95,12 @@ def render(size: int) -> bytes:
     # Dark inner ear: smaller triangle inside each ear.
     left_inner = [(172 * s, 132 * s), (160 * s, 86 * s), (206 * s, 106 * s)]
     right_inner = [(340 * s, 132 * s), (352 * s, 86 * s), (306 * s, 106 * s)]
-    # White lower face: a clean triangle tapering to the pointed chin.
-    face = [(225 * s, 255 * s), (287 * s, 255 * s), (256 * s, 414 * s)]
+    # White ear tuft: a small light triangle at the base of each inner ear.
+    left_tuft = [(170 * s, 130 * s), (163 * s, 108 * s), (196 * s, 118 * s)]
+    right_tuft = [(342 * s, 130 * s), (349 * s, 108 * s), (316 * s, 118 * s)]
+    # White lower face: a clean triangle tapering to the pointed chin,
+    # wider at the top than before.
+    face = [(212 * s, 255 * s), (300 * s, 255 * s), (256 * s, 414 * s)]
     # Eyes and nose.
     eye_l = (212 * s, 196 * s)
     eye_r = (300 * s, 196 * s)
@@ -120,6 +124,10 @@ def render(size: int) -> bytes:
                 color = FOX_DARK
             if point_in_triangle(x, y, *right_inner):
                 color = FOX_DARK
+            if point_in_triangle(x, y, *left_tuft):
+                color = WHITE
+            if point_in_triangle(x, y, *right_tuft):
+                color = WHITE
             if point_in_polygon(x, y, head):
                 color = FOX
             if point_in_polygon(x, y, face):
