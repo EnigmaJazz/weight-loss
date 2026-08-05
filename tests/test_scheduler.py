@@ -195,3 +195,41 @@ async def test_dst_skipped_time_fires_on_next_tick(tmp_path, monkeypatch):
     count = await run_due_checks(app.state, datetime(2026, 3, 8, 23, 59))
     assert count == 2
     assert sent.count("Exercise encouragement") == 1
+
+
+# ---- notification-schedule-disable: full API -> scheduler path ----------
+
+
+@pytest.mark.asyncio
+async def test_api_disabled_schedule_is_skipped(client, app, stub_push):
+    # Spec: a type persisted as "" through PUT /api/settings must be skipped
+    # by the scheduler at its former due time: zero sends, zero count, and no
+    # (date, tip) dedupe key.
+    await client.post(
+        "/api/push/subscribe",
+        json={
+            "endpoint": "https://push.example.com/sched",
+            "p256dh": "BEl62iUYgUivxIkv69yViEuiBIa_IbT8n1sWj3N5nPw",
+            "auth": "F8UVa5fTzFQXlq6dZ0Gt7g",
+        },
+    )
+    res = await client.put("/api/settings", json={"tip_time": ""})
+    assert res.status_code == 200
+    assert res.json()["tip_time"] == ""
+
+    # 10:00: only tip (09:00) would be due; reminder (20:00) and exercise
+    # (17:00) are not. Disabled tip -> nothing fires and nothing is marked.
+    now = datetime(2026, 8, 2, 10, 0)
+    count = await run_due_checks(app.state, now)
+    assert count == 0
+    assert stub_push == []
+    assert not app.state.db.is_notification_sent("2026-08-02", "tip")
+
+    # Triangulate: re-enable tip through the API -> the same tick fires it,
+    # proving the skip above came from the disable, not a broken scheduler.
+    res = await client.put("/api/settings", json={"tip_time": "09:00"})
+    assert res.status_code == 200
+    count = await run_due_checks(app.state, datetime(2026, 8, 2, 10, 0))
+    assert count == 1
+    assert len(stub_push) == 1
+    assert app.state.db.is_notification_sent("2026-08-02", "tip")

@@ -89,6 +89,65 @@ async def test_settings_nonpositive_height_rejected(client):
     assert res.status_code == 422
 
 
+# ---- notification schedule disable (notification-schedule-disable) -----
+# Contract: "" disables a schedule (persisted and round-tripped unchanged);
+# null removes the override and restores the default; any other non-empty
+# value is rejected with 422 without mutating the stored setting.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["tip_time", "reminder_time", "exercise_time"])
+async def test_settings_disable_time_with_empty_string(client, field):
+    res = await client.put("/api/settings", json={field: ""})
+    assert res.status_code == 200
+    assert res.json()[field] == ""
+    got = (await client.get("/api/settings")).json()
+    assert got[field] == ""
+    defaults = {
+        "tip_time": "09:00",
+        "reminder_time": "20:00",
+        "exercise_time": "17:00",
+    }
+    for other, default in defaults.items():
+        if other != field:
+            assert got[other] == default
+
+
+@pytest.mark.asyncio
+async def test_settings_null_restores_notification_default(client):
+    # null must remove the override, NOT disable: default is restored.
+    res = await client.put("/api/settings", json={"tip_time": "07:30"})
+    assert res.status_code == 200
+    assert res.json()["tip_time"] == "07:30"
+
+    res = await client.put("/api/settings", json={"tip_time": None})
+    assert res.status_code == 200
+    assert res.json()["tip_time"] == "09:00"
+    got = (await client.get("/api/settings")).json()
+    assert got["tip_time"] == "09:00"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("time_value", ["00:00", "23:59"])
+async def test_settings_time_boundaries_accepted(client, time_value):
+    res = await client.put("/api/settings", json={"tip_time": time_value})
+    assert res.status_code == 200
+    assert res.json()["tip_time"] == time_value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_value", ["24:00", "23:60", "9:00", "09:0", "not-a-time", "  "]
+)
+async def test_settings_invalid_times_rejected_without_mutation(client, bad_value):
+    # Invalid non-empty values return 422 and leave the stored value unchanged.
+    await client.put("/api/settings", json={"tip_time": "07:30"})
+    res = await client.put("/api/settings", json={"tip_time": bad_value})
+    assert res.status_code == 422
+    got = (await client.get("/api/settings")).json()
+    assert got["tip_time"] == "07:30"
+
+
 @pytest.mark.asyncio
 async def test_vapid_public_key(client):
     data = (await client.get("/api/push/vapid-public-key")).json()
