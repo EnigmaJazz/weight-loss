@@ -365,9 +365,11 @@ async def logout(
 
 
 @router.get("/api/weight")
-async def get_weight(db: Database = Depends(get_db)) -> dict[str, Any]:
-    entries = await run_db(db.list_entries)
-    settings = await run_db(db.get_settings)
+async def get_weight(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    entries = await run_db(db.list_entries, user.id)
+    settings = await run_db(db.get_settings, user.id)
     summary = _summary_view(entries, settings, settings.height_cm)
     return {
         "entries": [_entry_dict(e, settings.height_cm) for e in entries],
@@ -377,11 +379,13 @@ async def get_weight(db: Database = Depends(get_db)) -> dict[str, Any]:
 
 @router.post("/api/weight")
 async def upsert_weight(
-    payload: WeightIn, db: Database = Depends(get_db)
+    payload: WeightIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> JSONResponse:
-    existing = await run_db(db.get_entry_by_date, payload.date)
-    entry = await run_db(db.upsert_entry, payload.date, payload.weight_kg)
-    settings = await run_db(db.get_settings)
+    existing = await run_db(db.get_entry_by_date, user.id, payload.date)
+    entry = await run_db(db.upsert_entry, user.id, payload.date, payload.weight_kg)
+    settings = await run_db(db.get_settings, user.id)
     status_code = 200 if existing is not None else 201
     return JSONResponse(
         status_code=status_code, content=_entry_dict(entry, settings.height_cm)
@@ -390,9 +394,13 @@ async def upsert_weight(
 
 @router.delete("/api/weight/{entry_id}")
 async def delete_weight(
-    entry_id: int, db: Database = Depends(get_db)
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> dict[str, bool]:
-    deleted = await run_db(db.delete_entry, entry_id)
+    # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
+    # id deletes nothing and surfaces as 404, leaking no information.
+    deleted = await run_db(db.delete_entry, user.id, entry_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="entry not found")
     return {"deleted": True}
@@ -402,10 +410,12 @@ async def delete_weight(
 
 
 @router.get("/api/rewards")
-async def get_rewards(db: Database = Depends(get_db)) -> dict[str, Any]:
-    entries = await run_db(db.list_entries)
-    settings = await run_db(db.get_settings)
-    earned_rows = await run_db(db.list_active_rewards)
+async def get_rewards(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    entries = await run_db(db.list_entries, user.id)
+    settings = await run_db(db.get_settings, user.id)
+    earned_rows = await run_db(db.list_active_rewards, user.id)
     state = reward_state(entries, settings)
     earned_at_by_percent = {
         row["checkpoint_percent"]: row["earned_at"] for row in earned_rows
@@ -447,19 +457,23 @@ async def get_rewards(db: Database = Depends(get_db)) -> dict[str, Any]:
 
 
 @router.get("/api/settings")
-async def get_settings(db: Database = Depends(get_db)) -> dict[str, Any]:
-    settings = await run_db(db.get_settings)
+async def get_settings(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    settings = await run_db(db.get_settings, user.id)
     return asdict(settings)
 
 
 @router.put("/api/settings")
 async def put_settings(
-    payload: SettingsIn, db: Database = Depends(get_db)
+    payload: SettingsIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> dict[str, Any]:
     updates = payload.model_dump(exclude_unset=True)
     if updates:
-        await run_db(db.update_settings, updates)
-    settings = await run_db(db.get_settings)
+        await run_db(db.update_settings, user.id, updates)
+    settings = await run_db(db.get_settings, user.id)
     return asdict(settings)
 
 
@@ -473,10 +487,12 @@ async def vapid_public_key(request: Request) -> dict[str, str]:
 
 @router.post("/api/push/subscribe", status_code=201)
 async def push_subscribe(
-    payload: PushSubscribeIn, db: Database = Depends(get_db)
+    payload: PushSubscribeIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> dict[str, Any]:
     subscription = await run_db(
-        db.add_subscription, payload.endpoint, payload.p256dh, payload.auth
+        db.add_subscription, user.id, payload.endpoint, payload.p256dh, payload.auth
     )
     logger.info("subscribed push endpoint %s", payload.endpoint)
     return {"id": subscription.id, "endpoint": subscription.endpoint}
@@ -484,9 +500,11 @@ async def push_subscribe(
 
 @router.post("/api/push/unsubscribe")
 async def push_unsubscribe(
-    payload: PushUnsubscribeIn, db: Database = Depends(get_db)
+    payload: PushUnsubscribeIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> dict[str, bool]:
-    removed = await run_db(db.remove_subscription, payload.endpoint)
+    removed = await run_db(db.remove_subscription, user.id, payload.endpoint)
     if removed:
         logger.info("unsubscribed push endpoint %s", payload.endpoint)
     return {"removed": removed}
@@ -494,9 +512,11 @@ async def push_unsubscribe(
 
 @router.post("/api/push/test")
 async def push_test(
-    request: Request, db: Database = Depends(get_db)
+    request: Request,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> dict[str, int]:
-    subscriptions = await run_db(db.list_subscriptions)
+    subscriptions = await run_db(db.list_subscriptions, user.id)
     sent = await notifications.send_to_all(
         subscriptions, TEST_NOTIFICATION_TITLE, TEST_NOTIFICATION_BODY, request.app.state.vapid
     )
@@ -505,11 +525,14 @@ async def push_test(
 
 @router.post("/api/notify/{notif_type}")
 async def notify_manual(
-    notif_type: str, request: Request, db: Database = Depends(get_db)
+    notif_type: str,
+    request: Request,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
 ) -> dict[str, int]:
     if notif_type not in NOTIFICATION_TYPES:
         raise HTTPException(status_code=404, detail="unknown notification type")
-    subscriptions = await run_db(db.list_subscriptions)
+    subscriptions = await run_db(db.list_subscriptions, user.id)
     title, body = NOTIFICATION_MESSAGES[notif_type]
     sent = await notifications.send_to_all(
         subscriptions, title, body, request.app.state.vapid

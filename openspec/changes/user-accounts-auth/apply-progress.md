@@ -1,4 +1,4 @@
-# Apply Progress: user-accounts-auth (slice 1 of 3)
+# Apply Progress: user-accounts-auth (slices 1–2 of 3)
 
 **Change**: user-accounts-auth
 **Branch**: `auth/slice-1` (from `main`; stacked-to-main, PR 1 of 3 — resolved by orchestrator; tasks.md `Chain strategy: pending` superseded by the orchestrator's resolved chain)
@@ -65,3 +65,79 @@ RED correction note (tests only, not implementation): two API tests initially fa
 ## Status
 
 3/4 Phase-1 tasks complete (1.1, 1.2, 1.4); 1.3 deferred to the rebuild slice; Phase 2 and Phase 3 untouched. **132/132 pytest + 6/6 node tests green**, pyright clean. Branch `auth/slice-1` committed and ready for push/PR (orchestrator-owned). next_recommended: apply slice 2 (scoping + scheduler).
+
+---
+
+# Slice 2 of 3 (PR 2): per-user ownership + per-user scheduler + migration/backfill
+
+**Change**: user-accounts-auth
+**Branch**: `auth/slice-2` (from `main`; stacked-to-main — PR 1 `auth/slice-1` merged via PR #7)
+**Mode**: Strict TDD (active, openspec/config.yaml `strict_tdd: true`)
+**Status**: All slice-2 tasks complete (1.3, 2.1, 2.2, 2.3, 2.4). Phase 3 (SPA) untouched.
+**Test counts**: 132 passing at start → **169 passing at end** (+37 new: 8 `test_auth_migration.py` + 28 `test_user_isolation.py` + 3 per-user scheduler tests in `test_scheduler.py`) + 6 node:test (unchanged).
+
+## Completed Tasks
+
+- [x] 1.3 **Migration + first-registrant backfill** — `database.py`: `SENTINEL_USER_ID = 0`; target schema for all five tables gains `user_id` (weight_entries `UNIQUE(user_id,date)`, push_subscriptions `endpoint` stays global UNIQUE, active_rewards PK `(user_id,checkpoint_percent)`, notifications_sent PK `(user_id,date,type)`, settings PK `(user_id,key)`). `_migrate_legacy_schema` runs after SCHEMA_STATEMENTS inside the same `_tx()`: detects legacy via `PRAGMA table_info(weight_entries)` lacking `user_id`, rebuilds the four constraint-changing tables (`_new` → copy rows with user_id=0 → drop → rename), `ALTER TABLE ADD COLUMN user_id ... DEFAULT 0` for push_subscriptions. All-or-nothing, idempotent. `create_user` claims every `user_id = 0` row in all five tables in the same transaction when the users table was empty (count == 1 guard); `DuplicateUsernameError` path rolls back before any claim.
+- [x] 2.1 **Scoped DB layer** — leading `user_id` first param on `list_entries`, `get_entry_by_date`, `upsert_entry` (ON CONFLICT(user_id,date)), `delete_entry` (`WHERE id=? AND user_id=?`), `list_active_rewards`, `get_settings`/`_settings_from_conn(user_id, conn)`, `update_settings` (ON CONFLICT(user_id,key)), `add_subscription` (ON CONFLICT(endpoint) reassigns owner), `list_subscriptions`, `remove_subscription` (`WHERE endpoint AND user_id`), `is_notification_sent`, `mark_notification_sent`; `_reconcile_active_rewards(conn, user_id)`; new `list_users()`. `reconcile_active_rewards()` (startup) loops `list_users()`.
+- [x] 2.2 **Scoped routes + startup reconcile** — every protected endpoint takes `Depends(require_user)` and passes `user.id`: GET/POST/DELETE `/api/weight`, GET `/api/rewards`, GET/PUT `/api/settings`, POST `/api/push/subscribe|unsubscribe|test`, POST `/api/notify/{type}`. Cross-user delete → 404 (ownership in SQL). `GET /api/push/vapid-public-key` stays public (not user data; exploration decision — locked by test). Startup reconcile is per-user inside `reconcile_active_rewards()`; `main.py` needed no change (already calls it).
+- [x] 2.3 **Per-user scheduler** — `run_due_checks` loops `db.list_users()`; per user: scoped settings → per-type due check → scoped dedupe → scoped subscriptions → send → scoped `mark_notification_sent`; zero-subscriber no-dedupe preserved per (user, type); aggregated count. `_due_today`/`_due_this_week` pure and unchanged.
+- [x] 2.4 **Test adaptation + harness** — `conftest.py`: `client` stays bare (auth-flow tests), new `auth_client` (registers `tester`), `pair` fixture (alice+bob on one app), `register_user`, `auth_user_id`, `make_user`. `test_api.py`/`test_weight.py` switched to `auth_client`; direct-DB calls pass `auth_user_id(app)`; `test_scheduler.py` direct-DB tests create a user and pass `user.id`; `test_weight.py::test_startup_reconciles_active_rewards` now seeds a user and exercises the per-user startup reconcile.
+
+## TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 1.3 | tests/test_auth_migration.py (8: legacy boot preserves rows, idempotent reboot, fresh-DB columns, direct DB first-user claim, later-user no-claim, API first-registrant claim, API second-registrant empty) | Integration (seeded SQLite boot + ASGI) | suite (132) | ✅ 5 failed / 1 passed (no migration, no backfill) | ✅ 8/8 on file | ✅ first vs later registrant; legacy boot vs fresh boot vs direct-DB sentinel seed | ✅ rebuild DDL centralized in `LEGACY_TABLE_REBUILDS`; sentinel constant extracted |
+| 2.1 | tests/test_user_isolation.py (28 total: 11 unauthenticated-401 incl. no-mutation checks, 7 API cross-user, 10 direct-DB scoping) | Unit (SQLite) + Integration (ASGITransport) | suite (132) | ✅ 27 failed / 1 passed (unscoped DB methods + unauthenticated routes) | ✅ 28/28 on file (after routes, task 2.2) | ✅ two clients same app; same date two users; cross-user delete; same checkpoint two users; every scoped method direct | ✅ ownership-in-SQL (`WHERE user_id`); `auth_user_id`/`make_user` helpers extracted to conftest |
+| 2.2 | tests/test_user_isolation.py (API half) + test_api.py (33 adapted to `auth_client`) | Integration | suite (132) | ✅ 401 contract failed (no auth on routes) | ✅ full suite green | ✅ 401-no-mutation for POST weight/settings/subscribe; vapid key stays public; delete 404 | ✅ `require_user` reused from slice 1; serializers untouched |
+| 2.3 | tests/test_scheduler.py (+3 per-user: independent dedupe, disabled-schedule skip, zero-subscriber no-dedupe) | Integration (fake clock + stub sender) | suite (132) | ✅ 3 failed (global loop, no user scoping) | ✅ 12/12 on file | ✅ per-user dedupe both keys; one disabled one enabled; zero-subscriber user vs subscriber user | ✅ tick time computed once (`tick_time`) |
+| 2.4 | tests/test_api.py, test_weight.py, test_scheduler.py (adaptation) | Unit/Integration | suite (169) | N/A (mechanical adaptation) | ✅ 169/169 full suite | ✅ startup reconcile per-user (seeded stale row revoked); created_at via auth user | ✅ no duplicated fixtures; direct SQL queries scoped with user_id |
+
+## Work Unit Evidence
+
+| Evidence | Required value |
+|----------|----------------|
+| Focused test command and exact result | `.venv/bin/python -m pytest tests/test_auth_migration.py tests/test_user_isolation.py tests/test_scheduler.py -q` → RED: 5+27+3 failed; GREEN: **55 passed**. `.venv/bin/python -m pytest -q` → **169 passed in 3.55s**. `node --test tests/frontend/weight-label.test.mjs` → **6 passed / 0 failed**. `.venv/bin/pyright database.py routes.py scheduler.py main.py models.py constants.py tests/*.py` → **0 errors, 0 warnings** |
+| Runtime harness command/scenario and exact result | Live uvicorn boot (tmp seeded-legacy DB + tmp VAPID, port 8802, real HTTP): anon GET/POST /api/weight → **401/401**; register alice → **201** (id=1); alice settings → **target=70.0, height=175.0** (backfill claimed legacy rows); alice weight → **legacy 2026-08-01 entry visible**; alice POST weight → **201**; register bob → **201**; bob settings → **target=None** (empty); bob weight → **[]** (isolation); bob DELETE alice's entry → **404**; bob still sees **0 entries**; login alice → **alice**; alice sees both entries (preserved). 13/13 checks passed. |
+| Rollback boundary | Commit `2764184` `feat(auth): scope all data and scheduler per user` (production + tests) + docs commit. Reverting the code commit removes: the five-table `user_id` schema/rebuild migration and backfill in `database.py`, the scoped methods, `list_users`, `require_user` on existing routes, the per-user scheduler loop, and the new/adapted tests — `auth.py`, identity tables, and auth routes from slice 1 are untouched (this slice does not modify them). `git revert 2764184 --no-commit` verified clean (0 conflicts) before the docs commit. |
+
+## Commits
+
+| Hash | Message |
+|------|---------|
+| 2764184 | `feat(auth): scope all data and scheduler per user` — production + tests (gga pre-commit review passed) |
+| (docs commit) | `docs(openspec): record user-accounts-auth slice-2 apply progress` — tasks.md checkboxes + apply-progress.md |
+
+## Deviations from Design
+
+1. **`client` fixture not auto-authed** (conftest choice, not a design deviation): exploration suggested making `client` auto-auth so existing tests keep their bodies, but test_auth_api.py (slice 1) asserts user counts, session counts, and no-session 401s that are incompatible with an auto-authed client (e.g. `test_register_rejects_short_username` counts users == 0). Kept `client` bare and added `auth_client` (+ `pair`); adapted test_api.py/test_weight.py to `auth_client`. Same net effect, no auth-flow test surgery.
+2. **`main.py` untouched** (task 2.2 text says "startup reconciliation in main.py"): the per-user reconcile lives in `database.reconcile_active_rewards()` which already loops `list_users()`; `init_app_state` already calls it, so no main.py edit was needed — same behavior, one less file in the diff.
+3. **`push_subscriptions.user_id` via ALTER TABLE** (design says "Add push_subscriptions.user_id NOT NULL DEFAULT 0"): implemented as `ALTER TABLE ... ADD COLUMN` for legacy DBs (endpoint stays globally UNIQUE), fresh DBs create the column in the CREATE statement. Matches the design's two-path migration.
+4. **Backfill guard via users count** (design: "Guarded by emptiness of users"): implemented as `COUNT(*) == 1` inside the same transaction as the INSERT — atomic with the user creation, can never re-run (later users make the count > 1).
+
+## Issues Found
+
+1. **PR-2 size**: authored changed lines ≈ 1742 (1425+/317−, incl. tests — tests belong with code per work-unit-commits). Slice 2 is the largest of the three. The stacked-to-main chain keeps each slice's diff reviewable in isolation; flagged for the orchestrator's PR decision.
+2. **AFT LSP noise**: `Import "auth" could not be resolved [Pyright]` in routes.py/test_auth*.py — AFT's bundled LSP does not resolve the project's root-level modules; project pyright (pyrightconfig.json) reports **0 errors**. Pre-existing, not introduced by this slice.
+3. **Test arithmetic bug caught by RED→GREEN**: `test_same_checkpoint_can_exist_for_two_users` initially asserted a wrong 25% threshold (92.5 instead of 95.0); the implementation's 95.0 was correct per rewards.py (`start - 0.25*(start-target)`). Fixed the test, not the code.
+4. **Rollback verify note**: `git revert 2764184` on a clean tree reverts cleanly (verified via `--no-commit` + inspect + `reset --hard` before the docs commit; no conflicts with slice-1 files since this slice touches no identity/auth code).
+
+## Discoveries Worth Persisting
+
+- The migration is a **two-path** design: fresh DBs get `user_id` columns from SCHEMA_STATEMENTS directly; legacy DBs are detected by `PRAGMA table_info(weight_entries)` missing `user_id` and rebuilt inside the same explicit `_tx()` — all-or-nothing, idempotent, no `executescript`.
+- `DELETE ... WHERE id = ? AND user_id = ?` is the ownership primitive for cross-user 404s: no separate SELECT-then-DELETE race window, no info leak.
+- The scheduler's zero-subscriber no-dedupe rule is now per (user, type): each user's dedupe key is independent, and a disabled schedule only skips its owner.
+- `push_subscriptions.endpoint` remains globally UNIQUE with `ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id` — one browser = one subscription; a re-subscribe reassigns ownership.
+
+## Status
+
+All Phase-1/Phase-2 tasks complete (1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4). **169/169 pytest + 6/6 node tests green**, pyright clean. Branch `auth/slice-2` committed and ready for push/PR (orchestrator-owned). next_recommended: apply slice 3 (SPA + rollout polish).
+
+## Slice 2 Amendment (maintainer decision): drop the legacy backfill
+
+**Decision**: the legacy pre-auth rows (target 70 / height 175, etc.) were smoke-test artifacts, not real per-user config. Per maintainer, the first-registrant backfill was removed: **legacy rows are discarded during migration; every account (including the first) starts empty** and sets its own target/height/schedules.
+
+**Changes**: `LEGACY_TABLE_REBUILDS` copy steps removed (tables rebuild empty); `push_subscriptions` legacy rows deleted post-ALTER; `create_user` claim logic removed; `SENTINEL_USER_ID` removed; migration tests rewritten (`test_auth_migration.py` asserts discard + fresh-start); weight-tracking delta spec's backfill requirement replaced with "Legacy Pre-Auth Data Is Discarded on Migration".
+
+**Evidence**: `tests/test_auth_migration.py` + `test_user_isolation.py` → 33 passed; full suite → 168 passed; pyright 0 errors.

@@ -2,7 +2,7 @@
 
 ## Intent
 
-Enable several people to use the tracker without exposing or mixing data. Preserve legacy settings by assigning them to the first account created.
+Enable several people to use the tracker without exposing or mixing data. Legacy pre-auth rows are discarded on migration; every account starts fresh and sets its own values.
 
 ## Scope
 
@@ -29,7 +29,7 @@ Enable several people to use the tracker without exposing or mixing data. Preser
 
 Use `hashlib.scrypt` and a random session cookie, storing only its SHA-256 hash in SQLite `sessions`. Cookies are `HttpOnly`, `SameSite=Lax`, `Path=/`, 30-day expiry, with configurable `Secure` for local HTTP. `require_user` protects existing endpoints. SameSite plus JSON-only mutations is the CSRF posture; hardened deployments may add tokens.
 
-Add `users`/`sessions` and `user_id` to `weight_entries`, `push_subscriptions`, `active_rewards`, `notifications_sent`, and `settings`. Rebuild tables requiring composite keys. A one-shot transactional first-registration backfill assigns sentinel-owned legacy rows. The scheduler enumerates users and preserves no-dedupe-on-zero-subscriber per user.
+Add `users`/`sessions` and `user_id` to `weight_entries`, `push_subscriptions`, `active_rewards`, `notifications_sent`, and `settings`. Rebuild tables requiring composite keys; legacy pre-auth rows are discarded (no backfill). The scheduler enumerates users and preserves no-dedupe-on-zero-subscriber per user.
 
 Reject JWT (revocation needs state and client storage risks XSS), HTTP Basic (no logout, poor SPA UX), and Argon2 (new dependency).
 
@@ -47,7 +47,7 @@ Reject JWT (revocation needs state and client storage risks XSS), HTTP Basic (no
 |---|---|---|
 | Unscoped query leaks data | Med | Required `user_id` methods and isolation tests. |
 | SQLite rebuild corrupts data | Med | Transactional, idempotent seeded-DB migration. |
-| First account claims settings | Med | One-shot atomic backfill and documented ownership. |
+| Every account starts empty; legacy rows discarded | Med | Atomic migration discard and tested fresh-start; no ownership ceremony. |
 
 ## Rollback Plan
 
