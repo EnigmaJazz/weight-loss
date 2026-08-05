@@ -212,16 +212,17 @@ async function logout() {
 /* ---- data -------------------------------------------------------------- */
 
 async function loadData() {
-  const [weight, rewards, settings] = await Promise.all([
+  const [weight, rewards, settings, me] = await Promise.all([
     fetchJson("/api/weight"),
     fetchJson("/api/rewards"),
     fetchJson("/api/settings"),
+    fetchJson("/api/auth/me"),
   ]);
   renderSummary(weight.summary);
   renderHistory(weight.entries);
   drawChart(weight.entries, weight.summary);
   renderRewards(rewards);
-  renderSettings(settings);
+  renderSettings(settings, me);
 }
 
 /* ---- summary ----------------------------------------------------------- */
@@ -461,7 +462,8 @@ function renderRewards(r) {
 
 /* ---- settings ---------------------------------------------------------- */
 
-function renderSettings(s) {
+function renderSettings(s, me) {
+  $("account-email").value = me?.email ?? "";
   $("target-weight").value = s.target_weight ?? "";
   $("height-cm").value = s.height_cm ?? "";
   $("tip-time").value = s.tip_time ?? "";
@@ -548,6 +550,15 @@ async function saveSettings(ev) {
         start_weight_override: num("start-override"),
       }),
     });
+    // Email lives on the account, not the settings row: update it separately.
+    const email = $("account-email").value.trim();
+    if (email) {
+      await fetchJson("/api/auth/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+    }
     toast("Settings saved");
     await loadData();
   } catch (err) {
