@@ -22,3 +22,6 @@ vapid_keys.json
 
 # Gentle AI provider config
 .gga
+
+# Playwright CLI local config
+.playwright/
