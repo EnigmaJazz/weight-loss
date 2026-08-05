@@ -4,53 +4,83 @@ import asyncio
 import contextlib
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Optional
 
 from constants import DEFAULT_SETTINGS, get_logger
-from models import AppSettings, PushSubscription, WeightEntry
+from models import AppSettings, PushSubscription, Session, User, WeightEntry
 from rewards import reward_state
 
 logger = get_logger("database")
 
-SCHEMA = """
-DROP TABLE IF EXISTS reward_events;
+# One statement per element: init_schema runs each inside the explicit
+# transaction (BEGIN) instead of executescript, which would implicitly COMMIT
+# the open transaction and break the all-or-nothing boundary.
+SCHEMA_STATEMENTS: tuple[str, ...] = (
+    "DROP TABLE IF EXISTS reward_events;",
+    """
+    CREATE TABLE IF NOT EXISTS weight_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL UNIQUE,
+        weight_kg REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS active_rewards (
+        checkpoint_percent INTEGER PRIMARY KEY,
+        threshold_kg REAL NOT NULL,
+        earned_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS notifications_sent (
+        date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (date, type)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    """,
+    "DELETE FROM settings WHERE key = 'milestone_step_kg';",
+    # ---- identity tables (user-accounts-auth) ----
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT NOT NULL
+    );
+    """,
+)
 
-CREATE TABLE IF NOT EXISTS weight_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL UNIQUE,
-    weight_kg REAL NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
-CREATE TABLE IF NOT EXISTS push_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endpoint TEXT NOT NULL UNIQUE,
-    p256dh TEXT NOT NULL,
-    auth TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS active_rewards (
-    checkpoint_percent INTEGER PRIMARY KEY,
-    threshold_kg REAL NOT NULL,
-    earned_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS notifications_sent (
-    date TEXT NOT NULL,
-    type TEXT NOT NULL,
-    sent_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (date, type)
-);
-
-CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-
-DELETE FROM settings WHERE key = 'milestone_step_kg';
-"""
+class DuplicateUsernameError(Exception):
+    """Raised when create_user hits the username UNIQUE constraint."""
 
 
 class Database:
@@ -64,6 +94,7 @@ class Database:
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.isolation_level = None
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self._lock = threading.RLock()
         logger.info("opened database at %s", db_path)
 
@@ -84,7 +115,8 @@ class Database:
 
     def init_schema(self) -> None:
         with self._tx() as conn:
-            conn.executescript(SCHEMA)
+            for statement in SCHEMA_STATEMENTS:
+                conn.execute(statement)
 
     # ---- weight entries ----
 
@@ -184,6 +216,89 @@ class Database:
                 " threshold_kg = excluded.threshold_kg",
                 (cp.percent, cp.threshold_kg, _local_now()),
             )
+
+    # ---- identity: users ----
+
+    def create_user(self, username: str, password_hash: str, salt: str) -> User:
+        """Insert a user; raise DuplicateUsernameError on a taken username."""
+        with self._tx() as conn:
+            try:
+                cursor = conn.execute(
+                    "INSERT INTO users (username, password_hash, salt, created_at)"
+                    " VALUES (?, ?, ?, ?)",
+                    (username, password_hash, salt, _utc_now()),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise DuplicateUsernameError(username) from exc
+            row = conn.execute(
+                "SELECT id, username, password_hash, salt, created_at"
+                " FROM users WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("user insert produced no row")
+        return _user_from_row(row)
+
+    def get_user_by_username(self, username: str) -> Optional[User]:
+        """Fetch a user by its stored (lowercased) username."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT id, username, password_hash, salt, created_at"
+                " FROM users WHERE username = ?",
+                (username,),
+            ).fetchone()
+        return _user_from_row(row) if row is not None else None
+
+    # ---- identity: sessions ----
+
+    def create_session(
+        self, user_id: int, token_hash: str, expires_at: str
+    ) -> Session:
+        """Insert a session row, opportunistically sweeping expired ones first."""
+        with self._tx() as conn:
+            conn.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?", (_utc_now(),)
+            )
+            cursor = conn.execute(
+                "INSERT INTO sessions (user_id, token_hash, created_at, expires_at)"
+                " VALUES (?, ?, ?, ?)",
+                (user_id, token_hash, _utc_now(), expires_at),
+            )
+            row = conn.execute(
+                "SELECT id, user_id, token_hash, created_at, expires_at"
+                " FROM sessions WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("session insert produced no row")
+        return _session_from_row(row)
+
+    def get_user_by_session(self, token_hash: str) -> Optional[User]:
+        """Resolve a session token hash to its user, excluding expired rows."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT u.id, u.username, u.password_hash, u.salt, u.created_at"
+                " FROM sessions s JOIN users u ON u.id = s.user_id"
+                " WHERE s.token_hash = ? AND s.expires_at > ?",
+                (token_hash, _utc_now()),
+            ).fetchone()
+        return _user_from_row(row) if row is not None else None
+
+    def delete_session(self, token_hash: str) -> bool:
+        """Revoke one session; return whether a row was removed."""
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM sessions WHERE token_hash = ?", (token_hash,)
+            )
+            return cursor.rowcount > 0
+
+    def delete_expired_sessions(self, now: str) -> int:
+        """Sweep sessions expired by the given UTC cutoff; return the count."""
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?", (now,)
+            )
+            return cursor.rowcount
 
     # ---- settings ----
 
@@ -293,6 +408,26 @@ async def run_db(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     return await asyncio.to_thread(func, *args, **kwargs)
 
 
+def _user_from_row(row: sqlite3.Row) -> User:
+    return User(
+        id=row["id"],
+        username=row["username"],
+        password_hash=row["password_hash"],
+        salt=row["salt"],
+        created_at=row["created_at"],
+    )
+
+
+def _session_from_row(row: sqlite3.Row) -> Session:
+    return Session(
+        id=row["id"],
+        user_id=row["user_id"],
+        token_hash=row["token_hash"],
+        created_at=row["created_at"],
+        expires_at=row["expires_at"],
+    )
+
+
 def _weight_from_row(row: sqlite3.Row) -> WeightEntry:
     return WeightEntry(
         id=row["id"],
@@ -327,3 +462,8 @@ def _optional_int(value: Optional[str]) -> Optional[int]:
 def _local_now() -> str:
     """Host-local wall-clock timestamp for persisted event times."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _utc_now() -> str:
+    """UTC wall-clock timestamp for identity rows and session expiry."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")

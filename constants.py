@@ -63,6 +63,29 @@ TEST_NOTIFICATION_BODY = "Test notification — push works!"
 
 SCHEDULER_INTERVAL_SECONDS = 60
 
+# ---- authentication (user-accounts-auth) ----
+
+# scrypt password-hashing parameters (memory-hard, stdlib-only).
+SCRIPT_N = 2**14
+SCRIPT_R = 8
+SCRIPT_P = 1
+SCRIPT_DKLEN = 32  # derived key length in bytes
+
+# Session token: random urlsafe secret, never persisted in plaintext.
+SESSION_TOKEN_BYTES = 32
+
+# Session cookie: 30-day TTL, matched by the DB row's expires_at.
+SESSION_EXPIRY_SECONDS = 30 * 24 * 60 * 60
+SESSION_COOKIE_NAME = "session"
+SESSION_COOKIE_PATH = "/"
+SESSION_COOKIE_SAMESITE = "lax"
+# Secure is configurable via env: local development runs plain HTTP, where a
+# Secure cookie would never be sent back. Set WEIGHT_LOSS_COOKIE_SECURE=true
+# behind TLS.
+SESSION_COOKIE_SECURE = (
+    os.environ.get("WEIGHT_LOSS_COOKIE_SECURE", "").lower() in ("1", "true", "yes")
+)
+
 _logger_configured = False
 
 

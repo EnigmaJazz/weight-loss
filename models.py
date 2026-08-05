@@ -5,6 +5,24 @@ from typing import Optional
 
 
 @dataclass
+class User:
+    id: int
+    username: str
+    password_hash: str
+    salt: str
+    created_at: str
+
+
+@dataclass
+class Session:
+    id: int
+    user_id: int
+    token_hash: str
+    created_at: str
+    expires_at: str
+
+
+@dataclass
 class WeightEntry:
     id: int
     date: str
