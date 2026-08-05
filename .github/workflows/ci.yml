@@ -36,7 +36,7 @@ jobs:
       - name: Run pyright type check
         run: |
           .venv/bin/pip install pyright
-          .venv/bin/pyright -p pyrightconfig.json
+          timeout 120 .venv/bin/pyright -p pyrightconfig.json
 
   browser-smoke:
     runs-on: ubuntu-latest
