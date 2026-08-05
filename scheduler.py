@@ -37,44 +37,52 @@ def _due_this_week(now: datetime, scheduled_time: str, weekday: int | None) -> b
 
 
 async def run_due_checks(app_state: Any, now: datetime) -> int:
-    """Send any notification types whose period has arrived. Returns count sent."""
+    """Send any notification types whose period has arrived for every user.
+    Returns the aggregated send count across all users."""
     db: Database = app_state.db
-    settings = await run_db(db.get_settings)
     today = now.date().isoformat()
+    tick_time = now.strftime("%Y-%m-%d %H:%M:%S")
+    users = await run_db(db.list_users)
     sent_count = 0
-    for notif_type in NOTIFICATION_TYPES:
-        if not _due_this_week(now, settings.time_for(notif_type), settings.weekday_for(notif_type)):
-            continue
-        if await run_db(db.is_notification_sent, today, notif_type):
-            continue
-        title, body = NOTIFICATION_MESSAGES[notif_type]
-        subscriptions = await run_db(db.list_subscriptions)
-        if not subscriptions:
-            # Nothing was delivered, so do NOT consume the period's dedupe: a
-            # send to zero subscribers is a no-op, and marking it sent would
-            # silently skip the notification for the rest of the day once the
-            # user enables push (reported: "timed notifications never fire").
-            logger.info(
-                "skipped %s notification for %s (no subscriptions)",
-                notif_type,
-                today,
+    for user in users:
+        settings = await run_db(db.get_settings, user.id)
+        for notif_type in NOTIFICATION_TYPES:
+            if not _due_this_week(
+                now, settings.time_for(notif_type), settings.weekday_for(notif_type)
+            ):
+                continue
+            if await run_db(db.is_notification_sent, user.id, today, notif_type):
+                continue
+            title, body = NOTIFICATION_MESSAGES[notif_type]
+            subscriptions = await run_db(db.list_subscriptions, user.id)
+            if not subscriptions:
+                # Nothing was delivered, so do NOT consume the period's dedupe
+                # for THIS user: a send to zero subscribers is a no-op, and
+                # marking it sent would silently skip the notification for the
+                # rest of the day once the user enables push.
+                logger.info(
+                    "skipped %s notification for user %s on %s (no subscriptions)",
+                    notif_type,
+                    user.username,
+                    today,
+                )
+                continue
+            await notifications.send_to_all(
+                subscriptions, title, body, app_state.vapid, notif_type=notif_type
             )
-            continue
-        await notifications.send_to_all(
-            subscriptions, title, body, app_state.vapid, notif_type=notif_type
-        )
-        # Persist the tick's own local wall time (not a fresh now()) so sent_at
-        # always matches the moment the schedule actually fired.
-        await run_db(
-            db.mark_notification_sent, today, notif_type, now.strftime("%Y-%m-%d %H:%M:%S")
-        )
-        sent_count += 1
-        logger.info(
-            "sent %s notification for %s (subscriptions: %d)",
-            notif_type,
-            today,
-            len(subscriptions),
-        )
+            # Persist the tick's own local wall time (not a fresh now()) so
+            # sent_at always matches the moment the schedule actually fired.
+            await run_db(
+                db.mark_notification_sent, user.id, today, notif_type, tick_time
+            )
+            sent_count += 1
+            logger.info(
+                "sent %s notification for user %s on %s (subscriptions: %d)",
+                notif_type,
+                user.username,
+                today,
+                len(subscriptions),
+            )
     return sent_count
 
 
