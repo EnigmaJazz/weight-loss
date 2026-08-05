@@ -20,6 +20,7 @@ def test_vapid_from_payload_roundtrips_public_key():
 
     assert loaded.public_key is not None
     assert loaded.private_key is not None
+    assert vapid.public_key is not None
     assert loaded.private_key.private_numbers().private_value == (
         vapid.private_key.private_numbers().private_value
     )
@@ -71,6 +72,7 @@ def test_load_or_generate_vapid_migrates_legacy_der_key(tmp_path):
     from cryptography.hazmat.primitives import serialization
 
     vapid = notifications_module._generate_vapid()
+    assert vapid.public_key is not None
     legacy_payload = {
         "private_key": notifications_module._vapid_to_payload(vapid)[
             "private_key"
