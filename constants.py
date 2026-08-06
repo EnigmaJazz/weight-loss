@@ -34,6 +34,8 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "exercise_time": "17:00",
     "start_weight_override": None,
     "height_cm": None,
+    "weight_unit": "kg",  # per-user input preference: "kg" | "st-lb"
+    "height_unit": "cm",  # per-user input preference: "cm" | "ft-in"
 }
 
 # Notification types and whether each fires daily or weekly (fixed weekday).
