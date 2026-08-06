@@ -36,6 +36,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "height_cm": None,
     "weight_unit": "kg",  # per-user input preference: "kg" | "st-lb"
     "height_unit": "cm",  # per-user input preference: "cm" | "ft-in"
+    "target_unit": "kg",  # per-user target input preference: "kg" | "st-lb"
 }
 
 # Notification types and whether each fires daily or weekly (fixed weekday).

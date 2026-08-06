@@ -480,8 +480,10 @@ function renderSettings(s, me) {
   // form's height select open in the saved preference (kg / cm by default).
   $("weight-unit").value = unitPref(s.weight_unit, "kg");
   $("height-unit").value = unitPref(s.height_unit, "cm");
+  $("target-unit").value = unitPref(s.target_unit, "kg");
   syncWeightUnitUi();
   syncHeightUnitUi();
+  syncTargetUnitUi();
 }
 
 async function saveSettings(ev) {
@@ -561,6 +563,7 @@ async function saveSettings(ev) {
         start_weight_override: num("start-override"),
         weight_unit: $("weight-unit").value,
         height_unit: $("height-unit").value,
+        target_unit: $("target-unit").value,
       }),
     });
     // Email lives on the account, not the settings row: update it separately.
@@ -774,6 +777,7 @@ async function saveUnitPreference() {
         body: JSON.stringify({
           weight_unit: $("weight-unit").value,
           height_unit: $("height-unit").value,
+          target_unit: $("target-unit").value,
         }),
       });
     } catch (_) {
@@ -806,7 +810,10 @@ async function init() {
     syncHeightUnitUi();
     saveUnitPreference();
   });
-  $("target-unit").addEventListener("change", syncTargetUnitUi);
+  $("target-unit").addEventListener("change", () => {
+    syncTargetUnitUi();
+    saveUnitPreference();
+  });
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
