@@ -217,17 +217,23 @@ async function logout() {
 /* ---- data -------------------------------------------------------------- */
 
 async function loadData() {
-  const [weight, rewards, settings, me] = await Promise.all([
+  const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
     fetchJson("/api/weight"),
     fetchJson("/api/rewards"),
     fetchJson("/api/settings"),
     fetchJson("/api/auth/me"),
+    fetchJson("/api/exercise"),
+    fetchJson("/api/meals"),
+    fetchJson("/api/streaks"),
   ]);
   renderSummary(weight.summary);
   renderHistory(weight.entries);
   drawChart(weight.entries, weight.summary);
   renderRewards(rewards);
   renderSettings(settings, me);
+  renderExerciseHistory(exercise.entries);
+  renderMealHistory(meals.entries);
+  renderStreaks(streaks);
 }
 
 /* ---- summary ----------------------------------------------------------- */
@@ -308,6 +314,170 @@ async function deleteEntry(id) {
     await loadData();
   } catch (err) {
     toast(`Delete failed: ${err.message}`);
+  }
+}
+
+/* ---- activity: exercise & meals ----------------------------------------- */
+
+function renderExerciseHistory(entries) {
+  const list = $("exercise-list");
+  list.innerHTML = "";
+  if (!entries.length) {
+    const empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = "No exercise logged yet.";
+    list.append(empty);
+    return;
+  }
+  for (const e of entries) {
+    const li = document.createElement("li");
+    li.className = "entry-row";
+    const date = document.createElement("span");
+    date.className = "entry-date";
+    date.textContent = formatDate(e.date);
+    const type = document.createElement("span");
+    type.className = "entry-type";
+    type.textContent = e.exercise_type;
+    const duration = document.createElement("span");
+    duration.className = "entry-duration";
+    duration.textContent = `${e.duration_min} min`;
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "entry-delete";
+    del.textContent = "×";
+    del.title = "Delete entry";
+    del.addEventListener("click", () => deleteExercise(e.id));
+    li.append(date, type, duration, del);
+    list.append(li);
+  }
+}
+
+function renderMealHistory(entries) {
+  const list = $("meal-list");
+  list.innerHTML = "";
+  if (!entries.length) {
+    const empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = "No meals logged yet.";
+    list.append(empty);
+    return;
+  }
+  for (const e of entries) {
+    const li = document.createElement("li");
+    li.className = "entry-row";
+    const date = document.createElement("span");
+    date.className = "entry-date";
+    date.textContent = formatDate(e.date);
+    const calories = document.createElement("span");
+    calories.className = "entry-calories";
+    calories.textContent = `${fmt1(e.calories)} kcal`;
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "entry-delete";
+    del.textContent = "×";
+    del.title = "Delete entry";
+    del.addEventListener("click", () => deleteMeal(e.id));
+    li.append(date, calories, del);
+    list.append(li);
+  }
+}
+
+async function deleteExercise(id) {
+  try {
+    await fetchJson(`/api/exercise/${id}`, { method: "DELETE" });
+    toast("Exercise deleted");
+    await loadData();
+  } catch (err) {
+    toast(`Delete failed: ${err.message}`);
+  }
+}
+
+async function deleteMeal(id) {
+  try {
+    await fetchJson(`/api/meals/${id}`, { method: "DELETE" });
+    toast("Meal deleted");
+    await loadData();
+  } catch (err) {
+    toast(`Delete failed: ${err.message}`);
+  }
+}
+
+function populateExerciseTypes() {
+  const select = $("exercise-type");
+  select.innerHTML = "";
+  for (const t of EXERCISE_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    select.append(opt);
+  }
+}
+
+async function addExercise(ev) {
+  ev.preventDefault();
+  const date = $("exercise-date").value || todayLocal();
+  const durationMin = Number($("exercise-duration").value);
+  try {
+    await fetchJson("/api/exercise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date,
+        exercise_type: $("exercise-type").value,
+        duration_min: durationMin,
+      }),
+    });
+    $("exercise-duration").value = "";
+    toast("Exercise saved");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
+  }
+}
+
+async function addMeal(ev) {
+  ev.preventDefault();
+  const date = $("meal-date").value || todayLocal();
+  const calories = Number($("meal-calories").value);
+  try {
+    await fetchJson("/api/meals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, calories }),
+    });
+    $("meal-calories").value = "";
+    toast("Meal saved");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
+  }
+}
+
+/* ---- streaks ------------------------------------------------------------ */
+
+const STREAK_TILES = [
+  ["weight_weeks", "Weight streak", "weeks"],
+  ["exercise_weeks", "Exercise streak", "weeks"],
+  ["meal_days", "Meal streak", "days"],
+];
+
+function renderStreaks(s) {
+  const grid = $("streak-stats");
+  grid.innerHTML = "";
+  for (const [key, label, unit] of STREAK_TILES) {
+    const tile = document.createElement("div");
+    tile.className = "stat";
+    const value = document.createElement("div");
+    value.className = "stat-value";
+    value.textContent = String(s[key]);
+    const unitEl = document.createElement("div");
+    unitEl.className = "stat-unit";
+    unitEl.textContent = unit;
+    const name = document.createElement("div");
+    name.className = "stat-label";
+    name.textContent = label;
+    tile.append(value, unitEl, name);
+    grid.append(tile);
   }
 }
 
@@ -802,11 +972,16 @@ async function init() {
   $("reset-form").addEventListener("submit", submitReset);
   $("logout-btn").addEventListener("click", logout);
   $("entry-form").addEventListener("submit", addEntry);
+  $("exercise-form").addEventListener("submit", addExercise);
+  $("meal-form").addEventListener("submit", addMeal);
   $("settings-form").addEventListener("submit", saveSettings);
   $("enable-push").addEventListener("click", enablePush);
   $("disable-push").addEventListener("click", disablePush);
   $("test-push").addEventListener("click", testPush);
   $("entry-date").value = todayLocal();
+  $("exercise-date").value = todayLocal();
+  $("meal-date").value = todayLocal();
+  populateExerciseTypes();
   $("weight-unit").addEventListener("change", () => {
     syncWeightUnitUi();
     saveUnitPreference();
