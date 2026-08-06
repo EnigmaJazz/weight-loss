@@ -638,6 +638,9 @@ class Database:
             height_unit=str(
                 stored.get("height_unit", DEFAULT_SETTINGS["height_unit"])
             ),
+            target_unit=str(
+                stored.get("target_unit", DEFAULT_SETTINGS["target_unit"])
+            ),
         )
 
     def update_settings(self, user_id: int, updates: dict[str, Any]) -> None:

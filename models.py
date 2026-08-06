@@ -95,6 +95,7 @@ class AppSettings:
     height_cm: Optional[float] = None
     weight_unit: str = "kg"  # preferred input unit: "kg" | "st-lb"
     height_unit: str = "cm"  # preferred input unit: "cm" | "ft-in"
+    target_unit: str = "kg"  # preferred target input unit: "kg" | "st-lb"
 
     def time_for(self, notif_type: str) -> str:
         """Scheduled "HH:MM" for a notification type ("" disables it)."""
