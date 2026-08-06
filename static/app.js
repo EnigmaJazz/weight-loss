@@ -6,6 +6,11 @@
 const $ = (id) => document.getElementById(id);
 const toastEl = $("toast");
 
+/* Exercise-type allowlist mirroring constants.EXERCISE_TYPES (the drift guard
+ * test pins this literal to the server constant). Drives the exercise <select>
+ * in the log form; the server validates against the same allowlist. */
+const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
+
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
