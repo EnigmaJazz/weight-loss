@@ -759,6 +759,29 @@ function syncTargetUnitUi() {
   $("target-lb").required = stLb;
 }
 
+let _unitSaveTimer = null;
+
+async function saveUnitPreference() {
+  // Changing the weight/height unit anywhere is a preference change: persist
+  // it immediately (debounced) so a reload keeps the chosen format. A failed
+  // save is silent — the on-screen toggle already updated the UI.
+  clearTimeout(_unitSaveTimer);
+  _unitSaveTimer = setTimeout(async () => {
+    try {
+      await fetchJson("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weight_unit: $("weight-unit").value,
+          height_unit: $("height-unit").value,
+        }),
+      });
+    } catch (_) {
+      /* preference save is best-effort */
+    }
+  }, 300);
+}
+
 async function init() {
   authForm.addEventListener("submit", submitAuth);
   $("auth-toggle").addEventListener("click", () =>
@@ -775,8 +798,14 @@ async function init() {
   $("disable-push").addEventListener("click", disablePush);
   $("test-push").addEventListener("click", testPush);
   $("entry-date").value = todayLocal();
-  $("weight-unit").addEventListener("change", syncWeightUnitUi);
-  $("height-unit").addEventListener("change", syncHeightUnitUi);
+  $("weight-unit").addEventListener("change", () => {
+    syncWeightUnitUi();
+    saveUnitPreference();
+  });
+  $("height-unit").addEventListener("change", () => {
+    syncHeightUnitUi();
+    saveUnitPreference();
+  });
   $("target-unit").addEventListener("change", syncTargetUnitUi);
   syncWeightUnitUi();
   syncHeightUnitUi();
