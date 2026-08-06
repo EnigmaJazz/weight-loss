@@ -41,12 +41,12 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Streaks Endpoint + SPA (work unit 3)
 
-- [ ] 3.1 RED: append `GET /api/streaks` envelope tests (three counts; 401) to `tests/test_activity_api.py`
-- [ ] 3.2 GREEN: add `GET /api/streaks` → `streak_state(...)` via `run_db` in `routes.py`; return `asdict(StreakState)`
-- [ ] 3.3 Drift guard: `tests/test_spa_gate.py` — served `/static/app.js` EXERCISE_TYPES literal == `constants.EXERCISE_TYPES`
-- [ ] 3.4 Add exercise/meal forms, history `<ul>`s, 3 streak tiles to `static/index.html`
-- [ ] 3.5 Add `render*`/`delete*`/`add*` handlers + 3 fetches in `loadData()` to `static/app.js`
-- [ ] 3.6 Style new forms/lists/tiles in `static/style.css` matching weight UI
+- [x] 3.1 RED: append `GET /api/streaks` envelope tests (three counts; 401) to `tests/test_activity_api.py`
+- [x] 3.2 GREEN: add `GET /api/streaks` → `streak_state(...)` via `run_db` in `routes.py`; return `asdict(StreakState)`
+- [x] 3.3 Drift guard: `tests/test_spa_gate.py` — served `/static/app.js` EXERCISE_TYPES literal == `constants.EXERCISE_TYPES`
+- [x] 3.4 Add exercise/meal forms, history `<ul>`s, 3 streak tiles to `static/index.html`
+- [x] 3.5 Add `render*`/`delete*`/`add*` handlers + 3 fetches in `loadData()` to `static/app.js`
+- [x] 3.6 Style new forms/lists/tiles in `static/style.css` matching weight UI
 
 ## Phase 4: Verification
 
