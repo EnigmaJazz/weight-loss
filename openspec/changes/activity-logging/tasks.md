@@ -33,11 +33,11 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Activity CRUD Backend (work unit 2)
 
-- [ ] 2.1 Add `exercise_entries` + `meal_entries` `CREATE TABLE IF NOT EXISTS` to `SCHEMA_STATEMENTS` in `database.py` (no uniqueness, no migration)
-- [ ] 2.2 Add `EXERCISE_TYPES = ("walk","run","gym","cycling","swim","other")` to `constants.py`
-- [ ] 2.3 RED: create `tests/test_activity_api.py` — CRUD round-trips, 201, 422 (bad date, ≤0 duration/calories, unknown type, extra field), 401, cross-user 404, isolation, rewards weight-only
-- [ ] 2.4 Add 6 `Database` methods + `_exercise_from_row`/`_meal_from_row` to `database.py` (user_id-first, explicit `_local_now()`, ownership in DELETE WHERE)
-- [ ] 2.5 GREEN: add `ExerciseIn`/`MealIn` (extra="forbid", `_valid_date`, `Field(gt=0)`, allowlist) + GET/POST/DELETE `/api/exercise[/{id}]` and `/api/meals[/{id}]` in `routes.py` (INSERT→201, newest-first by id)
+- [x] 2.1 Add `exercise_entries` + `meal_entries` `CREATE TABLE IF NOT EXISTS` to `SCHEMA_STATEMENTS` in `database.py` (no uniqueness, no migration)
+- [x] 2.2 Add `EXERCISE_TYPES = ("walk","run","gym","cycling","swim","other")` to `constants.py`
+- [x] 2.3 RED: create `tests/test_activity_api.py` — CRUD round-trips, 201, 422 (bad date, ≤0 duration/calories, unknown type, extra field), 401, cross-user 404, isolation, rewards weight-only
+- [x] 2.4 Add 6 `Database` methods + `_exercise_from_row`/`_meal_from_row` to `database.py` (user_id-first, explicit `_local_now()`, ownership in DELETE WHERE)
+- [x] 2.5 GREEN: add `ExerciseIn`/`MealIn` (extra="forbid", `_valid_date`, `Field(gt=0)`, allowlist) + GET/POST/DELETE `/api/exercise[/{id}]` and `/api/meals[/{id}]` in `routes.py` (INSERT→201, newest-first by id)
 
 ## Phase 3: Streaks Endpoint + SPA (work unit 3)
 
