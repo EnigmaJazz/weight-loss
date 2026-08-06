@@ -7,7 +7,7 @@ cross-user delete, per-user isolation, and the weight-tracking delta rule
 that rewards stay weight-only (exercise/meal rows never earn checkpoints).
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -306,3 +306,68 @@ async def test_rewards_stay_weight_only(auth_client, app):
     alice_id = app.state.db.get_user_by_username("tester").id
     rows = app.state.db.list_active_rewards(alice_id)
     assert {r["checkpoint_percent"] for r in rows} == {10, 25}
+
+
+# ---- streaks endpoint (work unit 3) ------------------------------------------
+
+
+def _today() -> str:
+    """Host-local "today" — the reference date the endpoint derives streaks from."""
+    return date.today().isoformat()
+
+
+@pytest.mark.asyncio
+async def test_streaks_returns_three_derived_counts(auth_client):
+    today = _today()
+    # 3 exercise rows in the current ISO week meet the min_count of 3.
+    for _ in range(3):
+        await _post_exercise(auth_client, today, "walk", 30)
+    await _post_meal(auth_client, today, 500.0)
+    await auth_client.post("/api/weight", json={"date": today, "weight_kg": 90.0})
+
+    res = await auth_client.get("/api/streaks")
+    assert res.status_code == 200
+    assert res.json() == {"weight_weeks": 1, "exercise_weeks": 1, "meal_days": 1}
+
+
+@pytest.mark.asyncio
+async def test_streaks_reflect_deletion_without_persisted_counter(auth_client):
+    today = _today()
+    ids = [
+        (await _post_exercise(auth_client, today, "walk", 30)).json()["id"]
+        for _ in range(3)
+    ]
+    assert (await auth_client.get("/api/streaks")).json()["exercise_weeks"] == 1
+
+    await auth_client.delete(f"/api/exercise/{ids[0]}")
+    # 2 rows in the current week stay pending: the derived count drops to 0
+    # with no persisted streak counter to update.
+    assert (await auth_client.get("/api/streaks")).json()["exercise_weeks"] == 0
+
+
+@pytest.mark.asyncio
+async def test_streaks_isolated_between_users(pair):
+    alice, bob = pair
+    today = _today()
+    await _post_exercise(alice, today, "walk", 30)
+    await _post_exercise(alice, today, "run", 30)
+    await _post_exercise(alice, today, "gym", 30)
+    await _post_meal(alice, today, 500.0)
+    await alice.post("/api/weight", json={"date": today, "weight_kg": 90.0})
+
+    assert (await alice.get("/api/streaks")).json() == {
+        "weight_weeks": 1,
+        "exercise_weeks": 1,
+        "meal_days": 1,
+    }
+    # Bob logged nothing: every streak derives as 0 from HIS histories only.
+    assert (await bob.get("/api/streaks")).json() == {
+        "weight_weeks": 0,
+        "exercise_weeks": 0,
+        "meal_days": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_streaks_401_unauthenticated(client):
+    assert (await client.get("/api/streaks")).status_code == 401
