@@ -3,7 +3,7 @@
 import asyncio
 import re
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -46,6 +46,7 @@ from rewards import (
     remaining_to_target,
     reward_state,
 )
+from streaks import streak_state
 from units import weight_display
 
 router = APIRouter()
@@ -706,6 +707,25 @@ async def delete_meal(
     if not deleted:
         raise HTTPException(status_code=404, detail="entry not found")
     return {"deleted": True}
+
+
+# ---- streaks -------------------------------------------------------------
+
+
+@router.get("/api/streaks")
+async def get_streaks(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Derive all three streaks from this user's histories — never persisted.
+
+    The engine walks backward from the host-local today: the current partial
+    period stays pending, a fully-elapsed empty period breaks the streak.
+    """
+    exercise = await run_db(db.list_exercise, user.id)
+    meals = await run_db(db.list_meals, user.id)
+    weights = await run_db(db.list_entries, user.id)
+    state = streak_state(exercise, meals, weights, date.today())
+    return asdict(state)
 
 
 # ---- rewards ------------------------------------------------------------
