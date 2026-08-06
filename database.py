@@ -29,7 +29,7 @@ logger = get_logger("database")
 SCHEMA_STATEMENTS: tuple[str, ...] = (
     "DROP TABLE IF EXISTS reward_events;",
     # Every data table is owned by a user (user_id). Legacy single-user rows
-    # migrate in with the sentinel 0 and are claimed by the first registrant.
+    # are DISCARDED during migration (maintainer decision) — no backfill.
     """
     CREATE TABLE IF NOT EXISTS weight_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

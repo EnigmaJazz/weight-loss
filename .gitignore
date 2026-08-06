@@ -28,3 +28,6 @@ vapid_keys.json
 
 # Playwright CLI session state
 .playwright-cli/
+
+# UI smoke test artifact
+smoke-ui.png
