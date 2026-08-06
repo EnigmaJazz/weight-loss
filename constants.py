@@ -46,6 +46,11 @@ WEEKLY_NOTIFICATION_TYPES: tuple[str, ...] = ("reminder",)
 
 NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "reminder", "exercise")
 
+# Exercise-type allowlist: drives both server validation (routes.py) and the
+# SPA's <select> (kept in sync by the drift-guard test). Mirrors the
+# NOTIFICATION_TYPES allowlist pattern.
+EXERCISE_TYPES: tuple[str, ...] = ("walk", "run", "gym", "cycling", "swim", "other")
+
 NOTIFICATION_MESSAGES: dict[str, tuple[str, str]] = {
     "tip": (
         "Daily weight-loss tip",
