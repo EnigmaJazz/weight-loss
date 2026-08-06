@@ -630,6 +630,14 @@ class Database:
                 stored.get("start_weight_override")
             ),
             height_cm=_optional_float(stored.get("height_cm")),
+            # Plain strings: the settings table is key/value with no schema
+            # columns, so defaults cover rows that predate these keys.
+            weight_unit=str(
+                stored.get("weight_unit", DEFAULT_SETTINGS["weight_unit"])
+            ),
+            height_unit=str(
+                stored.get("height_unit", DEFAULT_SETTINGS["height_unit"])
+            ),
         )
 
     def update_settings(self, user_id: int, updates: dict[str, Any]) -> None:

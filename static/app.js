@@ -9,7 +9,7 @@ const toastEl = $("toast");
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm } = globalThis.WeightFormat;
+const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -278,7 +278,7 @@ function renderHistory(entries) {
     li.className = "entry-row";
     const date = document.createElement("span");
     date.className = "entry-date";
-    date.textContent = e.date;
+    date.textContent = formatDate(e.date);
     const weight = document.createElement("span");
     weight.className = "entry-weight";
     weight.textContent = weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb);
@@ -326,10 +326,15 @@ function drawChart(entries, summary) {
   const pad = { top: 16, right: 16, bottom: 28, left: 44 };
   const w = canvas.width - pad.left - pad.right;
   const h = canvas.height - pad.top - pad.bottom;
-  const kgs = entries.map((e) => e.weight_kg);
+  // The API returns entries newest-first (the history list shows them that
+  // way); the chart reads left -> right in time, so plot a reversed copy —
+  // oldest on the left, newest on the right. Every coordinate below follows
+  // this chronological array.
+  const points = chronological(entries);
+  const kgs = points.map((e) => e.weight_kg);
   const min = Math.min(...kgs) - 1;
   const max = Math.max(...kgs) + 1;
-  const xAt = (i) => pad.left + (entries.length === 1 ? w / 2 : (i / (entries.length - 1)) * w);
+  const xAt = (i) => pad.left + (points.length === 1 ? w / 2 : (i / (points.length - 1)) * w);
   const yAt = (v) => pad.top + h - ((v - min) / (max - min)) * h;
 
   // grid lines
@@ -351,11 +356,11 @@ function drawChart(entries, summary) {
   ctx.strokeStyle = "#2f7d54";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  entries.forEach((e, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(e.weight_kg)) : ctx.lineTo(xAt(i), yAt(e.weight_kg))));
+  points.forEach((e, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(e.weight_kg)) : ctx.lineTo(xAt(i), yAt(e.weight_kg))));
   ctx.stroke();
 
   ctx.fillStyle = "#2f7d54";
-  for (const [i, e] of entries.entries()) {
+  for (const [i, e] of points.entries()) {
     ctx.beginPath();
     ctx.arc(xAt(i), yAt(e.weight_kg), 3.5, 0, Math.PI * 2);
     ctx.fill();
@@ -363,9 +368,9 @@ function drawChart(entries, summary) {
 
   // x labels (sparse)
   ctx.textAlign = "center";
-  const step = Math.max(1, Math.ceil(entries.length / 6));
-  for (let i = 0; i < entries.length; i += step) {
-    ctx.fillText(entries[i].date.slice(5), xAt(i), canvas.height - 8);
+  const step = Math.max(1, Math.ceil(points.length / 6));
+  for (let i = 0; i < points.length; i += step) {
+    ctx.fillText(formatDate(points[i].date), xAt(i), canvas.height - 8);
   }
 
   // tooltip
@@ -374,20 +379,20 @@ function drawChart(entries, summary) {
     const mx = ev.clientX - rect.left;
     let nearest = 0;
     let best = Infinity;
-    entries.forEach((e, i) => {
+    points.forEach((e, i) => {
       const d = Math.abs(xAt(i) - mx);
       if (d < best) {
         best = d;
         nearest = i;
       }
     });
-    if (best > w / entries.length) {
+    if (best > w / points.length) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       return;
     }
     drawChart(entries, summary);
-    const e = entries[nearest];
-    const label = `${e.date}\n${weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb)}\nBMI ${bmiLabel(e.bmi)}`;
+    const e = points[nearest];
+    const label = `${formatDate(e.date)}\n${weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb)}\nBMI ${bmiLabel(e.bmi)}`;
     const box = { x: xAt(nearest) + 10, y: Math.max(pad.top, yAt(e.weight_kg) - 30), w: 0, h: 0 };
     ctx.font = "11px system-ui, sans-serif";
     const lines = label.split("\n");
@@ -452,7 +457,7 @@ function renderRewards(r) {
       label.textContent = weightLabel(cp.threshold_kg, cp.threshold_lb, cp.threshold_stone, cp.threshold_stone_lb);
       const when = document.createElement("span");
       when.className = "checkpoint-when";
-      when.textContent = cp.earned_at ? `earned ${cp.earned_at.slice(0, 10)}` : "pending";
+      when.textContent = cp.earned_at ? `earned ${formatDate(cp.earned_at.slice(0, 10))}` : "pending";
       li.append(badge, label, when);
       list.append(li);
     }
@@ -471,6 +476,12 @@ function renderSettings(s, me) {
   $("reminder-weekday").value = s.reminder_weekday ?? 0;
   $("exercise-time").value = s.exercise_time ?? "";
   $("start-override").value = s.start_weight_override ?? "";
+  // Per-user input units: the entry form's weight select and the settings
+  // form's height select open in the saved preference (kg / cm by default).
+  $("weight-unit").value = unitPref(s.weight_unit, "kg");
+  $("height-unit").value = unitPref(s.height_unit, "cm");
+  syncWeightUnitUi();
+  syncHeightUnitUi();
 }
 
 async function saveSettings(ev) {
@@ -548,6 +559,8 @@ async function saveSettings(ev) {
         reminder_weekday: Number($("reminder-weekday").value),
         exercise_time: time("exercise-time"),
         start_weight_override: num("start-override"),
+        weight_unit: $("weight-unit").value,
+        height_unit: $("height-unit").value,
       }),
     });
     // Email lives on the account, not the settings row: update it separately.

@@ -93,6 +93,8 @@ class AppSettings:
     exercise_time: str = "17:00"
     start_weight_override: Optional[float] = None
     height_cm: Optional[float] = None
+    weight_unit: str = "kg"  # preferred input unit: "kg" | "st-lb"
+    height_unit: str = "cm"  # preferred input unit: "cm" | "ft-in"
 
     def time_for(self, notif_type: str) -> str:
         """Scheduled "HH:MM" for a notification type ("" disables it)."""

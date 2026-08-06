@@ -38,7 +38,33 @@
     return (ft * 12 + inches) * 2.54;
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm };
+  /** API "YYYY-MM-DD" -> "DD/MM/YY" (zero-padded day/month, two-digit year).
+   * Null-safe (missing date renders ""); a full timestamp or any other input
+   * that starts with an ISO date is formatted from its date part, and
+   * non-ISO input passes through unchanged so a contract violation surfaces
+   * instead of crashing the UI. */
+  function formatDate(isoDate) {
+    if (isoDate == null) return "";
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(isoDate));
+    if (!match) return String(isoDate);
+    const [, year, month, day] = match;
+    return `${day}/${month}/${String(year).slice(-2)}`;
+  }
+
+  /** Resolve a persisted unit preference; missing/empty falls back to the
+   * project default (kg / cm) so the app opens in the user's format. */
+  function unitPref(value, fallback) {
+    return value === null || value === undefined || value === "" ? fallback : value;
+  }
+
+  /** The API returns entries newest-first (the history list shows them that
+   * way); the chart reads left -> right in time, so it plots this reversed
+   * copy — oldest on the left, newest on the right. Never mutates input. */
+  function chronological(entries) {
+    return entries.slice().reverse();
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

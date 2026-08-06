@@ -260,11 +260,27 @@ class SettingsIn(BaseModel):
     exercise_time: Optional[str] = None
     start_weight_override: Optional[float] = Field(default=None, gt=0)
     height_cm: Optional[float] = Field(default=None, gt=0)
+    weight_unit: Optional[str] = None  # "kg" | "st-lb"
+    height_unit: Optional[str] = None  # "cm" | "ft-in"
 
     @field_validator("tip_time", "reminder_time", "exercise_time")
     @classmethod
     def validate_time(cls, value: Optional[str]) -> Optional[str]:
         return _valid_time(value)
+
+    @field_validator("weight_unit")
+    @classmethod
+    def validate_weight_unit(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in ("kg", "st-lb"):
+            raise ValueError('weight_unit must be "kg" or "st-lb"')
+        return value
+
+    @field_validator("height_unit")
+    @classmethod
+    def validate_height_unit(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in ("cm", "ft-in"):
+            raise ValueError('height_unit must be "cm" or "ft-in"')
+        return value
 
 
 # ---- serialization ------------------------------------------------------

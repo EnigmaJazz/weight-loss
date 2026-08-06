@@ -90,6 +90,40 @@ async def test_settings_nonpositive_height_rejected(auth_client):
     assert res.status_code == 422
 
 
+# ---- per-user input units (per-user-default-units) -----------------------
+# Contract: weight_unit/height_unit persist per user and round-trip; values
+# outside the select options are rejected with 422; missing rows fall back to
+# the kg / cm defaults.
+
+
+@pytest.mark.asyncio
+async def test_settings_unit_defaults(auth_client):
+    data = (await auth_client.get("/api/settings")).json()
+    assert data["weight_unit"] == "kg"
+    assert data["height_unit"] == "cm"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value", [("weight_unit", "st-lb"), ("height_unit", "ft-in")]
+)
+async def test_settings_unit_roundtrip(auth_client, field, value):
+    res = await auth_client.put("/api/settings", json={field: value})
+    assert res.status_code == 200
+    assert res.json()[field] == value
+    got = (await auth_client.get("/api/settings")).json()
+    assert got[field] == value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,bad", [("weight_unit", "lb"), ("height_unit", "m"), ("weight_unit", "KG")]
+)
+async def test_settings_invalid_unit_rejected(auth_client, field, bad):
+    res = await auth_client.put("/api/settings", json={field: bad})
+    assert res.status_code == 422
+
+
 # ---- notification schedule disable (notification-schedule-disable) -----
 # Contract: "" disables a schedule (persisted and round-tripped unchanged);
 # null removes the override and restores the default; any other non-empty
