@@ -43,6 +43,27 @@ class WeightEntry:
 
 
 @dataclass
+class ExerciseEntry:
+    """One logged exercise row; multiple rows per user per date are allowed."""
+
+    id: int
+    date: str
+    exercise_type: str
+    duration_min: int
+    created_at: str
+
+
+@dataclass
+class MealEntry:
+    """One logged meal row; multiple rows per user per date are allowed."""
+
+    id: int
+    date: str
+    calories: float
+    created_at: str
+
+
+@dataclass
 class PushSubscription:
     id: int
     endpoint: str
@@ -71,6 +92,15 @@ class RewardState:
     earned_count: int = 0
     next_checkpoint: Optional[tuple[int, float]] = None
     progress_to_next: float = 0.0
+
+
+@dataclass
+class StreakState:
+    """Derived stateless streak counts for one user (never persisted)."""
+
+    weight_weeks: int = 0
+    exercise_weeks: int = 0
+    meal_days: int = 0
 
 
 @dataclass
