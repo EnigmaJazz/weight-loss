@@ -335,6 +335,12 @@ function renderExerciseHistory(entries) {
     const date = document.createElement("span");
     date.className = "entry-date";
     date.textContent = formatDate(e.date);
+    if (e.time) {
+      const time = document.createElement("span");
+      time.className = "entry-time";
+      time.textContent = e.time;
+      li.append(time);
+    }
     const type = document.createElement("span");
     type.className = "entry-type";
     type.textContent = e.exercise_type;
@@ -368,6 +374,12 @@ function renderMealHistory(entries) {
     const date = document.createElement("span");
     date.className = "entry-date";
     date.textContent = formatDate(e.date);
+    if (e.time) {
+      const time = document.createElement("span");
+      time.className = "entry-time";
+      time.textContent = e.time;
+      li.append(time);
+    }
     const calories = document.createElement("span");
     calories.className = "entry-calories";
     calories.textContent = `${fmt1(e.calories)} kcal`;
@@ -417,6 +429,7 @@ async function addExercise(ev) {
   ev.preventDefault();
   const date = $("exercise-date").value || todayLocal();
   const durationMin = Number($("exercise-duration").value);
+  const time = $("exercise-time").value || null;
   try {
     await fetchJson("/api/exercise", {
       method: "POST",
@@ -425,9 +438,11 @@ async function addExercise(ev) {
         date,
         exercise_type: $("exercise-type").value,
         duration_min: durationMin,
+        time,
       }),
     });
     $("exercise-duration").value = "";
+    $("exercise-time").value = "";
     toast("Exercise saved");
     await loadData();
   } catch (err) {
@@ -439,13 +454,15 @@ async function addMeal(ev) {
   ev.preventDefault();
   const date = $("meal-date").value || todayLocal();
   const calories = Number($("meal-calories").value);
+  const time = $("meal-time").value || null;
   try {
     await fetchJson("/api/meals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, calories }),
+      body: JSON.stringify({ date, calories, time }),
     });
     $("meal-calories").value = "";
+    $("meal-time").value = "";
     toast("Meal saved");
     await loadData();
   } catch (err) {

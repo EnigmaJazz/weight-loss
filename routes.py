@@ -207,6 +207,23 @@ def _valid_time(value: Optional[str]) -> Optional[str]:
     return f"{hour:02d}:{minute:02d}"
 
 
+def _valid_activity_time(value: Optional[str]) -> Optional[str]:
+    """Validate an optional activity time-of-day.
+
+    Accepts strict "HH:MM" (24h) or empty/None, which both normalize to None
+    ("no time"). Unlike schedule times, "" is NOT a disabled sentinel here.
+    """
+    if not value:
+        return None
+    parts = value.split(":")
+    if len(parts) != 2 or not all(p.isdigit() and len(p) == 2 for p in parts):
+        raise ValueError("time must be in HH:MM format")
+    hour, minute = (int(p) for p in parts)
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError("time must be in HH:MM format")
+    return f"{hour:02d}:{minute:02d}"
+
+
 class WeightIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -223,6 +240,7 @@ class ExerciseIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     date: str
+    time: Optional[str] = None
     exercise_type: str
     duration_min: int = Field(gt=0)
 
@@ -230,6 +248,11 @@ class ExerciseIn(BaseModel):
     @classmethod
     def validate_date(cls, value: str) -> str:
         return _valid_date(value)
+
+    @field_validator("time")
+    @classmethod
+    def validate_time(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_time(value)
 
     @field_validator("exercise_type")
     @classmethod
@@ -243,12 +266,18 @@ class MealIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     date: str
+    time: Optional[str] = None
     calories: float = Field(gt=0)
 
     @field_validator("date")
     @classmethod
     def validate_date(cls, value: str) -> str:
         return _valid_date(value)
+
+    @field_validator("time")
+    @classmethod
+    def validate_time(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_time(value)
 
 
 class PushSubscribeIn(BaseModel):
@@ -355,6 +384,7 @@ def _exercise_dict(entry: ExerciseEntry) -> dict[str, Any]:
     return {
         "id": entry.id,
         "date": entry.date,
+        "time": entry.time,
         "exercise_type": entry.exercise_type,
         "duration_min": entry.duration_min,
         "created_at": entry.created_at,
@@ -365,6 +395,7 @@ def _meal_dict(entry: MealEntry) -> dict[str, Any]:
     return {
         "id": entry.id,
         "date": entry.date,
+        "time": entry.time,
         "calories": entry.calories,
         "created_at": entry.created_at,
     }
@@ -655,6 +686,7 @@ async def add_exercise(
         payload.date,
         payload.exercise_type,
         payload.duration_min,
+        payload.time,
     )
     logger.info(
         "logged %s exercise for user %s", payload.exercise_type, user.username
@@ -690,7 +722,9 @@ async def add_meal(
     user: User = Depends(require_user),
     db: Database = Depends(get_db),
 ) -> dict[str, Any]:
-    entry = await run_db(db.insert_meal, user.id, payload.date, payload.calories)
+    entry = await run_db(
+        db.insert_meal, user.id, payload.date, payload.calories, payload.time
+    )
     logger.info("logged meal for user %s", user.username)
     return _meal_dict(entry)
 
