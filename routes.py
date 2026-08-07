@@ -22,6 +22,7 @@ from auth import (
     verify_password,
 )
 from constants import (
+    EXERCISE_TYPES,
     NOTIFICATION_MESSAGES,
     NOTIFICATION_TYPES,
     PUBLIC_URL,
@@ -36,7 +37,7 @@ from constants import (
     get_logger,
 )
 from database import Database, DuplicateEmailError, DuplicateUsernameError, run_db
-from models import User, WeightEntry
+from models import ExerciseEntry, MealEntry, User, WeightEntry
 import notifications
 from rewards import (
     compute_baseline,
@@ -217,6 +218,38 @@ class WeightIn(BaseModel):
         return _valid_date(value)
 
 
+class ExerciseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    exercise_type: str
+    duration_min: int = Field(gt=0)
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value: str) -> str:
+        return _valid_date(value)
+
+    @field_validator("exercise_type")
+    @classmethod
+    def validate_exercise_type(cls, value: str) -> str:
+        if value not in EXERCISE_TYPES:
+            raise ValueError("unknown exercise_type")
+        return value
+
+
+class MealIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    calories: float = Field(gt=0)
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value: str) -> str:
+        return _valid_date(value)
+
+
 class PushSubscribeIn(BaseModel):
     endpoint: str
     p256dh: str
@@ -313,6 +346,25 @@ def _entry_dict(entry: WeightEntry, height_cm: Optional[float]) -> dict[str, Any
         "stone": view["stone"],
         "stone_lb": view["stone_lb"],
         "bmi": view["bmi"],
+        "created_at": entry.created_at,
+    }
+
+
+def _exercise_dict(entry: ExerciseEntry) -> dict[str, Any]:
+    return {
+        "id": entry.id,
+        "date": entry.date,
+        "exercise_type": entry.exercise_type,
+        "duration_min": entry.duration_min,
+        "created_at": entry.created_at,
+    }
+
+
+def _meal_dict(entry: MealEntry) -> dict[str, Any]:
+    return {
+        "id": entry.id,
+        "date": entry.date,
+        "calories": entry.calories,
         "created_at": entry.created_at,
     }
 
@@ -574,6 +626,83 @@ async def delete_weight(
     # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
     # id deletes nothing and surfaces as 404, leaking no information.
     deleted = await run_db(db.delete_entry, user.id, entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="entry not found")
+    return {"deleted": True}
+
+
+# ---- activity logging: exercise and meal entries ---------------------------
+
+
+@router.get("/api/exercise")
+async def get_exercise(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    entries = await run_db(db.list_exercise, user.id)
+    return {"entries": [_exercise_dict(e) for e in entries]}
+
+
+@router.post("/api/exercise", status_code=201)
+async def add_exercise(
+    payload: ExerciseIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    entry = await run_db(
+        db.insert_exercise,
+        user.id,
+        payload.date,
+        payload.exercise_type,
+        payload.duration_min,
+    )
+    logger.info(
+        "logged %s exercise for user %s", payload.exercise_type, user.username
+    )
+    return _exercise_dict(entry)
+
+
+@router.delete("/api/exercise/{entry_id}")
+async def delete_exercise(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, bool]:
+    # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
+    # id deletes nothing and surfaces as 404, leaking no information.
+    deleted = await run_db(db.delete_exercise, user.id, entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="entry not found")
+    return {"deleted": True}
+
+
+@router.get("/api/meals")
+async def get_meals(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    entries = await run_db(db.list_meals, user.id)
+    return {"entries": [_meal_dict(e) for e in entries]}
+
+
+@router.post("/api/meals", status_code=201)
+async def add_meal(
+    payload: MealIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    entry = await run_db(db.insert_meal, user.id, payload.date, payload.calories)
+    logger.info("logged meal for user %s", user.username)
+    return _meal_dict(entry)
+
+
+@router.delete("/api/meals/{entry_id}")
+async def delete_meal(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, bool]:
+    # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
+    # id deletes nothing and surfaces as 404, leaking no information.
+    deleted = await run_db(db.delete_meal, user.id, entry_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="entry not found")
     return {"deleted": True}
