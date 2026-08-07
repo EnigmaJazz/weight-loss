@@ -57,150 +57,175 @@
       </section>
 
       <div id="tracker" hidden>
-      <section class="card" id="summary-card">
-        <h2>Summary</h2>
-        <div class="stats-grid" id="summary-stats"></div>
-      </section>
+        <nav class="tabs" role="tablist">
+          <button type="button" class="tab-btn active" data-tab="today" role="tab" aria-selected="true">Today</button>
+          <button type="button" class="tab-btn" data-tab="progress" role="tab" aria-selected="false">Progress</button>
+          <button type="button" class="tab-btn" data-tab="history" role="tab" aria-selected="false">History</button>
+          <button type="button" class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+        </nav>
 
-      <section class="card">
-        <h2>Log weight</h2>
-        <form id="entry-form" autocomplete="off">
-          <label for="entry-date">Date</label>
-          <input type="date" id="entry-date" required>
-          <label for="weight-unit">Weight unit</label>
-          <select id="weight-unit">
-            <option value="kg">kg</option>
-            <option value="st-lb">st + lb</option>
-          </select>
-          <label for="entry-weight">Weight (kg)</label>
-          <input type="number" id="entry-weight" step="any" min="1" max="700" placeholder="e.g. 82.5">
-          <div id="entry-st-lb" hidden>
-            <label for="entry-stone">Stone</label>
-            <input type="number" id="entry-stone" step="1" min="0" placeholder="e.g. 13">
-            <label for="entry-lb">Pounds</label>
-            <input type="number" id="entry-lb" step="any" min="0" max="14" placeholder="e.g. 4">
-          </div>
-          <button type="submit">Save</button>
-        </form>
-      </section>
+        <div class="tab-panel" id="tab-today">
+          <section class="card" id="summary-card">
+            <h2>Summary</h2>
+            <div class="stats-grid" id="summary-stats"></div>
+          </section>
 
-      <section class="card" id="history-card">
-        <h2>History</h2>
-        <ul class="entry-list" id="entry-list"></ul>
-      </section>
+          <section class="card">
+            <h2>Log weight</h2>
+            <form id="entry-form" autocomplete="off">
+              <label for="entry-date">Date</label>
+              <input type="date" id="entry-date" required>
+              <label for="weight-unit">Weight unit</label>
+              <select id="weight-unit">
+                <option value="kg">kg</option>
+                <option value="st-lb">st + lb</option>
+              </select>
+              <label for="entry-weight">Weight (kg)</label>
+              <input type="number" id="entry-weight" step="any" min="1" max="700" placeholder="e.g. 82.5">
+              <div id="entry-st-lb" hidden>
+                <label for="entry-stone">Stone</label>
+                <input type="number" id="entry-stone" step="1" min="0" placeholder="e.g. 13">
+                <label for="entry-lb">Pounds</label>
+                <input type="number" id="entry-lb" step="any" min="0" max="14" placeholder="e.g. 4">
+              </div>
+              <button type="submit">Save</button>
+            </form>
+          </section>
 
-      <section class="card">
-        <h2>Log exercise</h2>
-        <form id="exercise-form" autocomplete="off">
-          <label for="exercise-date">Date</label>
-          <input type="date" id="exercise-date" required>
-          <label for="exercise-type">Type</label>
-          <select id="exercise-type" required></select>
-          <label for="exercise-duration">Duration (minutes)</label>
-          <input type="number" id="exercise-duration" min="1" step="1" placeholder="e.g. 30" required>
-          <label for="exercise-time">Time (optional)</label>
-          <input type="time" id="exercise-time">
-          <button type="submit">Save</button>
-        </form>
-      </section>
+          <section class="card" id="streaks-card">
+            <h2>Streaks</h2>
+            <div class="streak-grid" id="streak-stats"></div>
+          </section>
 
-      <section class="card">
-        <h2>Exercise history</h2>
-        <ul class="entry-list" id="exercise-list"></ul>
-      </section>
+          <section class="card" id="rewards-card">
+            <h2>Checkpoints</h2>
+            <div id="rewards-content"></div>
+          </section>
 
-      <section class="card">
-        <h2>Log meal</h2>
-        <form id="meal-form" autocomplete="off">
-          <label for="meal-date">Date</label>
-          <input type="date" id="meal-date" required>
-          <label for="meal-calories">Calories</label>
-          <input type="number" id="meal-calories" min="1" step="any" placeholder="e.g. 650" required>
-          <label for="meal-time">Time (optional)</label>
-          <input type="time" id="meal-time">
-          <button type="submit">Save</button>
-        </form>
-      </section>
+          <section class="card">
+            <h2>Log exercise</h2>
+            <form id="exercise-form" autocomplete="off">
+              <label for="exercise-date">Date</label>
+              <input type="date" id="exercise-date" required>
+              <label for="exercise-type">Type</label>
+              <select id="exercise-type" required></select>
+              <label for="exercise-duration">Duration (minutes)</label>
+              <input type="number" id="exercise-duration" min="1" step="1" placeholder="e.g. 30" required>
+              <label for="exercise-time">Time (optional)</label>
+              <input type="time" id="exercise-time">
+              <button type="submit">Save</button>
+            </form>
+          </section>
 
-      <section class="card">
-        <h2>Meal history</h2>
-        <ul class="entry-list" id="meal-list"></ul>
-      </section>
+          <section class="card">
+            <h2>Log meal</h2>
+            <form id="meal-form" autocomplete="off">
+              <label for="meal-date">Date</label>
+              <input type="date" id="meal-date" required>
+              <label for="meal-calories">Calories</label>
+              <input type="number" id="meal-calories" min="1" step="any" placeholder="e.g. 650" required>
+              <label for="meal-time">Time (optional)</label>
+              <input type="time" id="meal-time">
+              <button type="submit">Save</button>
+            </form>
+          </section>
+        </div>
 
-      <section class="card" id="streaks-card">
-        <h2>Streaks</h2>
-        <div class="streak-grid" id="streak-stats"></div>
-      </section>
+        <div class="tab-panel" id="tab-progress" hidden>
+          <section class="card">
+            <h2>Progress</h2>
+            <canvas id="chart" height="260"></canvas>
+          </section>
 
-      <section class="card">
-        <h2>Progress</h2>
-        <canvas id="chart" height="260"></canvas>
-      </section>
+          <section class="card">
+            <h2>Exercise (minutes/week)</h2>
+            <canvas id="chart-exercise" height="260"></canvas>
+          </section>
 
-      <section class="card" id="rewards-card">
-        <h2>Checkpoints</h2>
-        <div id="rewards-content"></div>
-      </section>
+          <section class="card">
+            <h2>Meals (calories/day)</h2>
+            <canvas id="chart-meals" height="260"></canvas>
+          </section>
+        </div>
 
-      <section class="card">
-        <h2>Settings</h2>
-        <form id="settings-form" autocomplete="off">
-          <label for="account-email">Email (for password reset)</label>
-          <input type="email" id="account-email" placeholder="you@example.com">
-          <label for="target-weight">Target weight</label>
-          <select id="target-unit">
-            <option value="kg">kg</option>
-            <option value="st-lb">st + lb</option>
-          </select>
-          <input type="number" id="target-weight" step="any" min="1" max="700" placeholder="e.g. 70.0">
-          <div id="target-st-lb" hidden>
-            <label for="target-stone">Stone</label>
-            <input type="number" id="target-stone" step="1" min="0" placeholder="e.g. 11">
-            <label for="target-lb">Pounds</label>
-            <input type="number" id="target-lb" step="any" min="0" max="14" placeholder="e.g. 0">
-          </div>
-          <label for="height-unit">Height unit</label>
-          <select id="height-unit">
-            <option value="cm">cm</option>
-            <option value="ft-in">ft + in</option>
-          </select>
-          <label for="height-cm">Height (cm)</label>
-          <input type="number" id="height-cm" step="any" min="50" max="250" placeholder="e.g. 175">
-          <div id="height-ft-in" hidden>
-            <label for="height-ft">Feet</label>
-            <input type="number" id="height-ft" step="1" min="0" placeholder="e.g. 5">
-            <label for="height-in">Inches</label>
-            <input type="number" id="height-in" step="any" min="0" max="12" placeholder="e.g. 10">
-          </div>
-          <label for="tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
-          <input type="time" id="tip-time">
-          <label for="reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
-          <input type="time" id="reminder-time">
-          <label for="reminder-weekday">Weigh-in reminder day — weekly</label>
-          <select id="reminder-weekday">
-            <option value="0">Monday</option>
-            <option value="1">Tuesday</option>
-            <option value="2">Wednesday</option>
-            <option value="3">Thursday</option>
-            <option value="4">Friday</option>
-            <option value="5">Saturday</option>
-            <option value="6">Sunday</option>
-          </select>
-          <label for="exercise-time">Exercise nudge time (HH:MM) — leave blank to disable</label>
-          <input type="time" id="exercise-time">
-          <label for="start-override">Start weight override (kg)</label>
-          <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
-          <button type="submit">Save settings</button>
-        </form>
-      </section>
+        <div class="tab-panel" id="tab-history" hidden>
+          <section class="card" id="history-card">
+            <h2>History</h2>
+            <ul class="entry-list" id="entry-list"></ul>
+          </section>
 
-      <section class="card" id="push-card">
-        <h2>Daily reminders</h2>
-        <p class="hint">Enable push notifications to receive daily tips and reminders on this device.</p>
-        <button id="enable-push" type="button">Enable notifications</button>
-        <button id="disable-push" type="button" class="secondary" hidden>Disable notifications</button>
-        <button id="test-push" type="button" class="secondary" hidden>Send test notification</button>
-      </section>
+          <section class="card">
+            <h2>Exercise history</h2>
+            <ul class="entry-list" id="exercise-list"></ul>
+          </section>
+
+          <section class="card">
+            <h2>Meal history</h2>
+            <ul class="entry-list" id="meal-list"></ul>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="tab-settings" hidden>
+          <section class="card">
+            <h2>Settings</h2>
+            <form id="settings-form" autocomplete="off">
+              <label for="account-email">Email (for password reset)</label>
+              <input type="email" id="account-email" placeholder="you@example.com">
+              <label for="target-weight">Target weight</label>
+              <select id="target-unit">
+                <option value="kg">kg</option>
+                <option value="st-lb">st + lb</option>
+              </select>
+              <input type="number" id="target-weight" step="any" min="1" max="700" placeholder="e.g. 70.0">
+              <div id="target-st-lb" hidden>
+                <label for="target-stone">Stone</label>
+                <input type="number" id="target-stone" step="1" min="0" placeholder="e.g. 11">
+                <label for="target-lb">Pounds</label>
+                <input type="number" id="target-lb" step="any" min="0" max="14" placeholder="e.g. 0">
+              </div>
+              <label for="height-unit">Height unit</label>
+              <select id="height-unit">
+                <option value="cm">cm</option>
+                <option value="ft-in">ft + in</option>
+              </select>
+              <label for="height-cm">Height (cm)</label>
+              <input type="number" id="height-cm" step="any" min="50" max="250" placeholder="e.g. 175">
+              <div id="height-ft-in" hidden>
+                <label for="height-ft">Feet</label>
+                <input type="number" id="height-ft" step="1" min="0" placeholder="e.g. 5">
+                <label for="height-in">Inches</label>
+                <input type="number" id="height-in" step="any" min="0" max="12" placeholder="e.g. 10">
+              </div>
+              <label for="tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
+              <input type="time" id="tip-time">
+              <label for="reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
+              <input type="time" id="reminder-time">
+              <label for="reminder-weekday">Weigh-in reminder day — weekly</label>
+              <select id="reminder-weekday">
+                <option value="0">Monday</option>
+                <option value="1">Tuesday</option>
+                <option value="2">Wednesday</option>
+                <option value="3">Thursday</option>
+                <option value="4">Friday</option>
+                <option value="5">Saturday</option>
+                <option value="6">Sunday</option>
+              </select>
+              <label for="exercise-time">Exercise nudge time (HH:MM) — leave blank to disable</label>
+              <input type="time" id="exercise-time">
+              <label for="start-override">Start weight override (kg)</label>
+              <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
+              <button type="submit">Save settings</button>
+            </form>
+          </section>
+
+          <section class="card" id="push-card">
+            <h2>Daily reminders</h2>
+            <p class="hint">Enable push notifications to receive daily tips and reminders on this device.</p>
+            <button id="enable-push" type="button">Enable notifications</button>
+            <button id="disable-push" type="button" class="secondary" hidden>Disable notifications</button>
+            <button id="test-push" type="button" class="secondary" hidden>Send test notification</button>
+          </section>
+        </div>
       </div>
     </main>
 

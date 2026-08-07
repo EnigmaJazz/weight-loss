@@ -64,7 +64,48 @@
     return entries.slice().reverse();
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological };
+  /** The Monday ("YYYY-MM-DD") of the ISO week an entry's date falls in. JS
+   * lacks Python's date.isocalendar(), so compute it from the weekday: days
+   * since Monday = (getDay() + 6) % 7, then subtract. Parsed as UTC so the
+   * result is deterministic in every timezone. */
+  function isoWeekStart(isoDate) {
+    const [year, month, day] = String(isoDate).slice(0, 10).split("-").map(Number);
+    const d = new Date(Date.UTC(year, month - 1, day));
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    return `${d.getUTCFullYear()}-${mm}-${dd}`;
+  }
+
+  /** Exercise entries -> total minutes per ISO week. Returns
+   * [{ weekStart, minutes }] oldest -> newest; weekStart is the Monday of the
+   * entry's ISO week. Input order is irrelevant and the input is never
+   * mutated. */
+  function exerciseMinutesPerWeek(entries) {
+    const byWeek = new Map();
+    for (const e of entries) {
+      const weekStart = isoWeekStart(e.date);
+      byWeek.set(weekStart, (byWeek.get(weekStart) || 0) + e.duration_min);
+    }
+    return [...byWeek.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([weekStart, minutes]) => ({ weekStart, minutes }));
+  }
+
+  /** Meal entries -> total calories per calendar date. Returns
+   * [{ date, calories }] oldest -> newest. The input is never mutated. */
+  function caloriesPerDay(entries) {
+    const byDay = new Map();
+    for (const e of entries) {
+      const date = String(e.date).slice(0, 10);
+      byDay.set(date, (byDay.get(date) || 0) + e.calories);
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([date, calories]) => ({ date, calories }));
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
