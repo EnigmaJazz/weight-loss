@@ -855,6 +855,9 @@ class Database:
             target_unit=str(
                 stored.get("target_unit", DEFAULT_SETTINGS["target_unit"])
             ),
+            weight_display=str(
+                stored.get("weight_display", DEFAULT_SETTINGS["weight_display"])
+            ),
         )
 
     def update_settings(self, user_id: int, updates: dict[str, Any]) -> None:

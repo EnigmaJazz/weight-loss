@@ -7,23 +7,28 @@
     return v == null ? "—" : Number(v).toFixed(1);
   }
 
-  /** "82.5 kg (181.9 lb; 13 st 0.4 lb)" from flat keys; null-safe. The
-   * st-lb breakdown only appears when there is at least one whole stone:
-   * "0 st 1.1 lb" would duplicate the lb already shown. */
-  function weightLabel(kg, lb, stone, stoneLb) {
+  /** "82.5 kg (181.9 lb)" or "82.5 kg (13 st 0.4 lb)" from flat keys;
+   * null-safe. displayUnit picks which imperial form follows kg: "lb" (total
+   * pounds, the default) or "st-lb" (stones + pounds). In st-lb mode the
+   * breakdown only appears when there is at least one whole stone — "0 st
+   * 1.1 lb" would duplicate the lb already shown — so sub-stone values fall
+   * back to total lb. */
+  function weightLabel(kg, lb, stone, stoneLb, displayUnit) {
     if (kg == null) return "—";
+    const stLbMode = displayUnit === "st-lb";
     const parts = [];
     parts.push(`${fmt1(kg)} kg`);
-    if (lb != null) parts.push(`${fmt1(lb)} lb`);
-    if (stone != null && stoneLb != null && Math.round(stone) > 0) {
+    if (stLbMode && stone != null && stoneLb != null && Math.round(stone) > 0) {
       parts.push(`${Math.round(stone)} st ${fmt1(stoneLb)} lb`);
+    } else if (lb != null) {
+      parts.push(`${fmt1(lb)} lb`);
     }
     return parts.length > 1 ? `${parts[0]} (${parts.slice(1).join("; ")})` : parts[0];
   }
 
   /** Summary rows use prefixed keys: prefix_kg, prefix_lb, prefix_stone, prefix_stone_lb. */
-  function summaryLabel(o, prefix) {
-    return weightLabel(o[`${prefix}_kg`], o[`${prefix}_lb`], o[`${prefix}_stone`], o[`${prefix}_stone_lb`]);
+  function summaryLabel(o, prefix, displayUnit) {
+    return weightLabel(o[`${prefix}_kg`], o[`${prefix}_lb`], o[`${prefix}_stone`], o[`${prefix}_stone_lb`], displayUnit);
   }
 
   /** stone + lb -> kg. The exact international pound (1 lb = 0.45359237 kg),
