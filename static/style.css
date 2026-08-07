@@ -117,14 +117,17 @@ label { display: block; margin: 0.55rem 0; font-size: 0.9rem; color: var(--muted
   align-items: center;
   gap: 6px;
   margin-right: 16px;
+  flex-wrap: wrap;
 }
 
+.unit-group,
 #weight-display-group {
   border: none;
   padding: 0;
   margin: 0;
 }
 
+.unit-group legend,
 #weight-display-group legend {
   display: block;
   padding: 0;
@@ -197,8 +200,13 @@ button.link:hover { color: var(--accent); background: none; }
 }
 
 .stat { display: flex; flex-direction: column; gap: 0.2rem; }
-.stat-value { font-size: 1.15rem; font-weight: 700; color: var(--accent-dark); }
-.stat-label { font-size: 0.78rem; color: var(--muted); }
+.stat-value { font-size: 1.15rem; font-weight: 700; color: var(--accent-dark); white-space: nowrap; }
+.stat-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
 .stat-sub { font-size: 0.78rem; color: var(--muted); }
 
 /* history */
