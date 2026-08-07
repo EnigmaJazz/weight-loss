@@ -90,6 +90,45 @@
       </section>
 
       <section class="card">
+        <h2>Log exercise</h2>
+        <form id="exercise-form" autocomplete="off">
+          <label for="exercise-date">Date</label>
+          <input type="date" id="exercise-date" required>
+          <label for="exercise-type">Type</label>
+          <select id="exercise-type" required></select>
+          <label for="exercise-duration">Duration (minutes)</label>
+          <input type="number" id="exercise-duration" min="1" step="1" placeholder="e.g. 30" required>
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Exercise history</h2>
+        <ul class="entry-list" id="exercise-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Log meal</h2>
+        <form id="meal-form" autocomplete="off">
+          <label for="meal-date">Date</label>
+          <input type="date" id="meal-date" required>
+          <label for="meal-calories">Calories</label>
+          <input type="number" id="meal-calories" min="1" step="any" placeholder="e.g. 650" required>
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Meal history</h2>
+        <ul class="entry-list" id="meal-list"></ul>
+      </section>
+
+      <section class="card" id="streaks-card">
+        <h2>Streaks</h2>
+        <div class="streak-grid" id="streak-stats"></div>
+      </section>
+
+      <section class="card">
         <h2>Progress</h2>
         <canvas id="chart" height="260"></canvas>
       </section>

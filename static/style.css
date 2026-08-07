@@ -179,6 +179,27 @@ button.link:hover { color: var(--accent); background: none; }
 
 .empty { color: var(--muted); font-size: 0.9rem; padding: 0.4rem 0; }
 
+/* activity: exercise & meal history rows share the weight entry-row layout */
+
+.entry-type { width: 5.5rem; color: var(--accent-dark); font-weight: 600; }
+.entry-duration { flex: 1; color: var(--text); }
+.entry-calories { flex: 1; font-weight: 600; }
+
+/* streaks */
+
+.streak-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .streak-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.stat-unit { font-size: 0.78rem; color: var(--accent-dark); font-weight: 600; }
+
 /* chart */
 
 #chart { width: 100%; margin: 0.5rem 0 0.25rem; }
