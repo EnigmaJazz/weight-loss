@@ -33,3 +33,10 @@ test("fmt1 rounds to one decimal (toFixed(1))", () => {
 test("weightLabel rounds stone-lb via fmt1 (spec example)", () => {
   assert.equal(weightLabel(70, 154.3, 11, 0.3), "70.0 kg (154.3 lb; 11 st 0.3 lb)");
 });
+
+test("weightLabel omits the st-lb part when there are no whole stone", () => {
+  // Under one stone the pounds already show the value; "0 st 1.1 lb" would
+  // duplicate it, so the breakdown is dropped entirely.
+  assert.equal(weightLabel(0.5, 1.1, 0, 1.1), "0.5 kg (1.1 lb)");
+  assert.equal(weightLabel(1.5, 3.3, 0, 3.3), "1.5 kg (3.3 lb)");
+});

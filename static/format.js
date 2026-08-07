@@ -7,13 +7,15 @@
     return v == null ? "—" : Number(v).toFixed(1);
   }
 
-  /** "82.5 kg (181.9 lb; 13 st 0.4 lb)" from flat keys; null-safe. */
+  /** "82.5 kg (181.9 lb; 13 st 0.4 lb)" from flat keys; null-safe. The
+   * st-lb breakdown only appears when there is at least one whole stone:
+   * "0 st 1.1 lb" would duplicate the lb already shown. */
   function weightLabel(kg, lb, stone, stoneLb) {
     if (kg == null) return "—";
     const parts = [];
     parts.push(`${fmt1(kg)} kg`);
     if (lb != null) parts.push(`${fmt1(lb)} lb`);
-    if (stone != null && stoneLb != null) {
+    if (stone != null && stoneLb != null && Math.round(stone) > 0) {
       parts.push(`${Math.round(stone)} st ${fmt1(stoneLb)} lb`);
     }
     return parts.length > 1 ? `${parts[0]} (${parts.slice(1).join("; ")})` : parts[0];
