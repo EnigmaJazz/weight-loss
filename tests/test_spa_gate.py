@@ -11,7 +11,12 @@ gate) are exercised end-to-end by the browser smoke script tests/smoke-ui.sh;
 the auth API behind them is covered by test_auth_api.py.
 """
 
+import ast
+import re
+
 import pytest
+
+from constants import EXERCISE_TYPES
 
 
 @pytest.mark.asyncio
@@ -62,3 +67,15 @@ async def test_app_js_keeps_same_origin_fetch_posture(client):
     assert resp.status_code == 200
     body = resp.text
     assert "credentials" not in body
+
+
+@pytest.mark.asyncio
+async def test_app_js_exercise_types_literal_matches_server_constant(client):
+    """The SPA embeds the EXERCISE_TYPES literal that drives the exercise-type
+    <select>; it must stay in sync with constants.EXERCISE_TYPES, which drives
+    server-side validation. No /api/exercise-types endpoint exists by design."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    match = re.search(r"EXERCISE_TYPES\s*=\s*(\[[^\]]*\])", resp.text)
+    assert match is not None, "app.js must embed the EXERCISE_TYPES literal"
+    assert ast.literal_eval(match.group(1)) == list(EXERCISE_TYPES)
