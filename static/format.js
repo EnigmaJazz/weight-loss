@@ -31,6 +31,18 @@
     return weightLabel(o[`${prefix}_kg`], o[`${prefix}_lb`], o[`${prefix}_stone`], o[`${prefix}_stone_lb`], displayUnit);
   }
 
+  /** The imperial form of one weight WITHOUT the kg prefix: "181.9 lb" in lb
+   * mode, or "13 st 0.4 lb" in st-lb mode when there is at least one whole
+   * stone (sub-stone values fall back to total lb, mirroring weightLabel).
+   * Pure display helper for summary sub-lines; null lb -> "". */
+  function weightImperial(lb, stone, stoneLb, displayUnit) {
+    if (lb == null) return "";
+    if (displayUnit === "st-lb" && stone != null && Math.round(stone) > 0) {
+      return `${Math.round(stone)} st ${fmt1(stoneLb)} lb`;
+    }
+    return `${fmt1(lb)} lb`;
+  }
+
   /** stone + lb -> kg. The exact international pound (1 lb = 0.45359237 kg),
    * inverse of units.py's KG_TO_LB = 2.2046226218. Null-safe, rounding-free
    * (raw value; display rounding is the SPA's job). */
@@ -112,7 +124,7 @@
       .map(([date, calories]) => ({ date, calories }));
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay };
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

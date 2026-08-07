@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -261,11 +261,11 @@ async function loadData() {
 /* ---- summary ----------------------------------------------------------- */
 
 const SUMMARY_ROWS = [
-  ["current", "Current"],
-  ["baseline", "Baseline"],
-  ["target", "Target"],
-  ["lost", "Lost"],
-  ["remaining", "Remaining"],
+  ["current", "Current weight"],
+  ["baseline", "Starting weight"],
+  ["target", "Target weight"],
+  ["lost", "Weight lost"],
+  ["remaining", "To target"],
 ];
 
 function renderSummary(s) {
@@ -274,13 +274,23 @@ function renderSummary(s) {
   for (const [key, label] of SUMMARY_ROWS) {
     const stat = document.createElement("div");
     stat.className = "stat";
-    const value = document.createElement("div");
-    value.className = "stat-value";
-    value.textContent = summaryLabel(s, key, displayUnit);
     const name = document.createElement("div");
     name.className = "stat-label";
     name.textContent = label;
-    stat.append(value, name);
+    const value = document.createElement("div");
+    value.className = "stat-value";
+    // kg only — short enough to stay on one line on a phone, so the heading
+    // and the imperial/BMI lines below never force a wrap.
+    value.textContent = `${fmt1(s[`${key}_kg`])} kg`;
+    stat.append(name, value);
+    // Imperial form sits on its own sub-line; only render it when the API
+    // supplied an lb value (real stats always do, fresh accounts have null).
+    if (s[`${key}_lb`] != null) {
+      const imp = document.createElement("div");
+      imp.className = "stat-sub";
+      imp.textContent = weightImperial(s[`${key}_lb`], s[`${key}_stone`], s[`${key}_stone_lb`], displayUnit);
+      stat.append(imp);
+    }
     // *_bmi is always present on real weights (baseline/current/target) but
     // null when height is unset; render the line so the spec's "BMI —"
     // shows instead of nothing. Deltas (lost/remaining) never carry a bmi key.

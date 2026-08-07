@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import format from "../../static/format.js";
 
-const { fmt1, weightLabel, summaryLabel } = format;
+const { fmt1, weightLabel, summaryLabel, weightImperial } = format;
 
 test("weightLabel defaults to lb mode: kg (total lb)", () => {
   assert.equal(weightLabel(82.5, 181.9, 13, 0.4), "82.5 kg (181.9 lb)");
@@ -58,4 +58,24 @@ test("summaryLabel passes the display mode through", () => {
   assert.equal(summaryLabel(o, "current"), "82.5 kg (181.9 lb)");
   assert.equal(summaryLabel(o, "current", "lb"), "82.5 kg (181.9 lb)");
   assert.equal(summaryLabel(o, "current", "st-lb"), "82.5 kg (13 st 0.4 lb)");
+});
+
+test("weightImperial lb mode: total pounds", () => {
+  assert.equal(weightImperial(181.9, 13, 0.4, "lb"), "181.9 lb");
+  assert.equal(weightImperial(181.9, 13, 0.4), "181.9 lb");
+});
+
+test("weightImperial st-lb mode: whole stones + pounds", () => {
+  assert.equal(weightImperial(181.9, 13, 0.4, "st-lb"), "13 st 0.4 lb");
+});
+
+test("weightImperial st-lb mode falls back to total lb under one stone", () => {
+  assert.equal(weightImperial(1.1, 0, 1.1, "st-lb"), "1.1 lb");
+  assert.equal(weightImperial(3.3, 0, 3.3, "st-lb"), "3.3 lb");
+});
+
+test("weightImperial is empty for null lb in every mode", () => {
+  assert.equal(weightImperial(null, null, null), "");
+  assert.equal(weightImperial(null, null, null, "lb"), "");
+  assert.equal(weightImperial(null, null, null, "st-lb"), "");
 });
