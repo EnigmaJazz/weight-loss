@@ -196,11 +196,11 @@
                 <label for="height-in">Inches</label>
                 <input type="number" id="height-in" step="any" min="0" max="12" placeholder="e.g. 10">
               </div>
-              <label for="weight-display">Weight display — follow kg with</label>
-              <select id="weight-display">
-                <option value="lb">Total pounds (lb)</option>
-                <option value="st-lb">Stones + pounds (st lb)</option>
-              </select>
+              <fieldset id="weight-display-group">
+                <legend>Weight display — follow kg with</legend>
+                <label class="radio-option"><input type="radio" name="weight-display" value="lb"> Total pounds (lb)</label>
+                <label class="radio-option"><input type="radio" name="weight-display" value="st-lb"> Stones + pounds (st lb)</label>
+              </fieldset>
               <label for="tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
               <input type="time" id="tip-time">
               <label for="reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>

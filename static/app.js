@@ -226,7 +226,7 @@ async function logout() {
 // Cached API payloads the charts redraw from when the Progress tab becomes
 // visible (the canvases have zero width while their panel is hidden, so the
 // charts are drawn on visibility, not just at load time).
-let chartData = { weightEntries: [], weightSummary: null, exerciseEntries: [], mealEntries: [] };
+let chartData = { weightEntries: [], weightSummary: null, exerciseEntries: [], mealEntries: [], rewards: null };
 
 async function loadData() {
   const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
@@ -242,6 +242,7 @@ async function loadData() {
   chartData.weightSummary = weight.summary;
   chartData.exerciseEntries = exercise.entries;
   chartData.mealEntries = meals.entries;
+  chartData.rewards = rewards;
   displayUnit = unitPref(settings.weight_display, "lb");
   renderSummary(weight.summary);
   renderHistory(weight.entries);
@@ -992,7 +993,8 @@ function renderSettings(s, me) {
   $("weight-unit").value = unitPref(s.weight_unit, "kg");
   $("height-unit").value = unitPref(s.height_unit, "cm");
   $("target-unit").value = unitPref(s.target_unit, "kg");
-  $("weight-display").value = unitPref(s.weight_display, "lb");
+  const wd = document.querySelector('input[name="weight-display"][value="' + unitPref(s.weight_display, "lb") + '"]');
+  if (wd) wd.checked = true;
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
@@ -1076,7 +1078,6 @@ async function saveSettings(ev) {
         weight_unit: $("weight-unit").value,
         height_unit: $("height-unit").value,
         target_unit: $("target-unit").value,
-        weight_display: $("weight-display").value,
       }),
     });
     // Email lives on the account, not the settings row: update it separately.
@@ -1277,6 +1278,18 @@ function syncTargetUnitUi() {
 
 let _unitSaveTimer = null;
 
+function currentWeightDisplay() {
+  const checked = document.querySelector('input[name="weight-display"]:checked');
+  return checked ? checked.value : displayUnit;
+}
+
+function refreshWeightLabels() {
+  renderSummary(chartData.weightSummary);
+  renderHistory(chartData.weightEntries);
+  if (chartData.rewards) renderRewards(chartData.rewards);
+  drawChart(chartData.weightEntries, chartData.weightSummary);
+}
+
 async function saveUnitPreference() {
   // Changing the weight/height unit anywhere is a preference change: persist
   // it immediately (debounced) so a reload keeps the chosen format. A failed
@@ -1291,6 +1304,7 @@ async function saveUnitPreference() {
           weight_unit: $("weight-unit").value,
           height_unit: $("height-unit").value,
           target_unit: $("target-unit").value,
+          weight_display: currentWeightDisplay(),
         }),
       });
     } catch (_) {
@@ -1335,6 +1349,13 @@ async function init() {
     syncTargetUnitUi();
     saveUnitPreference();
   });
+  for (const r of document.querySelectorAll('input[name="weight-display"]')) {
+    r.addEventListener("change", () => {
+      displayUnit = r.value;
+      refreshWeightLabels();
+      saveUnitPreference();
+    });
+  }
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
