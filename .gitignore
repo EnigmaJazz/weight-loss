@@ -31,3 +31,7 @@ vapid_keys.json
 
 # UI smoke test artifact
 smoke-ui.png
+
+# Tailscale TLS certs (served by tailscale serve, not git)
+*.tail840901.ts.net.crt
+*.tail840901.ts.net.key
