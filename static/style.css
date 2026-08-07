@@ -58,6 +58,41 @@ main {
   gap: 1.25rem;
 }
 
+/* tabbed layout: the tab bar is #tracker's first flex child, so the flex gap
+ * keeps the cards below it spaced; the panels themselves are plain block
+ * containers (no display rule, so the [hidden] attribute stays authoritative)
+ * and the sibling margin below reproduces the card spacing inside a panel. */
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+
+.tab-btn {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.5rem 0.9rem;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.tab-btn:hover {
+  background: #eef7f1;
+  color: var(--accent-dark);
+}
+
+.tab-btn.active {
+  color: var(--accent-dark);
+  font-weight: 600;
+  border-bottom: 2px solid var(--accent);
+}
+
+.tab-panel > .card + .card { margin-top: 1.25rem; }
+
 /* auth gate card: narrower than the tracker, centered. */
 #auth-screen {
   max-width: 24rem;
@@ -245,7 +280,12 @@ button.link:hover { color: var(--accent); background: none; }
 
 /* chart */
 
-#chart { width: 100%; margin: 0.5rem 0 0.25rem; }
+#chart,
+#chart-exercise,
+#chart-meals {
+  width: 100%;
+  margin: 0.5rem 0 0.25rem;
+}
 
 /* rewards */
 
