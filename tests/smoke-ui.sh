@@ -165,6 +165,21 @@ sleep 1
 # summary card renders the BMI.
 assert_find "BMI renders after height saved" "BMI 2"
 
+# ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
+
+echo "-- weight-display radio toggle"
+# The display preference is a radio group that saves itself on change — no
+# "Save settings" click. Toggling to st-lb must re-render the History list
+# immediately (and persist via the debounced settings PUT).
+playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
+playwright-cli click 'input[name="weight-display"][value="st-lb"]' >/dev/null 2>&1
+sleep 1
+playwright-cli click "[data-tab=history]" >/dev/null 2>&1
+# The 12 st 4 lb entry (172 lb) renders as stones+pounds once st-lb is chosen;
+# "12 st" only appears in this mode, so this proves the toggle took effect
+# without any Save click.
+assert_find "st-lb display after radio toggle (no Save)" "12 st 4"
+
 # ---- 5.5 progress tab: charts draw on visibility ---------------------------
 
 echo "-- progress tab (charts)"
