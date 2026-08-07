@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Create venv and install deps
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Run pytest
+        run: .venv/bin/python -m pytest -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+
+      - name: Run frontend formatter tests
+        run: node --test tests/frontend/weight-label.test.mjs
+
+      - name: Run pyright type check
+        # Root-caused: pyrightconfig used wrong venvPath semantics and did not
+        # exclude .venv, so pyright scanned the 142M venv as project source and
+        # hung (exit 124). Fixed config (venvPath "." + venv ".venv" + exclude
+        # **/.venv) and the 3 real type errors it surfaced. Blocking again.
+        run: |
+          .venv/bin/pip install pyright
+          timeout 120 .venv/bin/pyright -p pyrightconfig.json
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Create venv and install deps
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+
+      - name: Install playwright-cli and Chromium
+        run: |
+          npm install -g @playwright/cli@latest
+          playwright-cli install --skills
+          # verify the CLI's exact bundled Chromium revision is present
+          ls ~/.cache/ms-playwright/
+
+      - name: Boot app on scratch DB
+        run: |
+          WEIGHT_LOSS_DB=/tmp/smoke.db \
+          WEIGHT_LOSS_VAPID_KEYS=/tmp/smoke_vapid.json \
+          .venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null http://127.0.0.1:8000/ && exit 0
+            sleep 1
+          done
+          echo "app failed to start" >&2
+          exit 1
+
+      - name: Run browser smoke test
+        run: tests/smoke-ui.sh http://127.0.0.1:8000
+
+      - name: Upload smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-ui-screenshot
+          path: smoke-ui.png
+          if-no-files-found: ignore

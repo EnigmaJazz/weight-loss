@@ -20,6 +20,7 @@ VAPID_KEYS_PATH = os.environ.get(
 )
 STATIC_DIR = str(BASE_DIR / "static")
 INDEX_HTML_PATH = str(BASE_DIR / "static" / "index.html")
+SW_PATH = str(BASE_DIR / "static" / "sw.js")
 
 APP_NAME = "Weight Loss Tracker"
 
@@ -29,10 +30,19 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "target_weight": None,
     "tip_time": "09:00",
     "reminder_time": "20:00",
+    "reminder_weekday": 0,  # Monday=0 ... Sunday=6 (datetime.weekday())
     "exercise_time": "17:00",
     "start_weight_override": None,
     "height_cm": None,
+    "weight_unit": "kg",  # per-user input preference: "kg" | "st-lb"
+    "height_unit": "cm",  # per-user input preference: "cm" | "ft-in"
+    "target_unit": "kg",  # per-user target input preference: "kg" | "st-lb"
 }
+
+# Notification types and whether each fires daily or weekly (fixed weekday).
+# tip/exercise: daily; reminder (weigh-in): weekly on reminder_weekday.
+DAILY_NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "exercise")
+WEEKLY_NOTIFICATION_TYPES: tuple[str, ...] = ("reminder",)
 
 NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "reminder", "exercise")
 
@@ -55,6 +65,69 @@ TEST_NOTIFICATION_TITLE = "Weight Loss Tracker"
 TEST_NOTIFICATION_BODY = "Test notification — push works!"
 
 SCHEDULER_INTERVAL_SECONDS = 60
+
+# ---- authentication (user-accounts-auth) ----
+
+# scrypt password-hashing parameters (memory-hard, stdlib-only).
+SCRIPT_N = 2**14
+SCRIPT_R = 8
+SCRIPT_P = 1
+SCRIPT_DKLEN = 32  # derived key length in bytes
+
+# Session token: random urlsafe secret, never persisted in plaintext.
+SESSION_TOKEN_BYTES = 32
+
+# Session cookie: 30-day TTL, matched by the DB row's expires_at.
+SESSION_EXPIRY_SECONDS = 30 * 24 * 60 * 60
+SESSION_COOKIE_NAME = "session"
+SESSION_COOKIE_PATH = "/"
+SESSION_COOKIE_SAMESITE = "lax"
+# Secure is configurable via env: local development runs plain HTTP, where a
+# Secure cookie would never be sent back. Set WEIGHT_LOSS_COOKIE_SECURE=true
+# behind TLS.
+SESSION_COOKIE_SECURE = (
+    os.environ.get("WEIGHT_LOSS_COOKIE_SECURE", "").lower() in ("1", "true", "yes")
+)
+
+# ---- email password reset (password-reset) ----
+
+# One-time reset token: random urlsafe secret; only its SHA-256 hash is stored.
+RESET_TOKEN_BYTES = 32
+RESET_TOKEN_EXPIRY_SECONDS = 30 * 60  # the emailed link expires after 30 minutes
+
+
+def _env_int(name: str, default: int) -> int:
+    """Parse an integer env var, falling back to ``default`` on garbage — an
+    operator typo must never crash the app at import time."""
+    raw = os.environ.get(name, "")
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+# SMTP delivery for password-reset emails (stdlib smtplib). Credentials come
+# from the operator's environment, never from the repo:
+#   WEIGHT_LOSS_SMTP_HOST  (default smtp.gmail.com)
+#   WEIGHT_LOSS_SMTP_PORT  (default 587, STARTTLS)
+#   WEIGHT_LOSS_SMTP_USER  (e.g. a Gmail address)
+#   WEIGHT_LOSS_SMTP_PASS  (a Gmail App Password — NOT the account password)
+#   WEIGHT_LOSS_SMTP_FROM  (defaults to SMTP_USER)
+# When SMTP_USER/PASS are unset the app falls back to logging the reset link
+# (dev mode) instead of failing.
+SMTP_HOST = os.environ.get("WEIGHT_LOSS_SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = _env_int("WEIGHT_LOSS_SMTP_PORT", 587)
+SMTP_USER = os.environ.get("WEIGHT_LOSS_SMTP_USER", "")
+SMTP_PASS = os.environ.get("WEIGHT_LOSS_SMTP_PASS", "")
+SMTP_FROM = os.environ.get("WEIGHT_LOSS_SMTP_FROM", "")
+
+# Public base URL embedded in password-reset links (trailing slash stripped).
+PUBLIC_URL = os.environ.get(
+    "WEIGHT_LOSS_PUBLIC_URL", "http://localhost:8000"
+).rstrip("/")
+
 
 _logger_configured = False
 

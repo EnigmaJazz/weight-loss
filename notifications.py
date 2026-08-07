@@ -23,21 +23,26 @@ def _generate_vapid() -> Vapid:
 
 
 def _vapid_to_payload(vapid: Vapid) -> dict[str, str]:
+    if vapid.private_key is None or vapid.public_key is None:
+        raise ValueError("VAPID keys must be generated before serialization")
     private_raw = (
         vapid.private_key.private_numbers().private_value.to_bytes(32, "big")
     )
-    public_der = vapid.public_key.public_bytes(
-        serialization.Encoding.DER,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
+    public_raw = vapid.public_key.public_bytes(
+        serialization.Encoding.X962,
+        serialization.PublicFormat.UncompressedPoint,
     )
     return {
         "private_key": b64urlencode(private_raw),
-        "public_key": b64urlencode(public_der),
+        "public_key": b64urlencode(public_raw),
     }
 
 
 def _vapid_from_payload(payload: dict[str, str]) -> Vapid:
-    return Vapid.from_raw(payload["private_key"])
+    # py_vapid Vapid.from_raw expects the raw private key as bytes; the
+    # persisted payload stores it as a b64url str, so pass bytes or the
+    # b64urldecode inside from_raw crashes with TypeError on second boot.
+    return Vapid.from_raw(payload["private_key"].encode("ascii"))
 
 
 def load_or_generate_vapid(vapid_path: str) -> tuple[Vapid, str]:
@@ -53,7 +58,18 @@ def load_or_generate_vapid(vapid_path: str) -> tuple[Vapid, str]:
         with open(vapid_path, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
         logger.info("generated and persisted VAPID keys to %s", vapid_path)
-    return vapid, payload["public_key"]
+    # Always expose the raw uncompressed EC point (65 bytes) for Web Push.
+    # Older persisted payloads stored DER (91 bytes) which pushManager
+    # rejects as an invalid applicationServerKey.
+    if vapid.public_key is None:
+        raise ValueError("VAPID public key is not available")
+    public_key = b64urlencode(
+        vapid.public_key.public_bytes(
+            serialization.Encoding.X962,
+            serialization.PublicFormat.UncompressedPoint,
+        )
+    )
+    return vapid, public_key
 
 
 def _subscription_info(subscription: PushSubscription) -> dict[str, Any]:
@@ -64,13 +80,21 @@ def _subscription_info(subscription: PushSubscription) -> dict[str, Any]:
 
 
 def send_push(
-    subscription: PushSubscription, title: str, body: str, vapid: Vapid
+    subscription: PushSubscription,
+    title: str,
+    body: str,
+    vapid: Vapid,
+    notif_type: str = "test",
 ) -> bool:
-    """Send one push notification. Returns True on success, False on failure."""
+    """Send one push notification. Returns True on success, False on failure.
+
+    The notification type becomes the service-worker tag so daily tip,
+    weekly weigh-in, and exercise notifications display independently instead
+    of collapsing onto the same slot."""
     try:
         webpush(
             subscription_info=_subscription_info(subscription),
-            data=json.dumps({"title": title, "body": body}),
+            data=json.dumps({"title": title, "body": body, "tag": notif_type}),
             vapid_private_key=vapid,
             vapid_claims={"sub": VAPID_SUBJECT},
             ttl=3600,
@@ -88,12 +112,16 @@ async def send_to_all(
     title: str,
     body: str,
     vapid: Vapid,
+    notif_type: str = "test",
 ) -> int:
     """Send a notification to every subscription. Returns successful-send count."""
     subs = list(subscriptions)
     if not subs:
         return 0
     results = await asyncio.gather(
-        *(asyncio.to_thread(send_push, sub, title, body, vapid) for sub in subs)
+        *(
+            asyncio.to_thread(send_push, sub, title, body, vapid, notif_type)
+            for sub in subs
+        )
     )
     return sum(1 for ok in results if ok)

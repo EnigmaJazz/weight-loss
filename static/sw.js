@@ -11,10 +11,11 @@ self.addEventListener("push", (event) => {
   }
   const title = data.title || "Weight Loss Tracker";
   const body = data.body || "";
+  const tag = data.tag || "weight-loss-tracker";
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
-      tag: "weight-loss-tracker",
+      tag,
       renotify: true,
     })
   );

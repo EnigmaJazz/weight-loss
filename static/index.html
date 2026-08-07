@@ -3,100 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Weight Loss Tracker</title>
+  <meta name="theme-color" content="#2f7d54">
   <link rel="manifest" href="/static/manifest.webmanifest">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%232f7d54'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3E%E2%86%93%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232f7d54'/%3E%3Cpath d='M32 8l14 22-14 8-14-8z' fill='%23fff'/%3E%3Cpath d='M32 42l14-8v14a14 14 0 0 1-28 0V34z' fill='%23e8f5ec'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/style.css">
+  <title>Weight Loss Tracker</title>
 </head>
 <body>
-  <header>
-    <h1>Weight Loss Tracker</h1>
-    <p class="tagline">Log. Earn milestones. Get reminded.</p>
-  </header>
-
-  <main>
-    <section class="card" id="summary">
-      <h2>Summary</h2>
-      <div class="stats">
-        <div class="stat"><span class="stat-value" id="stat-baseline">—</span><span class="stat-label">Baseline (kg)</span></div>
-        <div class="stat"><span class="stat-value" id="stat-current">—</span><span class="stat-label">Current (kg)</span></div>
-        <div class="stat"><span class="stat-value" id="stat-lost">—</span><span class="stat-label">Lost (kg)</span></div>
-        <div class="stat"><span class="stat-value" id="stat-target">—</span><span class="stat-label">Target (kg)</span></div>
-        <div class="stat"><span class="stat-value" id="stat-remaining">—</span><span class="stat-label">Remaining (kg)</span></div>
+  <div class="container">
+    <header>
+      <div class="header-row">
+        <h1>Weight Loss Tracker</h1>
+        <button id="logout-btn" type="button" class="secondary" hidden>Log out</button>
       </div>
-    </section>
+      <p class="tagline">Log your weight, earn checkpoints, and get daily reminders.</p>
+    </header>
 
-    <section class="grid">
-      <div class="card">
-        <h2>Log weight</h2>
-        <form id="weight-form">
-          <label>Date
-            <input type="date" id="weight-date" required>
-          </label>
-          <label>Weight (kg)
-            <input type="number" id="weight-kg" step="0.1" min="0.1" placeholder="e.g. 85.4" required>
-          </label>
-          <button type="submit">Log weight</button>
+    <main>
+      <section class="card" id="auth-screen">
+        <h2 id="auth-title">Log in</h2>
+        <form id="auth-form" autocomplete="off">
+          <label for="auth-username">Username</label>
+          <input type="text" id="auth-username" name="username" autocomplete="username" required>
+          <label for="auth-email" id="auth-email-label" hidden>Email</label>
+          <input type="email" id="auth-email" name="email" autocomplete="email" hidden>
+          <label for="auth-password">Password</label>
+          <input type="password" id="auth-password" name="password" autocomplete="current-password" required>
+          <button type="submit" id="auth-submit">Log in</button>
         </form>
-        <p class="hint" id="weight-form-message"></p>
-      </div>
+        <p class="hint">
+          <button type="button" id="auth-toggle" class="secondary">Create account</button>
+          <button type="button" id="forgot-link" class="link">Forgot password?</button>
+        </p>
 
-      <div class="card">
-        <h2>Rewards</h2>
-        <div class="reward-top">
-          <span class="reward-total" id="reward-total">0.0 kg</span>
-          <span class="reward-meta" id="reward-next">next: 1.0 kg</span>
-        </div>
-        <div class="progress">
-          <div class="progress-fill" id="reward-progress" style="width: 0%"></div>
-        </div>
-        <ul class="milestones" id="milestones"></ul>
-      </div>
-    </section>
+        <form id="forgot-form" autocomplete="off" hidden>
+          <p class="hint">Enter the email on your account and we'll send a reset link.</p>
+          <label for="forgot-email">Email</label>
+          <input type="email" id="forgot-email" name="email" autocomplete="email" required>
+          <button type="submit" id="forgot-submit">Send reset link</button>
+          <p class="hint">
+            <button type="button" id="forgot-back" class="secondary">Back to login</button>
+          </p>
+        </form>
 
-    <section class="card">
-      <h2>History</h2>
-      <canvas id="chart" height="220"></canvas>
-      <p class="hint" id="chart-empty">No weight entries yet — add your first one above.</p>
-      <table class="history">
-        <thead>
-          <tr><th>Date</th><th>Weight (kg)</th><th></th></tr>
-        </thead>
-        <tbody id="history-body"></tbody>
-      </table>
-    </section>
+        <form id="reset-form" autocomplete="off" hidden>
+          <p class="hint">Choose a new password for your account.</p>
+          <label for="reset-password">New password</label>
+          <input type="password" id="reset-password" name="password" autocomplete="new-password" required>
+          <label for="reset-confirm">Confirm new password</label>
+          <input type="password" id="reset-confirm" autocomplete="new-password" required>
+          <button type="submit" id="reset-submit">Reset password</button>
+        </form>
+      </section>
 
-    <section class="grid">
-      <div class="card">
+      <div id="tracker" hidden>
+      <section class="card" id="summary-card">
+        <h2>Summary</h2>
+        <div class="stats-grid" id="summary-stats"></div>
+      </section>
+
+      <section class="card">
+        <h2>Log weight</h2>
+        <form id="entry-form" autocomplete="off">
+          <label for="entry-date">Date</label>
+          <input type="date" id="entry-date" required>
+          <label for="weight-unit">Weight unit</label>
+          <select id="weight-unit">
+            <option value="kg">kg</option>
+            <option value="st-lb">st + lb</option>
+          </select>
+          <label for="entry-weight">Weight (kg)</label>
+          <input type="number" id="entry-weight" step="any" min="1" max="700" placeholder="e.g. 82.5">
+          <div id="entry-st-lb" hidden>
+            <label for="entry-stone">Stone</label>
+            <input type="number" id="entry-stone" step="1" min="0" placeholder="e.g. 13">
+            <label for="entry-lb">Pounds</label>
+            <input type="number" id="entry-lb" step="any" min="0" max="14" placeholder="e.g. 4">
+          </div>
+          <button type="submit">Save</button>
+        </form>
+      </section>
+
+      <section class="card" id="history-card">
+        <h2>History</h2>
+        <ul class="entry-list" id="entry-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Progress</h2>
+        <canvas id="chart" height="260"></canvas>
+      </section>
+
+      <section class="card" id="rewards-card">
+        <h2>Checkpoints</h2>
+        <div id="rewards-content"></div>
+      </section>
+
+      <section class="card">
         <h2>Settings</h2>
-        <form id="settings-form">
-          <label>Target weight (kg)
-            <input type="number" id="set-target" step="0.1" min="0.1" placeholder="empty = no target">
-          </label>
-          <label>Milestone step (kg)
-            <input type="number" id="set-step" step="0.1" min="0.1" required>
-          </label>
-          <label>Start weight override (kg)
-            <input type="number" id="set-start" step="0.1" min="0.1" placeholder="empty = first entry">
-          </label>
-          <label>Daily tip time <input type="time" id="set-tip" required></label>
-          <label>Weigh-in reminder time <input type="time" id="set-reminder" required></label>
-          <label>Exercise encouragement time <input type="time" id="set-exercise" required></label>
+        <form id="settings-form" autocomplete="off">
+          <label for="account-email">Email (for password reset)</label>
+          <input type="email" id="account-email" placeholder="you@example.com">
+          <label for="target-weight">Target weight</label>
+          <select id="target-unit">
+            <option value="kg">kg</option>
+            <option value="st-lb">st + lb</option>
+          </select>
+          <input type="number" id="target-weight" step="any" min="1" max="700" placeholder="e.g. 70.0">
+          <div id="target-st-lb" hidden>
+            <label for="target-stone">Stone</label>
+            <input type="number" id="target-stone" step="1" min="0" placeholder="e.g. 11">
+            <label for="target-lb">Pounds</label>
+            <input type="number" id="target-lb" step="any" min="0" max="14" placeholder="e.g. 0">
+          </div>
+          <label for="height-unit">Height unit</label>
+          <select id="height-unit">
+            <option value="cm">cm</option>
+            <option value="ft-in">ft + in</option>
+          </select>
+          <label for="height-cm">Height (cm)</label>
+          <input type="number" id="height-cm" step="any" min="50" max="250" placeholder="e.g. 175">
+          <div id="height-ft-in" hidden>
+            <label for="height-ft">Feet</label>
+            <input type="number" id="height-ft" step="1" min="0" placeholder="e.g. 5">
+            <label for="height-in">Inches</label>
+            <input type="number" id="height-in" step="any" min="0" max="12" placeholder="e.g. 10">
+          </div>
+          <label for="tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
+          <input type="time" id="tip-time">
+          <label for="reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
+          <input type="time" id="reminder-time">
+          <label for="reminder-weekday">Weigh-in reminder day — weekly</label>
+          <select id="reminder-weekday">
+            <option value="0">Monday</option>
+            <option value="1">Tuesday</option>
+            <option value="2">Wednesday</option>
+            <option value="3">Thursday</option>
+            <option value="4">Friday</option>
+            <option value="5">Saturday</option>
+            <option value="6">Sunday</option>
+          </select>
+          <label for="exercise-time">Exercise nudge time (HH:MM) — leave blank to disable</label>
+          <input type="time" id="exercise-time">
+          <label for="start-override">Start weight override (kg)</label>
+          <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
           <button type="submit">Save settings</button>
         </form>
-        <p class="hint" id="settings-message"></p>
-      </div>
+      </section>
 
-      <div class="card">
-        <h2>Notifications</h2>
-        <p class="hint">Receive daily tips, weigh-in reminders, and exercise nudges on this device.</p>
-        <button id="enable-push">Enable push notifications</button>
-        <button id="test-push" class="secondary">Send test notification</button>
-        <p class="hint" id="push-message"></p>
+      <section class="card" id="push-card">
+        <h2>Daily reminders</h2>
+        <p class="hint">Enable push notifications to receive daily tips and reminders on this device.</p>
+        <button id="enable-push" type="button">Enable notifications</button>
+        <button id="disable-push" type="button" class="secondary" hidden>Disable notifications</button>
+        <button id="test-push" type="button" class="secondary" hidden>Send test notification</button>
+      </section>
       </div>
-    </section>
-  </main>
+    </main>
 
-  <script src="/static/app.js"></script>
+    <footer>
+      <p>Weights shown in kg with lb and stone lb equivalents.</p>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/static/format.js"></script>
+  <script src="/static/auth.js"></script>
+  <script src="/static/app.js" defer></script>
 </body>
 </html>
