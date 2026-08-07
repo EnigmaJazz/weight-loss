@@ -101,11 +101,13 @@ async def test_settings_unit_defaults(auth_client):
     data = (await auth_client.get("/api/settings")).json()
     assert data["weight_unit"] == "kg"
     assert data["height_unit"] == "cm"
+    assert data["weight_display"] == "lb"
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "field,value", [("weight_unit", "st-lb"), ("height_unit", "ft-in")]
+    "field,value",
+    [("weight_unit", "st-lb"), ("height_unit", "ft-in"), ("weight_display", "st-lb")],
 )
 async def test_settings_unit_roundtrip(auth_client, field, value):
     res = await auth_client.put("/api/settings", json={field: value})
@@ -117,11 +119,32 @@ async def test_settings_unit_roundtrip(auth_client, field, value):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "field,bad", [("weight_unit", "lb"), ("height_unit", "m"), ("weight_unit", "KG")]
+    "field,bad",
+    [
+        ("weight_unit", "lb"),
+        ("height_unit", "m"),
+        ("weight_unit", "KG"),
+        ("weight_display", "kg"),
+        ("weight_display", "lbs"),
+        ("weight_display", "ST-LB"),
+    ],
 )
 async def test_settings_invalid_unit_rejected(auth_client, field, bad):
     res = await auth_client.put("/api/settings", json={field: bad})
     assert res.status_code == 422
+
+
+# Contract: weight_display: null removes the override and restores the lb
+# default, mirroring the notification-time null semantics.
+
+
+@pytest.mark.asyncio
+async def test_settings_weight_display_null_restores_default(auth_client):
+    await auth_client.put("/api/settings", json={"weight_display": "st-lb"})
+    res = await auth_client.put("/api/settings", json={"weight_display": None})
+    assert res.status_code == 200
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["weight_display"] == "lb"
 
 
 # ---- notification schedule disable (notification-schedule-disable) -----
