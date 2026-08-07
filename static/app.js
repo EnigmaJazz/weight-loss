@@ -347,14 +347,76 @@ function renderExerciseHistory(entries) {
     const duration = document.createElement("span");
     duration.className = "entry-duration";
     duration.textContent = `${e.duration_min} min`;
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "entry-edit-btn";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => editExerciseRow(li, e));
     const del = document.createElement("button");
     del.type = "button";
     del.className = "entry-delete";
     del.textContent = "×";
     del.title = "Delete entry";
     del.addEventListener("click", () => deleteExercise(e.id));
-    li.append(date, type, duration, del);
+    li.append(date, type, duration, edit, del);
     list.append(li);
+  }
+}
+
+function editExerciseRow(li, entry) {
+  li.replaceChildren();
+  const form = document.createElement("form");
+  form.className = "entry-edit";
+  const date = document.createElement("input");
+  date.type = "date";
+  date.value = entry.date;
+  const time = document.createElement("input");
+  time.type = "time";
+  time.value = entry.time || "";
+  const select = document.createElement("select");
+  for (const t of EXERCISE_TYPES) {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    select.append(opt);
+  }
+  select.value = entry.exercise_type;
+  const duration = document.createElement("input");
+  duration.type = "number";
+  duration.min = "1";
+  duration.step = "1";
+  duration.value = entry.duration_min;
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => loadData());
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    saveExercise(entry.id, {
+      date: date.value,
+      time: time.value || null,
+      exercise_type: select.value,
+      duration_min: Number(duration.value),
+    });
+  });
+  form.append(date, time, select, duration, save, cancel);
+  li.append(form);
+}
+
+async function saveExercise(id, payload) {
+  try {
+    await fetchJson(`/api/exercise/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    toast("Exercise updated");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
   }
 }
 
@@ -383,14 +445,67 @@ function renderMealHistory(entries) {
     const calories = document.createElement("span");
     calories.className = "entry-calories";
     calories.textContent = `${fmt1(e.calories)} kcal`;
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "entry-edit-btn";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => editMealRow(li, e));
     const del = document.createElement("button");
     del.type = "button";
     del.className = "entry-delete";
     del.textContent = "×";
     del.title = "Delete entry";
     del.addEventListener("click", () => deleteMeal(e.id));
-    li.append(date, calories, del);
+    li.append(date, calories, edit, del);
     list.append(li);
+  }
+}
+
+function editMealRow(li, entry) {
+  li.replaceChildren();
+  const form = document.createElement("form");
+  form.className = "entry-edit";
+  const date = document.createElement("input");
+  date.type = "date";
+  date.value = entry.date;
+  const time = document.createElement("input");
+  time.type = "time";
+  time.value = entry.time || "";
+  const calories = document.createElement("input");
+  calories.type = "number";
+  calories.min = "1";
+  calories.step = "any";
+  calories.value = entry.calories;
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => loadData());
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    saveMeal(entry.id, {
+      date: date.value,
+      time: time.value || null,
+      calories: Number(calories.value),
+    });
+  });
+  form.append(date, time, calories, save, cancel);
+  li.append(form);
+}
+
+async function saveMeal(id, payload) {
+  try {
+    await fetchJson(`/api/meals/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    toast("Meal updated");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
   }
 }
 

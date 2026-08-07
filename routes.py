@@ -694,6 +694,32 @@ async def add_exercise(
     return _exercise_dict(entry)
 
 
+@router.put("/api/exercise/{entry_id}")
+async def edit_exercise(
+    entry_id: int,
+    payload: ExerciseIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    # Ownership is enforced in the UPDATE (WHERE id AND user_id): a cross-user
+    # id updates nothing and surfaces as 404, leaking no information.
+    entry = await run_db(
+        db.update_exercise,
+        user.id,
+        entry_id,
+        payload.date,
+        payload.time,
+        payload.exercise_type,
+        payload.duration_min,
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="entry not found")
+    logger.info(
+        "updated %s exercise for user %s", payload.exercise_type, user.username
+    )
+    return _exercise_dict(entry)
+
+
 @router.delete("/api/exercise/{entry_id}")
 async def delete_exercise(
     entry_id: int,
@@ -726,6 +752,29 @@ async def add_meal(
         db.insert_meal, user.id, payload.date, payload.calories, payload.time
     )
     logger.info("logged meal for user %s", user.username)
+    return _meal_dict(entry)
+
+
+@router.put("/api/meals/{entry_id}")
+async def edit_meal(
+    entry_id: int,
+    payload: MealIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    # Ownership is enforced in the UPDATE (WHERE id AND user_id): a cross-user
+    # id updates nothing and surfaces as 404, leaking no information.
+    entry = await run_db(
+        db.update_meal,
+        user.id,
+        entry_id,
+        payload.date,
+        payload.time,
+        payload.calories,
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="entry not found")
+    logger.info("updated meal for user %s", user.username)
     return _meal_dict(entry)
 
 
