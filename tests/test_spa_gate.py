@@ -47,6 +47,10 @@ async def test_index_html_loads_auth_helpers_before_app(client):
     assert auth_at != -1 and app_at != -1 and auth_at < app_at
     assert 'src="/static/format.js' in html
     assert '?v=' in html  # cache busting is active
+    # The stylesheet must carry the same version stamp: without it browsers
+    # keep the old CSS indefinitely (ETag/Last-Modified only, no
+    # Cache-Control) and CSS-only fixes appear broken after deploy.
+    assert 'href="/static/style.css?v=' in html
 
 
 @pytest.mark.asyncio
