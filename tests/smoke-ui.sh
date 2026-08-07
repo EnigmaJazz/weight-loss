@@ -5,7 +5,8 @@
 # ~/.claude/skills/playwright-cli). Verifies the full user loop:
 #   gate shown unauthenticated -> register a fresh account -> tracker loads
 #   -> kg entry + st/lb (unit-toggle) entry -> settings/BMI -> rewards ->
-#   logout returns to the gate.
+#   logout returns to the gate. The tracker is tabbed, so History/Settings/
+#   Progress assertions click their tab first.
 #
 # NOTE: this registers a fresh account and writes test weight entries into the
 # target app's database. Point it at a scratch instance (WEIGHT_LOSS_DB tmp)
@@ -128,7 +129,11 @@ playwright-cli fill "#entry-weight" "$TEST_WEIGHT" >/dev/null 2>&1
 playwright-cli click "#entry-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
+# The weight history list lives on the History tab; switch to it before
+# asserting, then back to Today for the summary assertion.
+playwright-cli click "[data-tab=history]" >/dev/null 2>&1
 assert_find "history shows the new entry" "$TEST_WEIGHT"
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
 assert_find "summary shows a current value (not —)" "Current"
 
 # ---- 4. unit-input toggle (st + lb) still works after login ----------------
@@ -141,21 +146,58 @@ playwright-cli fill "#entry-lb" "4" >/dev/null 2>&1
 playwright-cli click "#entry-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
+playwright-cli click "[data-tab=history]" >/dev/null 2>&1
 assert_find "history shows the st+lb entry" "12 st"
 
 # ---- 5. settings + BMI -----------------------------------------------------
 
 echo "-- settings"
+# The settings form lives on the Settings tab; switch to it before filling.
+playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
 playwright-cli fill "#height-cm" "175" >/dev/null 2>&1
 playwright-cli fill "#target-weight" "70" >/dev/null 2>&1
 playwright-cli click "#settings-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
+# Saving settings reloads data and lands back on the Today tab, where the
+# summary card renders the BMI.
 assert_find "BMI renders after height saved" "BMI 2"
+
+# ---- 5.5 progress tab: charts draw on visibility ---------------------------
+
+echo "-- progress tab (charts)"
+playwright-cli click "[data-tab=progress]" >/dev/null 2>&1
+assert_visibility "progress panel visible" "#tab-progress" "visible"
+assert_visibility "today panel hidden on progress tab" "#tab-today" "hidden"
+
+# The canvases have zero width while their panel is hidden; a non-zero
+# clientWidth proves each chart was redrawn when Progress became visible.
+CHART_W="$(playwright-cli --raw eval "!!document.querySelector('#chart').clientWidth" 2>&1 | tr -d '"')"
+if [ "$CHART_W" = "true" ]; then
+  step_ok "weight chart draws on progress tab"
+else
+  step_fail "weight chart draws on progress tab (clientWidth=$CHART_W)"
+fi
+
+EXERCISE_CHART_W="$(playwright-cli --raw eval "!!document.querySelector('#chart-exercise').clientWidth" 2>&1 | tr -d '"')"
+if [ "$EXERCISE_CHART_W" = "true" ]; then
+  step_ok "exercise chart draws on progress tab"
+else
+  step_fail "exercise chart draws on progress tab (clientWidth=$EXERCISE_CHART_W)"
+fi
+
+MEALS_CHART_W="$(playwright-cli --raw eval "!!document.querySelector('#chart-meals').clientWidth" 2>&1 | tr -d '"')"
+if [ "$MEALS_CHART_W" = "true" ]; then
+  step_ok "meals chart draws on progress tab"
+else
+  step_fail "meals chart draws on progress tab (clientWidth=$MEALS_CHART_W)"
+fi
 
 # ---- 6. rewards + screenshot -----------------------------------------------
 
 echo "-- rewards / capture"
+# Checkpoints live on the Today tab; switch back before asserting.
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
 assert_find "checkpoints section visible" "Checkpoints"
 playwright-cli screenshot --filename="smoke-ui.png" >/dev/null 2>&1
 [ -f smoke-ui.png ] && step_ok "screenshot saved (smoke-ui.png)" || step_fail "screenshot saved"
