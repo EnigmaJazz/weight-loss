@@ -311,13 +311,18 @@ function renderHistory(entries) {
     const bmi = document.createElement("span");
     bmi.className = "entry-bmi";
     bmi.textContent = `BMI ${bmiLabel(e.bmi)}`;
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "entry-edit-btn";
+    edit.textContent = "Edit";
+    edit.addEventListener("click", () => editWeightRow(li, e));
     const del = document.createElement("button");
     del.type = "button";
     del.className = "entry-delete";
     del.textContent = "×";
     del.title = "Delete entry";
     del.addEventListener("click", () => deleteEntry(e.id));
-    li.append(date, weight, bmi, del);
+    li.append(date, weight, bmi, edit, del);
     list.append(li);
   }
 }
@@ -329,6 +334,84 @@ async function deleteEntry(id) {
     await loadData();
   } catch (err) {
     toast(`Delete failed: ${err.message}`);
+  }
+}
+
+function editWeightRow(li, entry) {
+  li.replaceChildren();
+  const form = document.createElement("form");
+  form.className = "entry-edit";
+  const date = document.createElement("input");
+  date.type = "date";
+  date.value = entry.date;
+  const unit = document.createElement("select");
+  for (const value of ["kg", "st-lb"]) {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = value;
+    unit.append(opt);
+  }
+  unit.value = $("weight-unit").value;
+  const kg = document.createElement("input");
+  kg.type = "number";
+  kg.step = "any";
+  kg.value = entry.weight_kg;
+  // Prefill from the API's derived stone/lb view; stone is whole, lb may be
+  // fractional (the exact remainder), so step="any" keeps the browser from
+  // blocking submit on a step mismatch.
+  const stone = document.createElement("input");
+  stone.type = "number";
+  stone.step = "any";
+  stone.value = entry.stone;
+  const lb = document.createElement("input");
+  lb.type = "number";
+  lb.step = "any";
+  lb.value = entry.stone_lb;
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.textContent = "Save";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => loadData());
+  // Same hidden-field rule as syncWeightUnitUi: toggle required so the hidden
+  // input never blocks submit with a "not focusable" validation error.
+  const sync = () => {
+    const stLb = unit.value === "st-lb";
+    kg.hidden = stLb;
+    stone.hidden = !stLb;
+    lb.hidden = !stLb;
+    kg.required = !stLb;
+    stone.required = stLb;
+    lb.required = stLb;
+  };
+  unit.addEventListener("change", sync);
+  sync();
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    let weightKg;
+    if (unit.value === "st-lb") {
+      weightKg = stoneLbToKg(Number(stone.value), Number(lb.value));
+    } else {
+      weightKg = Number(kg.value);
+    }
+    saveWeight(entry.id, { date: date.value, weight_kg: weightKg });
+  });
+  form.append(date, unit, kg, stone, lb, save, cancel);
+  li.append(form);
+}
+
+async function saveWeight(id, payload) {
+  try {
+    await fetchJson(`/api/weight/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    toast("Weight updated");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
   }
 }
 

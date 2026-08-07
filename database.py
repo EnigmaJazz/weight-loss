@@ -210,6 +210,11 @@ class DuplicateEmailError(Exception):
     """
 
 
+class DuplicateDateError(Exception):
+    """Raised when update_entry moves an entry onto a date that already has
+    another entry for the same user (one entry per user per date)."""
+
+
 class Database:
     """Thin wrapper around one SQLite connection, serialized by a lock.
 
@@ -341,6 +346,43 @@ class Database:
             self._reconcile_active_rewards(conn, user_id)
         if row is None:
             raise RuntimeError("upsert produced no row")
+        return _weight_from_row(row)
+
+    def update_entry(
+        self, user_id: int, entry_id: int, date: str, weight_kg: float
+    ) -> Optional[WeightEntry]:
+        # Ownership is checked first so a cross-user id surfaces as 404 even
+        # when the new date is taken by the caller's own entries (no info
+        # leak); the date-conflict check runs second so moving onto another
+        # entry's date raises instead of silently overwriting that day. The
+        # UNIQUE(user_id, date) constraint backs both checks atomically.
+        with self._tx() as conn:
+            owned = conn.execute(
+                "SELECT id FROM weight_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            ).fetchone()
+            if owned is None:
+                return None
+            conflict = conn.execute(
+                "SELECT id FROM weight_entries"
+                " WHERE user_id = ? AND date = ? AND id != ?",
+                (user_id, date, entry_id),
+            ).fetchone()
+            if conflict is not None:
+                raise DuplicateDateError(date)
+            conn.execute(
+                "UPDATE weight_entries SET date = ?, weight_kg = ?"
+                " WHERE id = ? AND user_id = ?",
+                (date, weight_kg, entry_id, user_id),
+            )
+            row = conn.execute(
+                "SELECT id, date, weight_kg, created_at"
+                " FROM weight_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            ).fetchone()
+            self._reconcile_active_rewards(conn, user_id)
+        if row is None:
+            raise RuntimeError("update produced no row")
         return _weight_from_row(row)
 
     def delete_entry(self, user_id: int, entry_id: int) -> bool:
