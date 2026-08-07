@@ -1,5 +1,15 @@
 """Shared test harness: temp-DB app without a scheduler, stubbed push sending."""
 
+import os
+
+# The live deployment sets WEIGHT_LOSS_COOKIE_SECURE=true in .env so the
+# session cookie carries the Secure flag over HTTPS. httpx test clients talk
+# plain http://test, where a Secure cookie is silently dropped and every
+# authenticated request would 401. Force the flag off for tests regardless of
+# .env (dotenv does not override an already-set env var), keeping the harness
+# deterministic.
+os.environ["WEIGHT_LOSS_COOKIE_SECURE"] = ""
+
 import httpx
 import pytest
 import pytest_asyncio

@@ -6,17 +6,26 @@ from database import Database
 from main import create_app, init_app_state
 
 
-def _post(auth_client, date, weight_kg):
+_UNSET = object()
+
+
+def _post(auth_client, date, weight_kg, time=_UNSET):
+    payload = {"date": date, "weight_kg": weight_kg}
+    if time is not _UNSET:
+        payload["time"] = time
     return auth_client.post(
         "/api/weight",
-        json={"date": date, "weight_kg": weight_kg},
+        json=payload,
     )
 
 
-def _put(auth_client, entry_id, date, weight_kg):
+def _put(auth_client, entry_id, date, weight_kg, time=_UNSET):
+    payload = {"date": date, "weight_kg": weight_kg}
+    if time is not _UNSET:
+        payload["time"] = time
     return auth_client.put(
         f"/api/weight/{entry_id}",
-        json={"date": date, "weight_kg": weight_kg},
+        json=payload,
     )
 
 
@@ -194,6 +203,82 @@ async def test_post_upsert_unchanged(auth_client):
     data = (await auth_client.get("/api/weight")).json()
     assert len(data["entries"]) == 1
     assert data["entries"][0]["weight_kg"] == 87.5
+
+
+@pytest.mark.asyncio
+async def test_post_with_time_roundtrip(auth_client):
+    res = await _post(auth_client, "2026-08-01", 90.5, time="08:30")
+    assert res.status_code == 201
+    assert res.json()["time"] == "08:30"
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["time"] == "08:30"
+
+
+@pytest.mark.asyncio
+async def test_time_absent_and_empty_normalize_to_null(auth_client):
+    # Truly absent: no time key in the payload.
+    res = await _post(auth_client, "2026-08-01", 90.5)
+    assert res.status_code == 201
+    assert res.json()["time"] is None
+
+    # Empty string: the validator normalizes it to None.
+    res = await _post(auth_client, "2026-08-02", 89.5, time="")
+    assert res.status_code == 201
+    assert res.json()["time"] is None
+
+    data = (await auth_client.get("/api/weight")).json()
+    times = {e["date"]: e["time"] for e in data["entries"]}
+    assert times == {"2026-08-01": None, "2026-08-02": None}
+
+
+@pytest.mark.asyncio
+async def test_invalid_time_rejected_on_post(auth_client):
+    for bad in ("25:99", "9am"):
+        res = await _post(auth_client, "2026-08-01", 90.5, time=bad)
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_invalid_time_rejected_on_put(auth_client):
+    created = (await _post(auth_client, "2026-08-01", 90.5)).json()
+    for bad in ("25:99", "9am"):
+        res = await _put(auth_client, created["id"], "2026-08-01", 88.0, time=bad)
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_upsert_updates_time(auth_client):
+    res = await _post(auth_client, "2026-08-01", 90.5, time="08:30")
+    assert res.json()["time"] == "08:30"
+
+    res = await _post(auth_client, "2026-08-01", 88.0, time="21:45")
+    assert res.status_code == 200
+    assert res.json()["time"] == "21:45"
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["time"] == "21:45"
+
+
+@pytest.mark.asyncio
+async def test_put_preserves_and_updates_time(auth_client):
+    created = (await _post(auth_client, "2026-08-01", 90.5, time="08:30")).json()
+
+    # Editing with the same time keeps it.
+    res = await _put(auth_client, created["id"], "2026-08-01", 88.0, time="08:30")
+    assert res.status_code == 200
+    assert res.json()["time"] == "08:30"
+
+    # Editing with a new time replaces it.
+    res = await _put(auth_client, created["id"], "2026-08-01", 88.0, time="21:45")
+    assert res.status_code == 200
+    assert res.json()["time"] == "21:45"
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["time"] == "21:45"
 
 
 @pytest.mark.asyncio

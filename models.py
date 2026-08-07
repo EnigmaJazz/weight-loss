@@ -40,6 +40,7 @@ class WeightEntry:
     date: str
     weight_kg: float
     created_at: str
+    time: Optional[str] = None
 
 
 @dataclass
