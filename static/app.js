@@ -339,7 +339,14 @@ function renderHistory(entries) {
     del.textContent = "×";
     del.title = "Delete entry";
     del.addEventListener("click", () => deleteEntry(e.id));
-    li.append(date, weight, bmi, edit, del);
+    li.append(date);
+    if (e.time) {
+      const time = document.createElement("span");
+      time.className = "entry-time";
+      time.textContent = e.time;
+      li.append(time);
+    }
+    li.append(weight, bmi, edit, del);
     list.append(li);
   }
 }
@@ -361,6 +368,9 @@ function editWeightRow(li, entry) {
   const date = document.createElement("input");
   date.type = "date";
   date.value = entry.date;
+  const time = document.createElement("input");
+  time.type = "time";
+  time.value = entry.time || "";
   const unit = document.createElement("select");
   for (const value of ["kg", "st-lb"]) {
     const opt = document.createElement("option");
@@ -415,9 +425,9 @@ function editWeightRow(li, entry) {
     } else {
       weightKg = Number(kg.value);
     }
-    saveWeight(entry.id, { date: date.value, weight_kg: weightKg });
+    saveWeight(entry.id, { date: date.value, time: time.value || null, weight_kg: weightKg });
   });
-  form.append(date, unit, kg, stone, lb, save, cancel);
+  form.append(date, time, unit, kg, stone, lb, save, cancel);
   li.append(form);
 }
 
@@ -791,11 +801,20 @@ function drawChart(entries, summary) {
     ctx.fill();
   }
 
-  // x labels (sparse)
-  ctx.textAlign = "center";
+  // x labels (sparse). First label is left-aligned and the last is
+  // right-aligned so a "DD/MM/YY" never clips outside the canvas; the rest
+  // stay centered.
   const step = Math.max(1, Math.ceil(points.length / 6));
   for (let i = 0; i < points.length; i += step) {
-    ctx.fillText(formatDate(points[i].date), xAt(i), canvas.height - 8);
+    const x = xAt(i);
+    if (i === 0) {
+      ctx.textAlign = "left";
+    } else if (i + step >= points.length) {
+      ctx.textAlign = "right";
+    } else {
+      ctx.textAlign = "center";
+    }
+    ctx.fillText(formatDate(points[i].date), x, canvas.height - 8);
   }
 
   // tooltip
@@ -1173,9 +1192,10 @@ async function addEntry(ev) {
     await fetchJson("/api/weight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, weight_kg: weightKg }),
+      body: JSON.stringify({ date, weight_kg: weightKg, time: $("entry-time").value || null }),
     });
     $("entry-weight").value = "";
+    $("entry-time").value = "";
     toast("Entry saved");
     await loadData();
   } catch (err) {
