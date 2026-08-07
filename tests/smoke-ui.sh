@@ -147,7 +147,9 @@ playwright-cli click "#entry-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
 playwright-cli click "[data-tab=history]" >/dev/null 2>&1
-assert_find "history shows the st+lb entry" "12 st"
+# The st+lb entry (12 st 4 lb = 172 lb) renders as total pounds in the
+# default weight-display mode (lb); "12 st" no longer appears anywhere.
+assert_find "history shows the st+lb entry" "172.0 lb"
 
 # ---- 5. settings + BMI -----------------------------------------------------
 
