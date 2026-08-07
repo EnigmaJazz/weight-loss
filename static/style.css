@@ -112,6 +112,27 @@ main {
 
 label { display: block; margin: 0.55rem 0; font-size: 0.9rem; color: var(--muted); }
 
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 16px;
+}
+
+#weight-display-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+#weight-display-group legend {
+  display: block;
+  padding: 0;
+  margin: 0.55rem 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 input[type="date"],
 input[type="time"],
 input[type="number"] {
