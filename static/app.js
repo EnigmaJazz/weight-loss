@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological } = globalThis.WeightFormat;
+const { fmt1, weightLabel, summaryLabel, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -109,6 +109,8 @@ function showTracker() {
   authScreen.hidden = true;
   trackerEl.hidden = false;
   $("logout-btn").hidden = false;
+  // A fresh login always lands on the Today tab.
+  switchTab("today");
 }
 
 async function submitAuth(ev) {
@@ -216,6 +218,11 @@ async function logout() {
 
 /* ---- data -------------------------------------------------------------- */
 
+// Cached API payloads the charts redraw from when the Progress tab becomes
+// visible (the canvases have zero width while their panel is hidden, so the
+// charts are drawn on visibility, not just at load time).
+let chartData = { weightEntries: [], weightSummary: null, exerciseEntries: [], mealEntries: [] };
+
 async function loadData() {
   const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
     fetchJson("/api/weight"),
@@ -226,14 +233,22 @@ async function loadData() {
     fetchJson("/api/meals"),
     fetchJson("/api/streaks"),
   ]);
+  chartData.weightEntries = weight.entries;
+  chartData.weightSummary = weight.summary;
+  chartData.exerciseEntries = exercise.entries;
+  chartData.mealEntries = meals.entries;
   renderSummary(weight.summary);
   renderHistory(weight.entries);
-  drawChart(weight.entries, weight.summary);
+  drawChart(chartData.weightEntries, chartData.weightSummary);
+  drawExerciseChart(chartData.exerciseEntries);
+  drawMealChart(chartData.mealEntries);
   renderRewards(rewards);
   renderSettings(settings, me);
   renderExerciseHistory(exercise.entries);
   renderMealHistory(meals.entries);
   renderStreaks(streaks);
+  // Any reload lands back on Today.
+  switchTab("today");
 }
 
 /* ---- summary ----------------------------------------------------------- */
@@ -716,6 +731,103 @@ function drawChart(entries, summary) {
   canvas.onmouseleave = () => drawChart(entries, summary);
 }
 
+/* ---- tabs ---------------------------------------------------------------- */
+
+function switchTab(name) {
+  for (const btn of document.querySelectorAll(".tab-btn")) {
+    const active = btn.dataset.tab === name;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+  }
+  for (const panel of document.querySelectorAll(".tab-panel")) {
+    panel.hidden = panel.id !== `tab-${name}`;
+  }
+  // The canvases have zero width while their panel is hidden, so the charts
+  // are drawn here, on visibility, from the cached data — not only at load.
+  if (name === "progress") {
+    drawChart(chartData.weightEntries, chartData.weightSummary);
+    drawExerciseChart(chartData.exerciseEntries);
+    drawMealChart(chartData.mealEntries);
+  }
+}
+
+/* ---- activity charts ------------------------------------------------------ */
+
+function drawExerciseChart(entries) {
+  const canvas = $("chart-exercise");
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.clientWidth;
+  canvas.height = 260;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const weeks = exerciseMinutesPerWeek(entries);
+  if (!weeks.length) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Log exercise to see your weekly chart", canvas.width / 2, canvas.height / 2);
+    return;
+  }
+  drawBars(canvas, ctx, weeks.map((w) => w.minutes), weeks.map((w) => formatDate(w.weekStart)));
+}
+
+function drawMealChart(entries) {
+  const canvas = $("chart-meals");
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.clientWidth;
+  canvas.height = 260;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const days = caloriesPerDay(entries);
+  if (!days.length) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Log meals to see your daily chart", canvas.width / 2, canvas.height / 2);
+    return;
+  }
+  drawBars(canvas, ctx, days.map((d) => d.calories), days.map((d) => formatDate(d.date)));
+}
+
+function drawBars(canvas, ctx, values, labels) {
+  const pad = { top: 16, right: 16, bottom: 28, left: 44 };
+  const w = canvas.width - pad.left - pad.right;
+  const h = canvas.height - pad.top - pad.bottom;
+  const max = Math.max(...values) || 1;
+  const slot = w / values.length;
+  const barW = Math.max(2, slot * 0.6);
+  const yAt = (v) => pad.top + h - (v / max) * h;
+
+  // grid lines + y labels
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "right";
+  for (let g = 0; g <= 4; g++) {
+    const v = (max / 4) * g;
+    const y = yAt(v);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(canvas.width - pad.right, y);
+    ctx.stroke();
+    ctx.fillText(fmt1(v), pad.left - 6, y + 4);
+  }
+
+  // bars
+  ctx.fillStyle = "#2f7d54";
+  values.forEach((value, i) => {
+    const x = pad.left + i * slot + (slot - barW) / 2;
+    ctx.fillRect(x, yAt(value), barW, pad.top + h - yAt(value));
+  });
+
+  // x labels (sparse)
+  ctx.textAlign = "center";
+  const step = Math.max(1, Math.ceil(values.length / 6));
+  for (let i = 0; i < values.length; i += step) {
+    ctx.fillText(labels[i], pad.left + i * slot + slot / 2, canvas.height - 8);
+  }
+}
+
 /* ---- rewards ----------------------------------------------------------- */
 
 function renderRewards(r) {
@@ -1103,6 +1215,9 @@ async function init() {
   $("forgot-form").addEventListener("submit", submitForgot);
   $("reset-form").addEventListener("submit", submitReset);
   $("logout-btn").addEventListener("click", logout);
+  for (const btn of document.querySelectorAll(".tab-btn")) {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  }
   $("entry-form").addEventListener("submit", addEntry);
   $("exercise-form").addEventListener("submit", addExercise);
   $("meal-form").addEventListener("submit", addMeal);
