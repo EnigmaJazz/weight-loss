@@ -139,7 +139,7 @@ assert_find "summary shows a current value (not —)" "Current"
 # ---- 4. unit-input toggle (st + lb) still works after login ----------------
 
 echo "-- unit-input toggle (st + lb)"
-playwright-cli select "#weight-unit" "st-lb" >/dev/null 2>&1
+playwright-cli click 'input[name="weight-unit"][value="st-lb"]' >/dev/null 2>&1
 playwright-cli fill "#entry-date" "$ST_DATE" >/dev/null 2>&1
 playwright-cli fill "#entry-stone" "12" >/dev/null 2>&1
 playwright-cli fill "#entry-lb" "4" >/dev/null 2>&1
@@ -154,11 +154,11 @@ assert_find "history shows the st+lb entry" "172.0 lb"
 # ---- 5. settings + BMI -----------------------------------------------------
 
 echo "-- settings"
-# The settings form lives on the Settings tab; switch to it before filling.
+# The Goal & body form lives on the Settings tab; switch to it before filling.
 playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
 playwright-cli fill "#height-cm" "175" >/dev/null 2>&1
 playwright-cli fill "#target-weight" "70" >/dev/null 2>&1
-playwright-cli click "#settings-form button[type=submit]" >/dev/null 2>&1
+playwright-cli click "#goal-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
 # Saving settings reloads data and lands back on the Today tab, where the
