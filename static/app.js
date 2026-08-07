@@ -368,7 +368,7 @@ function editWeightRow(li, entry) {
     opt.textContent = value;
     unit.append(opt);
   }
-  unit.value = $("weight-unit").value;
+  unit.value = checkedRadio("weight-unit");
   const kg = document.createElement("input");
   kg.type = "number";
   kg.step = "any";
@@ -989,6 +989,11 @@ function renderRewards(r) {
 
 /* ---- settings ---------------------------------------------------------- */
 
+function setRadio(name, value) {
+  const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (el) el.checked = true;
+}
+
 function renderSettings(s, me) {
   $("account-email").value = me?.email ?? "";
   $("target-weight").value = s.target_weight ?? "";
@@ -998,32 +1003,48 @@ function renderSettings(s, me) {
   $("reminder-weekday").value = s.reminder_weekday ?? 0;
   $("exercise-time").value = s.exercise_time ?? "";
   $("start-override").value = s.start_weight_override ?? "";
-  // Per-user input units: the entry form's weight select and the settings
-  // form's height select open in the saved preference (kg / cm by default).
-  $("weight-unit").value = unitPref(s.weight_unit, "kg");
-  $("height-unit").value = unitPref(s.height_unit, "cm");
-  $("target-unit").value = unitPref(s.target_unit, "kg");
-  const wd = document.querySelector('input[name="weight-display"][value="' + unitPref(s.weight_display, "lb") + '"]');
-  if (wd) wd.checked = true;
+  // Per-user input units: each radio group opens in the saved preference
+  // (kg / cm by default).
+  setRadio("weight-unit", unitPref(s.weight_unit, "kg"));
+  setRadio("height-unit", unitPref(s.height_unit, "cm"));
+  setRadio("target-unit", unitPref(s.target_unit, "kg"));
+  setRadio("weight-display", unitPref(s.weight_display, "lb"));
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
 }
 
-async function saveSettings(ev) {
+const num = (id) => {
+  const v = $(id).value.trim();
+  return v === "" ? null : Number(v);
+};
+const time = (id) => {
+  // Empty input disables the schedule (the "" sentinel); never null,
+  // which would remove the override and restore the default instead.
+  return $(id).value.trim();
+};
+
+async function saveAccount(ev) {
   ev.preventDefault();
-  const num = (id) => {
-    const v = $(id).value.trim();
-    return v === "" ? null : Number(v);
-  };
-  const time = (id) => {
-    // Empty input disables the schedule (the "" sentinel); never null,
-    // which would remove the override and restore the default instead.
-    const v = $(id).value.trim();
-    return v;
-  };
+  const email = $("account-email").value.trim();
+  if (!email) return;
+  try {
+    await fetchJson("/api/auth/me", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    toast("Email saved");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
+  }
+}
+
+async function saveGoal(ev) {
+  ev.preventDefault();
   let heightCm;
-  if ($("height-unit").value === "ft-in") {
+  if (checkedRadio("height-unit") === "ft-in") {
     const ftRaw = $("height-ft").value.trim();
     const inRaw = $("height-in").value.trim();
     if (ftRaw === "" && inRaw === "") {
@@ -1048,7 +1069,7 @@ async function saveSettings(ev) {
     heightCm = num("height-cm");
   }
   let targetKg;
-  if ($("target-unit").value === "st-lb") {
+  if (checkedRadio("target-unit") === "st-lb") {
     const stoneRaw = $("target-stone").value.trim();
     const lbRaw = $("target-lb").value.trim();
     if (stoneRaw === "" || lbRaw === "") {
@@ -1080,26 +1101,30 @@ async function saveSettings(ev) {
       body: JSON.stringify({
         target_weight: targetKg,
         height_cm: heightCm,
+        start_weight_override: num("start-override"),
+      }),
+    });
+    toast("Goal saved");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
+  }
+}
+
+async function saveReminders(ev) {
+  ev.preventDefault();
+  try {
+    await fetchJson("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         tip_time: time("tip-time"),
         reminder_time: time("reminder-time"),
         reminder_weekday: Number($("reminder-weekday").value),
         exercise_time: time("exercise-time"),
-        start_weight_override: num("start-override"),
-        weight_unit: $("weight-unit").value,
-        height_unit: $("height-unit").value,
-        target_unit: $("target-unit").value,
       }),
     });
-    // Email lives on the account, not the settings row: update it separately.
-    const email = $("account-email").value.trim();
-    if (email) {
-      await fetchJson("/api/auth/me", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-    }
-    toast("Settings saved");
+    toast("Reminders saved");
     await loadData();
   } catch (err) {
     toast(`Save failed: ${err.message}`);
@@ -1119,7 +1144,7 @@ async function addEntry(ev) {
   ev.preventDefault();
   const date = $("entry-date").value || todayLocal();
   let weightKg;
-  if ($("weight-unit").value === "st-lb") {
+  if (checkedRadio("weight-unit") === "st-lb") {
     const stoneRaw = $("entry-stone").value.trim();
     const lbRaw = $("entry-lb").value.trim();
     if (stoneRaw === "" || lbRaw === "") {
@@ -1254,8 +1279,12 @@ async function restorePushUi() {
 
 /* ---- init -------------------------------------------------------------- */
 
+function checkedRadio(name) {
+  return document.querySelector(`input[name="${name}"]:checked`)?.value || "";
+}
+
 function syncWeightUnitUi() {
-  const stLb = $("weight-unit").value === "st-lb";
+  const stLb = checkedRadio("weight-unit") === "st-lb";
   $("entry-weight").hidden = stLb;
   $("entry-st-lb").hidden = !stLb;
   // Toggle required so the hidden field never blocks submit (a hidden
@@ -1267,7 +1296,7 @@ function syncWeightUnitUi() {
 }
 
 function syncHeightUnitUi() {
-  const ftIn = $("height-unit").value === "ft-in";
+  const ftIn = checkedRadio("height-unit") === "ft-in";
   $("height-cm").hidden = ftIn;
   $("height-ft-in").hidden = !ftIn;
   // Toggle required so the hidden cm field never blocks submit (same
@@ -1278,7 +1307,7 @@ function syncHeightUnitUi() {
 }
 
 function syncTargetUnitUi() {
-  const stLb = $("target-unit").value === "st-lb";
+  const stLb = checkedRadio("target-unit") === "st-lb";
   $("target-weight").hidden = stLb;
   $("target-st-lb").hidden = !stLb;
   $("target-weight").required = !stLb;
@@ -1311,9 +1340,9 @@ async function saveUnitPreference() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          weight_unit: $("weight-unit").value,
-          height_unit: $("height-unit").value,
-          target_unit: $("target-unit").value,
+          weight_unit: checkedRadio("weight-unit"),
+          height_unit: checkedRadio("height-unit"),
+          target_unit: checkedRadio("target-unit"),
           weight_display: currentWeightDisplay(),
         }),
       });
@@ -1339,7 +1368,9 @@ async function init() {
   $("entry-form").addEventListener("submit", addEntry);
   $("exercise-form").addEventListener("submit", addExercise);
   $("meal-form").addEventListener("submit", addMeal);
-  $("settings-form").addEventListener("submit", saveSettings);
+  $("account-form").addEventListener("submit", saveAccount);
+  $("goal-form").addEventListener("submit", saveGoal);
+  $("reminders-form").addEventListener("submit", saveReminders);
   $("enable-push").addEventListener("click", enablePush);
   $("disable-push").addEventListener("click", disablePush);
   $("test-push").addEventListener("click", testPush);
@@ -1347,18 +1378,24 @@ async function init() {
   $("exercise-date").value = todayLocal();
   $("meal-date").value = todayLocal();
   populateExerciseTypes();
-  $("weight-unit").addEventListener("change", () => {
-    syncWeightUnitUi();
-    saveUnitPreference();
-  });
-  $("height-unit").addEventListener("change", () => {
-    syncHeightUnitUi();
-    saveUnitPreference();
-  });
-  $("target-unit").addEventListener("change", () => {
-    syncTargetUnitUi();
-    saveUnitPreference();
-  });
+  for (const r of document.querySelectorAll('input[name="weight-unit"]')) {
+    r.addEventListener("change", () => {
+      syncWeightUnitUi();
+      saveUnitPreference();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="height-unit"]')) {
+    r.addEventListener("change", () => {
+      syncHeightUnitUi();
+      saveUnitPreference();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="target-unit"]')) {
+    r.addEventListener("change", () => {
+      syncTargetUnitUi();
+      saveUnitPreference();
+    });
+  }
   for (const r of document.querySelectorAll('input[name="weight-display"]')) {
     r.addEventListener("change", () => {
       displayUnit = r.value;

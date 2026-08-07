@@ -75,11 +75,11 @@
             <form id="entry-form" autocomplete="off">
               <label for="entry-date">Date</label>
               <input type="date" id="entry-date" required>
-              <label for="weight-unit">Weight unit</label>
-              <select id="weight-unit">
-                <option value="kg">kg</option>
-                <option value="st-lb">st + lb</option>
-              </select>
+              <fieldset class="unit-group">
+                <legend>Weight unit</legend>
+                <label class="radio-option"><input type="radio" name="weight-unit" value="kg"> kg</label>
+                <label class="radio-option"><input type="radio" name="weight-unit" value="st-lb"> st + lb</label>
+              </fieldset>
               <label for="entry-weight">Weight (kg)</label>
               <input type="number" id="entry-weight" step="any" min="1" max="700" placeholder="e.g. 82.5">
               <div id="entry-st-lb" hidden>
@@ -167,15 +167,23 @@
 
         <div class="tab-panel" id="tab-settings" hidden>
           <section class="card">
-            <h2>Settings</h2>
-            <form id="settings-form" autocomplete="off">
+            <h2>Account</h2>
+            <form id="account-form" autocomplete="off">
               <label for="account-email">Email (for password reset)</label>
               <input type="email" id="account-email" placeholder="you@example.com">
+              <button type="submit">Save email</button>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Goal &amp; body</h2>
+            <form id="goal-form" autocomplete="off">
               <label for="target-weight">Target weight</label>
-              <select id="target-unit">
-                <option value="kg">kg</option>
-                <option value="st-lb">st + lb</option>
-              </select>
+              <fieldset class="unit-group">
+                <legend>Target unit</legend>
+                <label class="radio-option"><input type="radio" name="target-unit" value="kg"> kg</label>
+                <label class="radio-option"><input type="radio" name="target-unit" value="st-lb"> st + lb</label>
+              </fieldset>
               <input type="number" id="target-weight" step="any" min="1" max="700" placeholder="e.g. 70.0">
               <div id="target-st-lb" hidden>
                 <label for="target-stone">Stone</label>
@@ -183,11 +191,11 @@
                 <label for="target-lb">Pounds</label>
                 <input type="number" id="target-lb" step="any" min="0" max="14" placeholder="e.g. 0">
               </div>
-              <label for="height-unit">Height unit</label>
-              <select id="height-unit">
-                <option value="cm">cm</option>
-                <option value="ft-in">ft + in</option>
-              </select>
+              <fieldset class="unit-group">
+                <legend>Height unit</legend>
+                <label class="radio-option"><input type="radio" name="height-unit" value="cm"> cm</label>
+                <label class="radio-option"><input type="radio" name="height-unit" value="ft-in"> ft + in</label>
+              </fieldset>
               <label for="height-cm">Height (cm)</label>
               <input type="number" id="height-cm" step="any" min="50" max="250" placeholder="e.g. 175">
               <div id="height-ft-in" hidden>
@@ -196,11 +204,27 @@
                 <label for="height-in">Inches</label>
                 <input type="number" id="height-in" step="any" min="0" max="12" placeholder="e.g. 10">
               </div>
-              <fieldset id="weight-display-group">
+              <label for="start-override">Start weight override (kg)</label>
+              <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
+              <button type="submit">Save goal</button>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Units &amp; display</h2>
+            <form id="display-form" autocomplete="off">
+              <fieldset class="unit-group" id="weight-display-group">
                 <legend>Weight display — follow kg with</legend>
                 <label class="radio-option"><input type="radio" name="weight-display" value="lb"> Total pounds (lb)</label>
                 <label class="radio-option"><input type="radio" name="weight-display" value="st-lb"> Stones + pounds (st lb)</label>
               </fieldset>
+              <p class="hint">Unit and display choices save automatically.</p>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Reminders</h2>
+            <form id="reminders-form" autocomplete="off">
               <label for="tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
               <input type="time" id="tip-time">
               <label for="reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
@@ -217,9 +241,7 @@
               </select>
               <label for="exercise-time">Exercise nudge time (HH:MM) — leave blank to disable</label>
               <input type="time" id="exercise-time">
-              <label for="start-override">Start weight override (kg)</label>
-              <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
-              <button type="submit">Save settings</button>
+              <button type="submit">Save reminders</button>
             </form>
           </section>
 
