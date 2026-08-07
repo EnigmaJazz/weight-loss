@@ -159,6 +159,7 @@ button.link:hover { color: var(--accent); background: none; }
 }
 
 .entry-date { width: 6.5rem; color: var(--muted); }
+.entry-time { width: 3.5rem; color: var(--muted); font-size: 0.85rem; }
 .entry-weight { flex: 1; font-weight: 600; }
 .entry-bmi { width: 6rem; color: var(--muted); font-size: 0.85rem; }
 

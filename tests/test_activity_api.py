@@ -8,25 +8,39 @@ that rewards stay weight-only (exercise/meal rows never earn checkpoints).
 """
 
 from datetime import date, datetime
+from typing import Optional
 
+import httpx
 import pytest
 
 
-def _post_exercise(auth_client, date, exercise_type, duration_min):
-    return auth_client.post(
-        "/api/exercise",
-        json={
-            "date": date,
-            "exercise_type": exercise_type,
-            "duration_min": duration_min,
-        },
-    )
+async def _post_exercise(
+    auth_client: httpx.AsyncClient,
+    date: str,
+    exercise_type: str,
+    duration_min: int,
+    time: Optional[str] = None,
+) -> httpx.Response:
+    payload = {
+        "date": date,
+        "exercise_type": exercise_type,
+        "duration_min": duration_min,
+    }
+    if time is not None:
+        payload["time"] = time
+    return await auth_client.post("/api/exercise", json=payload)
 
 
-def _post_meal(auth_client, date, calories):
-    return auth_client.post(
-        "/api/meals", json={"date": date, "calories": calories}
-    )
+async def _post_meal(
+    auth_client: httpx.AsyncClient,
+    date: str,
+    calories: float,
+    time: Optional[str] = None,
+) -> httpx.Response:
+    payload = {"date": date, "calories": calories}
+    if time is not None:
+        payload["time"] = time
+    return await auth_client.post("/api/meals", json=payload)
 
 
 def _assert_local_created_at(value: str) -> None:
@@ -371,3 +385,90 @@ async def test_streaks_isolated_between_users(pair):
 @pytest.mark.asyncio
 async def test_streaks_401_unauthenticated(client):
     assert (await client.get("/api/streaks")).status_code == 401
+
+
+# ---- optional time-of-day (activity-time) -----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_exercise_time_roundtrip(auth_client):
+    res = await _post_exercise(auth_client, "2026-08-01", "walk", 30, time="14:30")
+    assert res.status_code == 201
+    assert res.json()["time"] == "14:30"
+
+    data = (await auth_client.get("/api/exercise")).json()
+    assert data["entries"][0]["time"] == "14:30"
+
+
+@pytest.mark.asyncio
+async def test_exercise_time_absent_and_empty_are_null(auth_client):
+    absent = (await _post_exercise(auth_client, "2026-08-01", "walk", 30)).json()
+    assert absent["time"] is None
+    empty = (
+        await _post_exercise(auth_client, "2026-08-02", "run", 30, time="")
+    ).json()
+    assert empty["time"] is None
+
+    data = (await auth_client.get("/api/exercise")).json()
+    assert {e["time"] for e in data["entries"]} == {None}
+
+
+@pytest.mark.parametrize("bad", ["25:99", "9am", "14:30:00"])
+@pytest.mark.asyncio
+async def test_exercise_invalid_time_422(auth_client, bad):
+    res = await _post_exercise(auth_client, "2026-08-01", "walk", 30, time=bad)
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_meal_time_roundtrip(auth_client):
+    res = await _post_meal(auth_client, "2026-08-01", 500.0, time="14:30")
+    assert res.status_code == 201
+    assert res.json()["time"] == "14:30"
+
+    data = (await auth_client.get("/api/meals")).json()
+    assert data["entries"][0]["time"] == "14:30"
+
+
+@pytest.mark.asyncio
+async def test_meal_time_absent_and_empty_are_null(auth_client):
+    absent = (await _post_meal(auth_client, "2026-08-01", 500.0)).json()
+    assert absent["time"] is None
+    empty = (await _post_meal(auth_client, "2026-08-02", 600.0, time="")).json()
+    assert empty["time"] is None
+
+    data = (await auth_client.get("/api/meals")).json()
+    assert {e["time"] for e in data["entries"]} == {None}
+
+
+@pytest.mark.parametrize("bad", ["25:99", "9am", "14:30:00"])
+@pytest.mark.asyncio
+async def test_meal_invalid_time_422(auth_client, bad):
+    res = await _post_meal(auth_client, "2026-08-01", 500.0, time=bad)
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_activity_time_extra_field_still_forbidden(auth_client):
+    res = await auth_client.post(
+        "/api/exercise",
+        json={
+            "date": "2026-08-01",
+            "exercise_type": "walk",
+            "duration_min": 30,
+            "time": "14:30",
+            "notes": "felt great",
+        },
+    )
+    assert res.status_code == 422
+
+    res = await auth_client.post(
+        "/api/meals",
+        json={
+            "date": "2026-08-01",
+            "calories": 500.0,
+            "time": "14:30",
+            "meal_type": "lunch",
+        },
+    )
+    assert res.status_code == 422
