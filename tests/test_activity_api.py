@@ -472,3 +472,187 @@ async def test_activity_time_extra_field_still_forbidden(auth_client):
         },
     )
     assert res.status_code == 422
+
+# ---- edit (PUT) ------------------------------------------------------------
+
+
+async def _put_exercise(
+    auth_client: httpx.AsyncClient,
+    entry_id: int,
+    date: str,
+    exercise_type: str,
+    duration_min: int,
+    time: Optional[str] = None,
+) -> httpx.Response:
+    payload = {
+        "date": date,
+        "exercise_type": exercise_type,
+        "duration_min": duration_min,
+    }
+    if time is not None:
+        payload["time"] = time
+    return await auth_client.put(f"/api/exercise/{entry_id}", json=payload)
+
+
+async def _put_meal(
+    auth_client: httpx.AsyncClient,
+    entry_id: int,
+    date: str,
+    calories: float,
+    time: Optional[str] = None,
+) -> httpx.Response:
+    payload = {"date": date, "calories": calories}
+    if time is not None:
+        payload["time"] = time
+    return await auth_client.put(f"/api/meals/{entry_id}", json=payload)
+
+
+@pytest.mark.asyncio
+async def test_exercise_put_roundtrip(auth_client):
+    created = (await _post_exercise(auth_client, "2026-08-01", "walk", 30)).json()
+
+    res = await _put_exercise(
+        auth_client, created["id"], "2026-08-03", "run", 45, time="14:30"
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["id"] == created["id"]
+    assert body["date"] == "2026-08-03"
+    assert body["time"] == "14:30"
+    assert body["exercise_type"] == "run"
+    assert body["duration_min"] == 45
+    assert body["created_at"] == created["created_at"]  # edits never touch it
+
+    data = (await auth_client.get("/api/exercise")).json()
+    assert [e["id"] for e in data["entries"]] == [created["id"]]
+    assert data["entries"][0]["exercise_type"] == "run"
+    assert data["entries"][0]["duration_min"] == 45
+
+
+@pytest.mark.asyncio
+async def test_meal_put_roundtrip(auth_client):
+    created = (await _post_meal(auth_client, "2026-08-01", 500.0)).json()
+
+    res = await _put_meal(
+        auth_client, created["id"], "2026-08-02", 725.5, time="19:15"
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["id"] == created["id"]
+    assert body["date"] == "2026-08-02"
+    assert body["time"] == "19:15"
+    assert body["calories"] == 725.5
+    assert body["created_at"] == created["created_at"]
+
+    data = (await auth_client.get("/api/meals")).json()
+    assert data["entries"][0]["calories"] == 725.5
+
+
+@pytest.mark.asyncio
+async def test_exercise_put_missing_404(auth_client):
+    res = await _put_exercise(auth_client, 9999, "2026-08-01", "walk", 30)
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_meal_put_missing_404(auth_client):
+    res = await _put_meal(auth_client, 9999, "2026-08-01", 500.0)
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cross_user_exercise_put_404_and_preserves(pair):
+    alice, bob = pair
+    created = (await _post_exercise(alice, "2026-08-01", "walk", 30)).json()
+
+    res = await _put_exercise(bob, created["id"], "2026-08-02", "run", 45)
+    assert res.status_code == 404  # no information leak about the id
+
+    alice_data = (await alice.get("/api/exercise")).json()
+    assert alice_data["entries"][0]["exercise_type"] == "walk"
+    assert alice_data["entries"][0]["duration_min"] == 30
+
+
+@pytest.mark.asyncio
+async def test_cross_user_meal_put_404_and_preserves(pair):
+    alice, bob = pair
+    created = (await _post_meal(alice, "2026-08-01", 500.0)).json()
+
+    res = await _put_meal(bob, created["id"], "2026-08-02", 900.0)
+    assert res.status_code == 404
+
+    alice_data = (await alice.get("/api/meals")).json()
+    assert alice_data["entries"][0]["calories"] == 500.0
+
+
+@pytest.mark.parametrize("bad", ["25:99", "9am", "14:30:00"])
+@pytest.mark.asyncio
+async def test_exercise_put_invalid_time_422(auth_client, bad):
+    created = (await _post_exercise(auth_client, "2026-08-01", "walk", 30)).json()
+    res = await _put_exercise(
+        auth_client, created["id"], "2026-08-01", "walk", 30, time=bad
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("duration", [0, -10])
+@pytest.mark.asyncio
+async def test_exercise_put_bad_duration_422(auth_client, duration):
+    created = (await _post_exercise(auth_client, "2026-08-01", "walk", 30)).json()
+    res = await _put_exercise(
+        auth_client, created["id"], "2026-08-01", "walk", duration
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_exercise_put_extra_field_422(auth_client):
+    created = (await _post_exercise(auth_client, "2026-08-01", "walk", 30)).json()
+    res = await auth_client.put(
+        f"/api/exercise/{created['id']}",
+        json={
+            "date": "2026-08-01",
+            "exercise_type": "run",
+            "duration_min": 45,
+            "notes": "felt great",
+        },
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_meal_put_extra_field_422(auth_client):
+    created = (await _post_meal(auth_client, "2026-08-01", 500.0)).json()
+    res = await auth_client.put(
+        f"/api/meals/{created['id']}",
+        json={"date": "2026-08-01", "calories": 700.0, "meal_type": "lunch"},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_exercise_put_empty_time_becomes_null(auth_client):
+    created = (
+        await _post_exercise(auth_client, "2026-08-01", "walk", 30, time="14:30")
+    ).json()
+    res = await _put_exercise(
+        auth_client, created["id"], "2026-08-01", "walk", 30, time=""
+    )
+    assert res.status_code == 200
+    assert res.json()["time"] is None
+
+    data = (await auth_client.get("/api/exercise")).json()
+    assert data["entries"][0]["time"] is None
+
+
+@pytest.mark.asyncio
+async def test_meal_put_empty_time_becomes_null(auth_client):
+    created = (
+        await _post_meal(auth_client, "2026-08-01", 500.0, time="14:30")
+    ).json()
+    res = await _put_meal(auth_client, created["id"], "2026-08-01", 500.0, time="")
+    assert res.status_code == 200
+    assert res.json()["time"] is None
+
+    data = (await auth_client.get("/api/meals")).json()
+    assert data["entries"][0]["time"] is None

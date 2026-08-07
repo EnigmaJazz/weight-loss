@@ -398,6 +398,32 @@ class Database:
             )
             return cursor.rowcount > 0
 
+    def update_exercise(
+        self,
+        user_id: int,
+        entry_id: int,
+        date: str,
+        time: Optional[str],
+        exercise_type: str,
+        duration_min: int,
+    ) -> Optional[ExerciseEntry]:
+        # Ownership check inside the UPDATE: a cross-user id updates nothing.
+        with self._tx() as conn:
+            conn.execute(
+                "UPDATE exercise_entries"
+                " SET date = ?, time = ?, exercise_type = ?, duration_min = ?"
+                " WHERE id = ? AND user_id = ?",
+                (date, time, exercise_type, duration_min, entry_id, user_id),
+            )
+            row = conn.execute(
+                "SELECT id, date, time, exercise_type, duration_min, created_at"
+                " FROM exercise_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return _exercise_from_row(row)
+
     # ---- meal entries (activity logging) ----
 
     def list_meals(self, user_id: int) -> list[MealEntry]:
@@ -435,6 +461,31 @@ class Database:
                 (entry_id, user_id),
             )
             return cursor.rowcount > 0
+
+    def update_meal(
+        self,
+        user_id: int,
+        entry_id: int,
+        date: str,
+        time: Optional[str],
+        calories: float,
+    ) -> Optional[MealEntry]:
+        # Ownership check inside the UPDATE: a cross-user id updates nothing.
+        with self._tx() as conn:
+            conn.execute(
+                "UPDATE meal_entries"
+                " SET date = ?, time = ?, calories = ?"
+                " WHERE id = ? AND user_id = ?",
+                (date, time, calories, entry_id, user_id),
+            )
+            row = conn.execute(
+                "SELECT id, date, time, calories, created_at"
+                " FROM meal_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return _meal_from_row(row)
 
     # ---- active reward checkpoints ----
 
