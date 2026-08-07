@@ -37,6 +37,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL DEFAULT 0,
         date TEXT NOT NULL,
+        time TEXT,
         weight_kg REAL NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE (user_id, date)
@@ -278,7 +279,7 @@ class Database:
         """Add the nullable activity ``time`` column to databases created before
         time-of-day support. Idempotent: fresh schemas already carry it, so each
         ALTER runs at most once. Runs inside the caller's transaction."""
-        for table in ("exercise_entries", "meal_entries"):
+        for table in ("weight_entries", "exercise_entries", "meal_entries"):
             columns = {
                 row["name"]
                 for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
@@ -315,7 +316,7 @@ class Database:
     def list_entries(self, user_id: int) -> list[WeightEntry]:
         with self._tx() as conn:
             rows = conn.execute(
-                "SELECT id, date, weight_kg, created_at"
+                "SELECT id, date, time, weight_kg, created_at"
                 " FROM weight_entries WHERE user_id = ? ORDER BY date DESC",
                 (user_id,),
             ).fetchall()
@@ -324,22 +325,25 @@ class Database:
     def get_entry_by_date(self, user_id: int, date: str) -> Optional[WeightEntry]:
         with self._tx() as conn:
             row = conn.execute(
-                "SELECT id, date, weight_kg, created_at"
+                "SELECT id, date, time, weight_kg, created_at"
                 " FROM weight_entries WHERE user_id = ? AND date = ?",
                 (user_id, date),
             ).fetchone()
         return _weight_from_row(row) if row is not None else None
 
-    def upsert_entry(self, user_id: int, date: str, weight_kg: float) -> WeightEntry:
+    def upsert_entry(
+        self, user_id: int, date: str, weight_kg: float, time: Optional[str] = None
+    ) -> WeightEntry:
         with self._tx() as conn:
             conn.execute(
-                "INSERT INTO weight_entries (user_id, date, weight_kg, created_at)"
-                " VALUES (?, ?, ?, ?)"
-                " ON CONFLICT(user_id, date) DO UPDATE SET weight_kg = excluded.weight_kg",
-                (user_id, date, weight_kg, _local_now()),
+                "INSERT INTO weight_entries (user_id, date, time, weight_kg, created_at)"
+                " VALUES (?, ?, ?, ?, ?)"
+                " ON CONFLICT(user_id, date) DO UPDATE SET"
+                " weight_kg = excluded.weight_kg, time = excluded.time",
+                (user_id, date, time, weight_kg, _local_now()),
             )
             row = conn.execute(
-                "SELECT id, date, weight_kg, created_at"
+                "SELECT id, date, time, weight_kg, created_at"
                 " FROM weight_entries WHERE user_id = ? AND date = ?",
                 (user_id, date),
             ).fetchone()
@@ -349,7 +353,12 @@ class Database:
         return _weight_from_row(row)
 
     def update_entry(
-        self, user_id: int, entry_id: int, date: str, weight_kg: float
+        self,
+        user_id: int,
+        entry_id: int,
+        date: str,
+        weight_kg: float,
+        time: Optional[str] = None,
     ) -> Optional[WeightEntry]:
         # Ownership is checked first so a cross-user id surfaces as 404 even
         # when the new date is taken by the caller's own entries (no info
@@ -371,12 +380,12 @@ class Database:
             if conflict is not None:
                 raise DuplicateDateError(date)
             conn.execute(
-                "UPDATE weight_entries SET date = ?, weight_kg = ?"
+                "UPDATE weight_entries SET date = ?, weight_kg = ?, time = ?"
                 " WHERE id = ? AND user_id = ?",
-                (date, weight_kg, entry_id, user_id),
+                (date, weight_kg, time, entry_id, user_id),
             )
             row = conn.execute(
-                "SELECT id, date, weight_kg, created_at"
+                "SELECT id, date, time, weight_kg, created_at"
                 " FROM weight_entries WHERE id = ? AND user_id = ?",
                 (entry_id, user_id),
             ).fetchone()
@@ -561,7 +570,7 @@ class Database:
         timestamps survive while a checkpoint stays active; revoked rows are
         removed and re-earned ones get a fresh local timestamp."""
         entry_rows = conn.execute(
-            "SELECT id, date, weight_kg, created_at FROM weight_entries"
+            "SELECT id, date, time, weight_kg, created_at FROM weight_entries"
             " WHERE user_id = ?",
             (user_id,),
         ).fetchall()
@@ -990,6 +999,7 @@ def _weight_from_row(row: sqlite3.Row) -> WeightEntry:
         date=row["date"],
         weight_kg=row["weight_kg"],
         created_at=row["created_at"],
+        time=row["time"],
     )
 
 

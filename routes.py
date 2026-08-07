@@ -235,11 +235,17 @@ class WeightIn(BaseModel):
 
     date: str
     weight_kg: float = Field(gt=0)
+    time: Optional[str] = None
 
     @field_validator("date")
     @classmethod
     def validate_date(cls, value: str) -> str:
         return _valid_date(value)
+
+    @field_validator("time")
+    @classmethod
+    def validate_time(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_time(value)
 
 
 class ExerciseIn(BaseModel):
@@ -385,6 +391,7 @@ def _entry_dict(entry: WeightEntry, height_cm: Optional[float]) -> dict[str, Any
     return {
         "id": entry.id,
         "date": entry.date,
+        "time": entry.time,
         "weight_kg": entry.weight_kg,
         "lb": view["lb"],
         "stone": view["stone"],
@@ -655,7 +662,9 @@ async def upsert_weight(
     db: Database = Depends(get_db),
 ) -> JSONResponse:
     existing = await run_db(db.get_entry_by_date, user.id, payload.date)
-    entry = await run_db(db.upsert_entry, user.id, payload.date, payload.weight_kg)
+    entry = await run_db(
+        db.upsert_entry, user.id, payload.date, payload.weight_kg, payload.time
+    )
     settings = await run_db(db.get_settings, user.id)
     status_code = 200 if existing is not None else 201
     return JSONResponse(
@@ -675,7 +684,12 @@ async def edit_weight(
     # surfaces as 409 rather than silently overwriting that day's weight.
     try:
         entry = await run_db(
-            db.update_entry, user.id, entry_id, payload.date, payload.weight_kg
+            db.update_entry,
+            user.id,
+            entry_id,
+            payload.date,
+            payload.weight_kg,
+            payload.time,
         )
     except DuplicateDateError:
         raise HTTPException(status_code=409, detail="date already has an entry")
