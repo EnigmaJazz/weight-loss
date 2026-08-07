@@ -28,6 +28,10 @@ logger = get_logger("main")
 
 # Script srcs in index.html that need cache busting on deploy.
 _JS_SCRIPTS = ("/static/format.js", "/static/auth.js", "/static/app.js")
+# Stylesheet link hrefs that need the same treatment: without a version
+# stamp, browsers keep the old CSS forever (ETag/Last-Modified are weak
+# signals and there is no Cache-Control) and display fixes appear broken.
+_CSS_HREFS = ("/static/style.css",)
 
 
 def _cache_stamp() -> str:
@@ -56,6 +60,8 @@ def _stamped_index_html() -> str:
     stamp = _cache_stamp()
     for src in _JS_SCRIPTS:
         html = html.replace(f'src="{src}"', f'src="{src}?v={stamp}"')
+    for href in _CSS_HREFS:
+        html = html.replace(f'href="{href}"', f'href="{href}?v={stamp}"')
     return html
 
 
