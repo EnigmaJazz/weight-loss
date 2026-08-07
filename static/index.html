@@ -196,6 +196,11 @@
                 <label for="height-in">Inches</label>
                 <input type="number" id="height-in" step="any" min="0" max="12" placeholder="e.g. 10">
               </div>
+              <label for="weight-display">Weight display — follow kg with</label>
+              <select id="weight-display">
+                <option value="lb">Total pounds (lb)</option>
+                <option value="st-lb">Stones + pounds (st lb)</option>
+              </select>
               <label for="tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
               <input type="time" id="tip-time">
               <label for="reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
@@ -230,7 +235,7 @@
     </main>
 
     <footer>
-      <p>Weights shown in kg with lb and stone lb equivalents.</p>
+      <p>Weights shown in kg with the imperial form chosen in Settings.</p>
     </footer>
   </div>
 

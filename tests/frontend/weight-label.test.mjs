@@ -1,27 +1,46 @@
 /* Frontend formatter regression tests — node:test (stdlib), no framework.
- * Imports the REAL static/format.js the SPA uses, pinning the display contract
- * from openspec/changes/core-app/specs/weight-tracking/spec.md: kg (lb; st lb). */
+ * Imports the REAL static/format.js the SPA uses, pinning the display contract:
+ * kg always primary, with ONE imperial form chosen by displayUnit ("lb" total
+ * pounds by default, or "st-lb" stones + pounds). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import format from "../../static/format.js";
 
-const { fmt1, weightLabel } = format;
+const { fmt1, weightLabel, summaryLabel } = format;
 
-test("weightLabel renders the full multi-unit shape kg (lb; st lb)", () => {
-  assert.equal(weightLabel(82.5, 181.9, 13, 0.4), "82.5 kg (181.9 lb; 13 st 0.4 lb)");
+test("weightLabel defaults to lb mode: kg (total lb)", () => {
+  assert.equal(weightLabel(82.5, 181.9, 13, 0.4), "82.5 kg (181.9 lb)");
 });
 
-test("weightLabel renders kg (lb) when no stone is present", () => {
-  assert.equal(weightLabel(82.5, 181.9, null, null), "82.5 kg (181.9 lb)");
+test("weightLabel explicit lb mode: kg (total lb)", () => {
+  assert.equal(weightLabel(82.5, 181.9, 13, 0.4, "lb"), "82.5 kg (181.9 lb)");
 });
 
-test("weightLabel is null-safe for missing kg", () => {
+test("weightLabel st-lb mode: kg (st lb)", () => {
+  assert.equal(weightLabel(82.5, 181.9, 13, 0.4, "st-lb"), "82.5 kg (13 st 0.4 lb)");
+});
+
+test("weightLabel st-lb mode omits the breakdown under one stone", () => {
+  // Under one stone the pounds already show the value; "0 st 1.1 lb" would
+  // duplicate it, so it falls back to total lb.
+  assert.equal(weightLabel(0.5, 1.1, 0, 1.1, "st-lb"), "0.5 kg (1.1 lb)");
+  assert.equal(weightLabel(1.5, 3.3, 0, 3.3, "st-lb"), "1.5 kg (3.3 lb)");
+});
+
+test("weightLabel st-lb mode falls back to lb when stone is missing", () => {
+  assert.equal(weightLabel(82.5, 181.9, null, null, "st-lb"), "82.5 kg (181.9 lb)");
+});
+
+test("weightLabel is null-safe for missing kg in every mode", () => {
   assert.equal(weightLabel(null, null, null, null), "—");
+  assert.equal(weightLabel(null, null, null, null, "lb"), "—");
+  assert.equal(weightLabel(null, null, null, null, "st-lb"), "—");
   assert.equal(weightLabel(undefined, undefined, undefined, undefined), "—");
 });
 
 test("weightLabel renders bare kg when only kg is present", () => {
   assert.equal(weightLabel(82.5, null, null, null), "82.5 kg");
+  assert.equal(weightLabel(82.5, null, null, null, "st-lb"), "82.5 kg");
 });
 
 test("fmt1 rounds to one decimal (toFixed(1))", () => {
@@ -30,13 +49,13 @@ test("fmt1 rounds to one decimal (toFixed(1))", () => {
   assert.equal(fmt1(26.939), "26.9");
 });
 
-test("weightLabel rounds stone-lb via fmt1 (spec example)", () => {
-  assert.equal(weightLabel(70, 154.3, 11, 0.3), "70.0 kg (154.3 lb; 11 st 0.3 lb)");
+test("weightLabel rounds stone-lb via fmt1 in st-lb mode", () => {
+  assert.equal(weightLabel(70, 154.3, 11, 0.3, "st-lb"), "70.0 kg (11 st 0.3 lb)");
 });
 
-test("weightLabel omits the st-lb part when there are no whole stone", () => {
-  // Under one stone the pounds already show the value; "0 st 1.1 lb" would
-  // duplicate it, so the breakdown is dropped entirely.
-  assert.equal(weightLabel(0.5, 1.1, 0, 1.1), "0.5 kg (1.1 lb)");
-  assert.equal(weightLabel(1.5, 3.3, 0, 3.3), "1.5 kg (3.3 lb)");
+test("summaryLabel passes the display mode through", () => {
+  const o = { current_kg: 82.5, current_lb: 181.9, current_stone: 13, current_stone_lb: 0.4 };
+  assert.equal(summaryLabel(o, "current"), "82.5 kg (181.9 lb)");
+  assert.equal(summaryLabel(o, "current", "lb"), "82.5 kg (181.9 lb)");
+  assert.equal(summaryLabel(o, "current", "st-lb"), "82.5 kg (13 st 0.4 lb)");
 });

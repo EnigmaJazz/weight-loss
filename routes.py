@@ -332,6 +332,7 @@ class SettingsIn(BaseModel):
     weight_unit: Optional[str] = None  # "kg" | "st-lb"
     height_unit: Optional[str] = None  # "cm" | "ft-in"
     target_unit: Optional[str] = None  # "kg" | "st-lb"
+    weight_display: Optional[str] = None  # "lb" | "st-lb"
 
     @field_validator("tip_time", "reminder_time", "exercise_time")
     @classmethod
@@ -350,6 +351,13 @@ class SettingsIn(BaseModel):
     def validate_height_unit(cls, value: Optional[str]) -> Optional[str]:
         if value is not None and value not in ("cm", "ft-in"):
             raise ValueError('height_unit must be "cm" or "ft-in"')
+        return value
+
+    @field_validator("weight_display")
+    @classmethod
+    def validate_weight_display(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in ("lb", "st-lb"):
+            raise ValueError('weight_display must be "lb" or "st-lb"')
         return value
 
 

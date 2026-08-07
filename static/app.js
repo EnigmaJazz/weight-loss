@@ -23,6 +23,11 @@ const {
   validateEmail,
 } = globalThis.AuthForm;
 
+/* Which imperial form follows kg in every weight label: "lb" (total pounds)
+ * or "st-lb" (stones + pounds). Set from the persisted settings on each
+ * loadData(); the default is lb mode. */
+let displayUnit = "lb";
+
 function bmiLabel(bmi) {
   return bmi == null ? "—" : fmt1(bmi);
 }
@@ -237,6 +242,7 @@ async function loadData() {
   chartData.weightSummary = weight.summary;
   chartData.exerciseEntries = exercise.entries;
   chartData.mealEntries = meals.entries;
+  displayUnit = unitPref(settings.weight_display, "lb");
   renderSummary(weight.summary);
   renderHistory(weight.entries);
   drawChart(chartData.weightEntries, chartData.weightSummary);
@@ -269,7 +275,7 @@ function renderSummary(s) {
     stat.className = "stat";
     const value = document.createElement("div");
     value.className = "stat-value";
-    value.textContent = summaryLabel(s, key);
+    value.textContent = summaryLabel(s, key, displayUnit);
     const name = document.createElement("div");
     name.className = "stat-label";
     name.textContent = label;
@@ -307,7 +313,7 @@ function renderHistory(entries) {
     date.textContent = formatDate(e.date);
     const weight = document.createElement("span");
     weight.className = "entry-weight";
-    weight.textContent = weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb);
+    weight.textContent = weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb, displayUnit);
     const bmi = document.createElement("span");
     bmi.className = "entry-bmi";
     bmi.textContent = `BMI ${bmiLabel(e.bmi)}`;
@@ -800,7 +806,7 @@ function drawChart(entries, summary) {
     }
     drawChart(entries, summary);
     const e = points[nearest];
-    const label = `${formatDate(e.date)}\n${weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb)}\nBMI ${bmiLabel(e.bmi)}`;
+    const label = `${formatDate(e.date)}\n${weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb, displayUnit)}\nBMI ${bmiLabel(e.bmi)}`;
     const box = { x: xAt(nearest) + 10, y: Math.max(pad.top, yAt(e.weight_kg) - 30), w: 0, h: 0 };
     ctx.font = "11px system-ui, sans-serif";
     const lines = label.split("\n");
@@ -928,7 +934,7 @@ function renderRewards(r) {
     const nxt = r.next_checkpoint;
     const row = document.createElement("p");
     row.className = "rewards-next";
-    row.textContent = `Next checkpoint (${nxt.percent}%): ${weightLabel(nxt.threshold_kg, nxt.threshold_lb, nxt.threshold_stone, nxt.threshold_stone_lb)}`;
+    row.textContent = `Next checkpoint (${nxt.percent}%): ${weightLabel(nxt.threshold_kg, nxt.threshold_lb, nxt.threshold_stone, nxt.threshold_stone_lb, displayUnit)}`;
     el.append(row);
 
     const track = document.createElement("div");
@@ -959,7 +965,7 @@ function renderRewards(r) {
       badge.textContent = `${cp.percent}%`;
       const label = document.createElement("span");
       label.className = "checkpoint-label";
-      label.textContent = weightLabel(cp.threshold_kg, cp.threshold_lb, cp.threshold_stone, cp.threshold_stone_lb);
+      label.textContent = weightLabel(cp.threshold_kg, cp.threshold_lb, cp.threshold_stone, cp.threshold_stone_lb, displayUnit);
       const when = document.createElement("span");
       when.className = "checkpoint-when";
       when.textContent = cp.earned_at ? `earned ${formatDate(cp.earned_at.slice(0, 10))}` : "pending";
@@ -986,6 +992,7 @@ function renderSettings(s, me) {
   $("weight-unit").value = unitPref(s.weight_unit, "kg");
   $("height-unit").value = unitPref(s.height_unit, "cm");
   $("target-unit").value = unitPref(s.target_unit, "kg");
+  $("weight-display").value = unitPref(s.weight_display, "lb");
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
@@ -1069,6 +1076,7 @@ async function saveSettings(ev) {
         weight_unit: $("weight-unit").value,
         height_unit: $("height-unit").value,
         target_unit: $("target-unit").value,
+        weight_display: $("weight-display").value,
       }),
     });
     // Email lives on the account, not the settings row: update it separately.
