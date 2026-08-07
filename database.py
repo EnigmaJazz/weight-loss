@@ -10,6 +10,8 @@ from typing import Any, Callable, Iterator, Optional
 from constants import DEFAULT_SETTINGS, get_logger
 from models import (
     AppSettings,
+    ExerciseEntry,
+    MealEntry,
     PushSubscription,
     ResetToken,
     Session,
@@ -38,6 +40,28 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         weight_kg REAL NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE (user_id, date)
+    );
+    """,
+    # Activity logging: multiple entries per user per date are allowed, so no
+    # per-date uniqueness. created_at is always passed explicitly by the insert
+    # methods (_local_now()); the DEFAULT is only a schema-level fallback.
+    """
+    CREATE TABLE IF NOT EXISTS exercise_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        exercise_type TEXT NOT NULL,
+        duration_min INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS meal_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        calories REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     """,
     """
@@ -314,6 +338,83 @@ class Database:
             deleted = cursor.rowcount > 0
             self._reconcile_active_rewards(conn, user_id)
             return deleted
+
+    # ---- exercise entries (activity logging) ----
+
+    def list_exercise(self, user_id: int) -> list[ExerciseEntry]:
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, exercise_type, duration_min, created_at"
+                " FROM exercise_entries WHERE user_id = ? ORDER BY id DESC",
+                (user_id,),
+            ).fetchall()
+        return [_exercise_from_row(row) for row in rows]
+
+    def insert_exercise(
+        self, user_id: int, date: str, exercise_type: str, duration_min: int
+    ) -> ExerciseEntry:
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "INSERT INTO exercise_entries"
+                " (user_id, date, exercise_type, duration_min, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (user_id, date, exercise_type, duration_min, _local_now()),
+            )
+            row = conn.execute(
+                "SELECT id, date, exercise_type, duration_min, created_at"
+                " FROM exercise_entries WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("exercise insert produced no row")
+        return _exercise_from_row(row)
+
+    def delete_exercise(self, user_id: int, entry_id: int) -> bool:
+        # Ownership check inside the DELETE: a cross-user id deletes nothing.
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM exercise_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            )
+            return cursor.rowcount > 0
+
+    # ---- meal entries (activity logging) ----
+
+    def list_meals(self, user_id: int) -> list[MealEntry]:
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, calories, created_at"
+                " FROM meal_entries WHERE user_id = ? ORDER BY id DESC",
+                (user_id,),
+            ).fetchall()
+        return [_meal_from_row(row) for row in rows]
+
+    def insert_meal(
+        self, user_id: int, date: str, calories: float
+    ) -> MealEntry:
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "INSERT INTO meal_entries (user_id, date, calories, created_at)"
+                " VALUES (?, ?, ?, ?)",
+                (user_id, date, calories, _local_now()),
+            )
+            row = conn.execute(
+                "SELECT id, date, calories, created_at"
+                " FROM meal_entries WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("meal insert produced no row")
+        return _meal_from_row(row)
+
+    def delete_meal(self, user_id: int, entry_id: int) -> bool:
+        # Ownership check inside the DELETE: a cross-user id deletes nothing.
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM meal_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            )
+            return cursor.rowcount > 0
 
     # ---- active reward checkpoints ----
 
@@ -772,6 +873,25 @@ def _weight_from_row(row: sqlite3.Row) -> WeightEntry:
         id=row["id"],
         date=row["date"],
         weight_kg=row["weight_kg"],
+        created_at=row["created_at"],
+    )
+
+
+def _exercise_from_row(row: sqlite3.Row) -> ExerciseEntry:
+    return ExerciseEntry(
+        id=row["id"],
+        date=row["date"],
+        exercise_type=row["exercise_type"],
+        duration_min=row["duration_min"],
+        created_at=row["created_at"],
+    )
+
+
+def _meal_from_row(row: sqlite3.Row) -> MealEntry:
+    return MealEntry(
+        id=row["id"],
+        date=row["date"],
+        calories=row["calories"],
         created_at=row["created_at"],
     )
 
