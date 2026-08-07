@@ -36,7 +36,13 @@ from constants import (
     TEST_NOTIFICATION_TITLE,
     get_logger,
 )
-from database import Database, DuplicateEmailError, DuplicateUsernameError, run_db
+from database import (
+    Database,
+    DuplicateDateError,
+    DuplicateEmailError,
+    DuplicateUsernameError,
+    run_db,
+)
 from models import ExerciseEntry, MealEntry, User, WeightEntry
 import notifications
 from rewards import (
@@ -647,6 +653,29 @@ async def upsert_weight(
     return JSONResponse(
         status_code=status_code, content=_entry_dict(entry, settings.height_cm)
     )
+
+
+@router.put("/api/weight/{entry_id}")
+async def edit_weight(
+    entry_id: int,
+    payload: WeightIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    # Ownership + date-conflict checks live in update_entry: a cross-user id
+    # surfaces as 404 (checked first), and moving onto another entry's date
+    # surfaces as 409 rather than silently overwriting that day's weight.
+    try:
+        entry = await run_db(
+            db.update_entry, user.id, entry_id, payload.date, payload.weight_kg
+        )
+    except DuplicateDateError:
+        raise HTTPException(status_code=409, detail="date already has an entry")
+    if entry is None:
+        raise HTTPException(status_code=404, detail="entry not found")
+    settings = await run_db(db.get_settings, user.id)
+    logger.info("updated weight for user %s", user.username)
+    return _entry_dict(entry, settings.height_cm)
 
 
 @router.delete("/api/weight/{entry_id}")

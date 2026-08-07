@@ -13,6 +13,13 @@ def _post(auth_client, date, weight_kg):
     )
 
 
+def _put(auth_client, entry_id, date, weight_kg):
+    return auth_client.put(
+        f"/api/weight/{entry_id}",
+        json={"date": date, "weight_kg": weight_kg},
+    )
+
+
 @pytest.mark.asyncio
 async def test_add_entry(auth_client):
     res = await _post(auth_client, "2026-08-01", 90.5)
@@ -84,6 +91,109 @@ async def test_history_newest_first(auth_client):
     data = (await auth_client.get("/api/weight")).json()
     dates = [entry["date"] for entry in data["entries"]]
     assert dates == ["2026-08-02", "2026-08-01", "2026-07-30"]
+
+
+@pytest.mark.asyncio
+async def test_put_updates_weight(auth_client):
+    created = (await _post(auth_client, "2026-08-01", 90.5)).json()
+    res = await _put(auth_client, created["id"], "2026-08-01", 88.0)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["id"] == created["id"]
+    assert body["date"] == "2026-08-01"
+    assert body["weight_kg"] == 88.0
+    # created_at is preserved: PUT edits, it does not re-log.
+    assert body["created_at"] == created["created_at"]
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["weight_kg"] == 88.0
+    assert data["summary"]["current_kg"] == 88.0
+
+
+@pytest.mark.asyncio
+async def test_put_moves_date(auth_client):
+    created = (await _post(auth_client, "2026-08-01", 90.5)).json()
+    res = await _put(auth_client, created["id"], "2026-08-05", 90.5)
+    assert res.status_code == 200
+    assert res.json()["date"] == "2026-08-05"
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert [e["date"] for e in data["entries"]] == ["2026-08-05"]
+    assert "2026-08-01" not in [e["date"] for e in data["entries"]]
+
+
+@pytest.mark.asyncio
+async def test_put_date_conflict_409(auth_client):
+    a = (await _post(auth_client, "2026-08-01", 90.5)).json()
+    b = (await _post(auth_client, "2026-08-02", 88.0)).json()
+    res = await _put(auth_client, a["id"], "2026-08-02", 85.0)
+    assert res.status_code == 409
+    assert res.json()["detail"] == "date already has an entry"
+
+    # No partial update: both original entries are untouched.
+    data = (await auth_client.get("/api/weight")).json()
+    by_date = {e["date"]: e["weight_kg"] for e in data["entries"]}
+    assert by_date == {"2026-08-02": 88.0, "2026-08-01": 90.5}
+    assert all(e["id"] in (a["id"], b["id"]) for e in data["entries"])
+
+
+@pytest.mark.asyncio
+async def test_put_missing_entry_404(auth_client):
+    res = await _put(auth_client, 9999, "2026-08-01", 85.0)
+    assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_put_cross_user_404(pair):
+    alice, bob = pair
+    created = (await _post(alice, "2026-08-01", 90.5)).json()
+    # bob owns a date that alice's entry would conflict on; ownership is
+    # checked before the date conflict, so this still 404s (no info leak).
+    await _post(bob, "2026-08-02", 88.0)
+    res = await bob.put(
+        f"/api/weight/{created['id']}",
+        json={"date": "2026-08-02", "weight_kg": 85.0},
+    )
+    assert res.status_code == 404
+
+    data = (await alice.get("/api/weight")).json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["weight_kg"] == 90.5
+
+
+@pytest.mark.asyncio
+async def test_put_bad_date_422(auth_client):
+    created = (await _post(auth_client, "2026-08-01", 90.5)).json()
+    res = await _put(auth_client, created["id"], "not-a-date", 85.0)
+    assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_put_extra_field_422(auth_client):
+    created = (await _post(auth_client, "2026-08-01", 90.5)).json()
+    res = await auth_client.put(
+        f"/api/weight/{created['id']}",
+        json={"date": "2026-08-02", "weight_kg": 85.0, "calories": 400},
+    )
+    assert res.status_code == 422
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert [e["date"] for e in data["entries"]] == ["2026-08-01"]
+
+
+@pytest.mark.asyncio
+async def test_post_upsert_unchanged(auth_client):
+    # Guard: PUT must not change POST semantics — posting to an existing date
+    # still updates in place and returns 200.
+    await _post(auth_client, "2026-08-01", 90.5)
+    res = await _post(auth_client, "2026-08-01", 87.5)
+    assert res.status_code == 200
+    assert res.json()["weight_kg"] == 87.5
+
+    data = (await auth_client.get("/api/weight")).json()
+    assert len(data["entries"]) == 1
+    assert data["entries"][0]["weight_kg"] == 87.5
 
 
 @pytest.mark.asyncio
