@@ -366,7 +366,10 @@ function editWeightRow(li, entry) {
   const lb = document.createElement("input");
   lb.type = "number";
   lb.step = "any";
-  lb.value = entry.stone_lb;
+  // Prefill with the display-rounded value (fmt1) rather than the raw
+  // remainder: the server computes stone_lb as a float (e.g. 82.5 kg ->
+  // 1.4999999999999998), and the history list hides that with fmt1.
+  lb.value = entry.stone_lb != null ? fmt1(entry.stone_lb) : "";
   const save = document.createElement("button");
   save.type = "submit";
   save.textContent = "Save";
