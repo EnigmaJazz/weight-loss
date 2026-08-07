@@ -50,6 +50,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         date TEXT NOT NULL,
+        time TEXT,
         exercise_type TEXT NOT NULL,
         duration_min INTEGER NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -60,6 +61,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         date TEXT NOT NULL,
+        time TEXT,
         calories REAL NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -246,6 +248,7 @@ class Database:
                 conn.execute(statement)
             self._migrate_legacy_schema(conn)
             self._migrate_users_schema(conn)
+            self._migrate_activity_time(conn)
 
     def _migrate_users_schema(self, conn: sqlite3.Connection) -> None:
         """Add the users.email column and its partial UNIQUE index to databases
@@ -265,6 +268,18 @@ class Database:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email"
             " ON users(email) WHERE email IS NOT NULL"
         )
+
+    def _migrate_activity_time(self, conn: sqlite3.Connection) -> None:
+        """Add the nullable activity ``time`` column to databases created before
+        time-of-day support. Idempotent: fresh schemas already carry it, so each
+        ALTER runs at most once. Runs inside the caller's transaction."""
+        for table in ("exercise_entries", "meal_entries"):
+            columns = {
+                row["name"]
+                for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+            if "time" not in columns:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN time TEXT")
 
     def _migrate_legacy_schema(self, conn: sqlite3.Connection) -> None:
         """Rebuild pre-auth tables in place, DISCARDING legacy data. Runs
@@ -344,24 +359,29 @@ class Database:
     def list_exercise(self, user_id: int) -> list[ExerciseEntry]:
         with self._tx() as conn:
             rows = conn.execute(
-                "SELECT id, date, exercise_type, duration_min, created_at"
+                "SELECT id, date, time, exercise_type, duration_min, created_at"
                 " FROM exercise_entries WHERE user_id = ? ORDER BY id DESC",
                 (user_id,),
             ).fetchall()
         return [_exercise_from_row(row) for row in rows]
 
     def insert_exercise(
-        self, user_id: int, date: str, exercise_type: str, duration_min: int
+        self,
+        user_id: int,
+        date: str,
+        exercise_type: str,
+        duration_min: int,
+        time: Optional[str] = None,
     ) -> ExerciseEntry:
         with self._tx() as conn:
             cursor = conn.execute(
                 "INSERT INTO exercise_entries"
-                " (user_id, date, exercise_type, duration_min, created_at)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (user_id, date, exercise_type, duration_min, _local_now()),
+                " (user_id, date, time, exercise_type, duration_min, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, date, time, exercise_type, duration_min, _local_now()),
             )
             row = conn.execute(
-                "SELECT id, date, exercise_type, duration_min, created_at"
+                "SELECT id, date, time, exercise_type, duration_min, created_at"
                 " FROM exercise_entries WHERE id = ?",
                 (cursor.lastrowid,),
             ).fetchone()
@@ -383,23 +403,23 @@ class Database:
     def list_meals(self, user_id: int) -> list[MealEntry]:
         with self._tx() as conn:
             rows = conn.execute(
-                "SELECT id, date, calories, created_at"
+                "SELECT id, date, time, calories, created_at"
                 " FROM meal_entries WHERE user_id = ? ORDER BY id DESC",
                 (user_id,),
             ).fetchall()
         return [_meal_from_row(row) for row in rows]
 
     def insert_meal(
-        self, user_id: int, date: str, calories: float
+        self, user_id: int, date: str, calories: float, time: Optional[str] = None
     ) -> MealEntry:
         with self._tx() as conn:
             cursor = conn.execute(
-                "INSERT INTO meal_entries (user_id, date, calories, created_at)"
-                " VALUES (?, ?, ?, ?)",
-                (user_id, date, calories, _local_now()),
+                "INSERT INTO meal_entries (user_id, date, time, calories, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (user_id, date, time, calories, _local_now()),
             )
             row = conn.execute(
-                "SELECT id, date, calories, created_at"
+                "SELECT id, date, time, calories, created_at"
                 " FROM meal_entries WHERE id = ?",
                 (cursor.lastrowid,),
             ).fetchone()
@@ -881,6 +901,7 @@ def _exercise_from_row(row: sqlite3.Row) -> ExerciseEntry:
     return ExerciseEntry(
         id=row["id"],
         date=row["date"],
+        time=row["time"],
         exercise_type=row["exercise_type"],
         duration_min=row["duration_min"],
         created_at=row["created_at"],
@@ -891,6 +912,7 @@ def _meal_from_row(row: sqlite3.Row) -> MealEntry:
     return MealEntry(
         id=row["id"],
         date=row["date"],
+        time=row["time"],
         calories=row["calories"],
         created_at=row["created_at"],
     )

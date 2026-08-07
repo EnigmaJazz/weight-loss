@@ -51,6 +51,7 @@ class ExerciseEntry:
     exercise_type: str
     duration_min: int
     created_at: str
+    time: Optional[str] = None
 
 
 @dataclass
@@ -61,6 +62,7 @@ class MealEntry:
     date: str
     calories: float
     created_at: str
+    time: Optional[str] = None
 
 
 @dataclass
