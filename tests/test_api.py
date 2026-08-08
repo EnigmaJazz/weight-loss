@@ -592,6 +592,21 @@ async def test_weight_entries_include_display_units(onboarded_client):
 
 
 @pytest.mark.asyncio
+async def test_weight_entry_stone_boundary_round_trip(onboarded_client):
+    # Regression: 10 st 0 lb entered through the SPA is stored as
+    # 140 * 0.45359237 = 63.502931800000006 kg. The derived stone view must
+    # report 10 st 0.0 lb (not 9 st 13.999...), which displayed as "9 st 14".
+    res = await onboarded_client.post(
+        "/api/weight", json={"date": "2026-08-08", "weight_kg": 63.502931800000006}
+    )
+    assert res.status_code == 201
+    entry = res.json()
+    assert entry["stone"] == 10
+    assert entry["stone_lb"] == 0.0
+    assert entry["lb"] == pytest.approx(139.9999999969026)
+
+
+@pytest.mark.asyncio
 async def test_weight_entries_bmi_with_height(onboarded_client):
     # Spec: BMI = kg / (height_cm/100)^2, using unrounded values.
     await onboarded_client.put("/api/settings", json={"height_cm": 175})

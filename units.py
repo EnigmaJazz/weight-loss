@@ -16,10 +16,18 @@ def kg_to_lb(weight_kg: float) -> float:
 
 
 def kg_to_stone(weight_kg: float) -> tuple[int, float]:
-    """Decompose kilograms into (whole stone, remaining lb)."""
+    """Decompose kilograms into (whole stone, remaining lb).
+
+    Carries the remainder across the 14 lb boundary when a float epsilon
+    leaves it a hair below an exact stone (10 st 0 lb round-tripped through
+    kg arrives as 139.99999999999997 lb, which would otherwise display as
+    "9 st 14 lb")."""
     total_lb = kg_to_lb(weight_kg)
     whole = int(total_lb // STONE_LB)
     remaining = total_lb - STONE_LB * whole
+    if remaining >= STONE_LB - 1e-6:
+        whole += 1
+        remaining = 0.0
     return whole, remaining
 
 
