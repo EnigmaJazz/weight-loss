@@ -266,3 +266,95 @@ async def test_manifest_theme_color_stays_brand_accent(client):
     assert resp.status_code == 200
     manifest = json.loads(resp.text)
     assert manifest["theme_color"] == "#2f7d54"
+
+
+# Phase 2 gate additions (game-appearance PR 2): the reduced-motion block,
+# the mascot + wizard indicator markup, and the app.js component hooks that
+# drive them (streak flame + data attr, wizard indicator sync, toast
+# class-swap, token-driven chart palette).
+
+
+@pytest.mark.asyncio
+async def test_style_css_ships_reduced_motion_block_without_starting_style(client):
+    """The served stylesheet must ship a prefers-reduced-motion block that
+    actually neutralizes motion, and must never use @starting-style (spec
+    'Reduced motion': toast/tab reveals are JS class-swaps, not CSS start
+    states)."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    assert "@media (prefers-reduced-motion: reduce)" in css, (
+        "style.css must declare a prefers-reduced-motion: reduce block"
+    )
+    assert "@starting-style" not in css, (
+        "style.css must not use @starting-style (reveals are JS class-swaps)"
+    )
+    # The block must actually neutralize animation/transition, not be a stub.
+    media_at = css.index("@media (prefers-reduced-motion: reduce)")
+    block = css[media_at:]
+    assert block.rstrip().endswith("}"), "reduced-motion block must close"
+    assert re.search(
+        r"animation-duration|transition-duration|animation\s*:\s*none", block
+    ) is not None, "reduced-motion block must neutralize animations/transitions"
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_mascot_and_wizard_indicator(client):
+    """The header must carry the fox mascot (aria-hidden, before the h1) and
+    the onboarding screen a 5-dot wizard indicator with no visible text
+    (design D3, spec 'Motivation surfaces and mascot')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    header_row = html[html.index('<div class="header-row">') : html.index("</header>")]
+    assert '<span class="mascot" aria-hidden="true">' in header_row
+    assert header_row.index("mascot") < header_row.index("<h1>"), (
+        "mascot must sit before the h1 in the header lockup"
+    )
+    onboarding = html[
+        html.index('id="onboarding-screen"') : html.index('id="onboarding-form"')
+    ]
+    assert '<ol class="wizard-indicator">' in onboarding
+    dots = re.findall(r'<li data-step="([^"]+)"></li>', onboarding)
+    assert dots == ["height", "weight", "target", "units", "notifications"], (
+        "wizard indicator must carry the five step dots, in order, text-free"
+    )
+
+
+@pytest.mark.asyncio
+async def test_app_js_ships_component_hooks(client):
+    """app.js must wire the streak flame + active-streak data attribute, the
+    wizard indicator .is-current sync with aria-current, and the toast
+    .is-visible class-swap while keeping the [hidden] toggle (design
+    'Component styling plan'; spec 'Motivation surfaces')."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    # Streaks: flame element + active-streak data attribute.
+    assert "flame" in body
+    assert "dataset.streakActive" in body
+    # Wizard indicator sync in showWizardStep.
+    assert 'classList.toggle("is-current"' in body
+    assert 'setAttribute("aria-current"' in body
+    # Toast: .is-visible class-swap while the [hidden] toggle stays.
+    assert 'classList.add("is-visible")' in body
+    assert "toastEl.hidden = false" in body
+    assert "toastEl.hidden = true" in body
+
+
+@pytest.mark.asyncio
+async def test_app_js_drives_chart_colors_from_tokens(client):
+    """app.js must read the chart palette ONCE from the design tokens via
+    getComputedStyle (line --accent, grid --border, muted --muted, tooltip
+    --text, tooltip text --card) and must not hardcode chart hex (design
+    'Canvas colors/font')."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "CHART_COLORS" in body
+    assert "CHART_FONT" in body
+    assert "getComputedStyle" in body
+    for hardcoded in ("#94a3b8", "#e2e8f0", "#f8fafc", "rgba(15, 23, 42"):
+        assert hardcoded not in body, (
+            f"chart code must not hardcode {hardcoded}"
+        )

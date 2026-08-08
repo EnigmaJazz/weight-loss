@@ -39,11 +39,11 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Components (PR 2)
 
-- [ ] 2.1 RED: extend `tests/test_spa_gate.py` — assert `prefers-reduced-motion` block present in style.css and no `@starting-style`.
-- [ ] 2.2 GREEN: `static/index.html` — mascot `<span class="mascot" aria-hidden="true">` in `.header-row`; `<ol class="wizard-indicator">` with 5 `<li data-step>` in onboarding-screen.
-- [ ] 2.3 GREEN: `static/app.js` — `renderStreaks`: flame `<span class="flame">` + `tile.dataset.streakActive`; `showWizardStep`: toggle `.is-current`; toast: `.is-visible` class-swap, keep `hidden`.
-- [ ] 2.4 GREEN: `static/app.js` — `CHART_COLORS`/`CHART_FONT` via `getComputedStyle` tokens; drop hardcoded hex in drawChart/drawExerciseChart/drawBars.
-- [ ] 2.5 GREEN: `static/style.css` — components: header/mascot, wizard indicator, scoreboard, streak tiles, rewards chips pop-in + track fill, `button:active{transform:scale(.97)}`, inputs min-height 48px, tabs, history, `:focus-visible{outline:3px solid var(--fox)}`, mobile single-column collapse, reduced-motion block.
+- [x] 2.1 RED: extend `tests/test_spa_gate.py` — assert `prefers-reduced-motion` block present in style.css and no `@starting-style`.
+- [x] 2.2 GREEN: `static/index.html` — mascot `<span class="mascot" aria-hidden="true">` in `.header-row`; `<ol class="wizard-indicator">` with 5 `<li data-step>` in onboarding-screen.
+- [x] 2.3 GREEN: `static/app.js` — `renderStreaks`: flame `<span class="flame">` + `tile.dataset.streakActive`; `showWizardStep`: toggle `.is-current`; toast: `.is-visible` class-swap, keep `hidden`.
+- [x] 2.4 GREEN: `static/app.js` — `CHART_COLORS`/`CHART_FONT` via `getComputedStyle` tokens; drop hardcoded hex in drawChart/drawExerciseChart/drawBars.
+- [x] 2.5 GREEN: `static/style.css` — components: header/mascot, wizard indicator, scoreboard, streak tiles, rewards chips pop-in + track fill, `button:active{transform:scale(.97)}`, inputs min-height 48px, tabs, history, `:focus-visible{outline:3px solid var(--fox)}`, mobile single-column collapse, reduced-motion block.
 
 ## Phase 3: Motion & Celebration (PR 3)
 
