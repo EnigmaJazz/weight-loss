@@ -31,12 +31,12 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: S2 — Ring + Streaks
 
-- [ ] 2.1 RED gate: `tests/test_spa_gate.py` adds test_app_js_ships_goal_ring_renderer (renderGoalRing, stroke-dashoffset, url(#goalGrad)) + test_index_html_ships_ring_empty_state_copy ("Set a target weight to start tracking.")
-- [ ] 2.2 RED smoke: add ring-visible eval (`.goal-ring svg` non-zero dashoffset) to `tests/smoke-ui.sh`
-- [ ] 2.3 GREEN: add `renderGoalRing(summary)` to `static/app.js` — SVG 140×140, r=60, C≈376.991, dashoffset=C·(1−pct); null pct → no arc + empty copy; overlay pct + remaining via weightImperial
-- [ ] 2.4 wire `renderGoalRing(chartData.weightSummary)` in `loadData` after `renderSummary`
-- [ ] 2.5 CSS: `.goal-ring` + `#goalGrad` (var(--fox)→var(--accent)), track var(--border); `.goal-ring-progress{transition:none}` in reduced-motion block; `.flame` 1.7rem + tile value 1.3rem
-- [ ] 2.6 verify: pytest + node + smoke green
+- [x] 2.1 RED gate: `tests/test_spa_gate.py` adds test_app_js_ships_goal_ring_renderer (renderGoalRing, stroke-dashoffset, url(#goalGrad)) + test_index_html_ships_ring_empty_state_copy ("Set a target weight to start tracking.")
+- [x] 2.2 RED smoke: add ring-visible eval (`.goal-ring svg` non-zero dashoffset) to `tests/smoke-ui.sh`
+- [x] 2.3 GREEN: add `renderGoalRing(summary)` to `static/app.js` — SVG 140×140, r=60, C≈376.991, dashoffset=C·(1−pct); null pct → no arc + empty copy; overlay pct + remaining via weightImperial
+- [x] 2.4 wire `renderGoalRing(chartData.weightSummary)` in `loadData` after `renderSummary`
+- [x] 2.5 CSS: `.goal-ring` + `#goalGrad` (var(--fox)→var(--accent)), track var(--border); `.goal-ring-progress{transition:none}` in reduced-motion block; `.flame` 1.7rem + tile value 1.3rem
+- [x] 2.6 verify: pytest + node + smoke green
 
 ## Phase 3: S3 — Milestone Track
 
