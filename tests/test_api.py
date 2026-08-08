@@ -255,6 +255,7 @@ async def test_manual_notify_endpoints(auth_client, stub_push):
         assert res.status_code == 200
         assert res.json() == {"sent": 1, "total": 1}
     assert len(stub_push) == 3
+    assert [call["notif_type"] for call in stub_push] == ["tip", "reminder", "exercise"]
 
     res = await auth_client.post("/api/notify/bogus")
     assert res.status_code == 404

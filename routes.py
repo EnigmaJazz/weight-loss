@@ -23,7 +23,6 @@ from auth import (
 )
 from constants import (
     EXERCISE_TYPES,
-    NOTIFICATION_MESSAGES,
     NOTIFICATION_TYPES,
     PUBLIC_URL,
     RESET_TOKEN_EXPIRY_SECONDS,
@@ -989,8 +988,8 @@ async def notify_manual(
     if notif_type not in NOTIFICATION_TYPES:
         raise HTTPException(status_code=404, detail="unknown notification type")
     subscriptions = await run_db(db.list_subscriptions, user.id)
-    title, body = NOTIFICATION_MESSAGES[notif_type]
+    title, body = notifications.pick_message(notif_type)
     sent = await notifications.send_to_all(
-        subscriptions, title, body, request.app.state.vapid
+        subscriptions, title, body, request.app.state.vapid, notif_type=notif_type
     )
     return {"sent": sent, "total": len(subscriptions)}
