@@ -138,6 +138,39 @@ NOTIFICATION_MESSAGES: dict[str, tuple[tuple[str, str], ...]] = {
 TEST_NOTIFICATION_TITLE = "Weight Loss Tracker"
 TEST_NOTIFICATION_BODY = "Test notification — push works!"
 
+# Celebration message pool for checkpoint-earn pushes (checkpoint-celebrations).
+# Style-matched to NOTIFICATION_MESSAGES: second-person, celebratory, no emojis
+# in titles. The {percent} placeholder is interpolated with the top newly-
+# earned percent by pick_celebration at send time; it is deliberately a
+# standalone constant (NOT inside NOTIFICATION_MESSAGES) so NOTIFICATION_TYPES
+# and the manual /api/notify allowlist stay untouched.
+CELEBRATION_MESSAGES: tuple[tuple[str, str], ...] = (
+    (
+        "Checkpoint unlocked!",
+        "You just hit {percent}% of your goal. Every log got you here.",
+    ),
+    (
+        "Milestone reached",
+        "{percent}% down — that's real progress. Keep showing up.",
+    ),
+    (
+        "{percent}% — nice!",
+        "Another checkpoint in the bag. Future you is cheering.",
+    ),
+    (
+        "Progress check",
+        "You've hit {percent}% toward your target. Data wins again.",
+    ),
+    (
+        "Checkpoint earned",
+        "{percent}% of the way there. The streak's working — log the next one.",
+    ),
+    (
+        "Level up!",
+        "{percent}% reached. Small steps, big chart. Onward.",
+    ),
+)
+
 SCHEDULER_INTERVAL_SECONDS = 60
 
 # ---- authentication (user-accounts-auth) ----
