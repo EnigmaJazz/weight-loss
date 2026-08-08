@@ -392,10 +392,57 @@ button.link:hover { color: var(--accent); background: none; }
   .streak-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* streak flame: placement styling only — the active pulse keyframe is Phase 3 */
+/* streak flame: placement styling plus the active pulse — the pulse is gated
+ * to tiles whose streak is active via the data attribute renderStreaks sets
+ * (spec 'Motion system'); reduced-motion users get it killed in the gate
+ * block below. */
 .flame {
   font-size: 1.15rem;
   line-height: 1;
+}
+
+/* active-streak pulse: gentle scale + glow, ~2s ease-in-out infinite */
+@keyframes flame-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+[data-streak-active="true"] .flame {
+  display: inline-block;
+  animation: flame-pulse 2s ease-in-out infinite;
+  text-shadow: 0 0 6px color-mix(in srgb, var(--fox) 55%, transparent);
+}
+
+/* confetti burst (design §Confetti): each piece falls from the top of the
+ * viewport using its randomized inline vars (--x drift, --rot rotation,
+ * --delay stagger, --color token fill). position:fixed keeps the burst in
+ * the viewport; pieces remove themselves on animationend (app.js). */
+.confetti-piece {
+  position: fixed;
+  top: -1.5rem;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--color);
+  pointer-events: none;
+  animation: confetti-fall 1.8s ease-in forwards;
+  animation-delay: var(--delay);
+}
+
+@keyframes confetti-fall {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--x), 110vh) rotate(var(--rot));
+    opacity: 0;
+  }
 }
 
 /* mobile-primary: tiles collapse to a single stacked column on narrow screens */
@@ -576,5 +623,13 @@ a:focus-visible,
   .toast,
   .wizard-indicator li {
     transition: none !important;
+  }
+  /* motion-gate additions (Phase 3): confetti never spawns visibly and the
+   * streak flame pulse is killed for reduced-motion users. */
+  .confetti-piece {
+    display: none !important;
+  }
+  [data-streak-active="true"] .flame {
+    animation: none !important;
   }
 }
