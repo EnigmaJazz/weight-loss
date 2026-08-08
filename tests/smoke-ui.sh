@@ -303,14 +303,29 @@ echo "-- rewards / capture"
 # Checkpoints live on the Today tab; switch back before asserting.
 playwright-cli click "[data-tab=today]" >/dev/null 2>&1
 assert_find "checkpoints section visible" "Checkpoints"
-# goals-dashboard S3: the milestone track must render exactly five cards
-# (10/25/50/75/100). Selector-only, no text pins.
-MILESTONE_COUNT="$(playwright-cli --raw eval "document.querySelectorAll('.milestone-card').length" 2>&1 | tr -d '"')"
-if [ "$MILESTONE_COUNT" = "5" ]; then
-  step_ok "milestone track renders 5 cards ($MILESTONE_COUNT)"
+# milestone strip (UI refinement): achieved milestones render as one-line dots;
+# pending ones are hidden; the next milestone is text-only. At this point the
+# smoke account (wizard 88.8 kg + 12 st 4 lb yesterday) has 0 earned checkpoints
+# (current 88.8 > baseline 78.0), so the EMPTY state shows only the .milestone-next
+# line — no dots, no strip container. Text pin: prefix match, never the exact
+# parenthetical (display-unit dependent).
+MILESTONE_DOTS="$(playwright-cli --raw eval "document.querySelectorAll('.milestone-dot').length" 2>&1 | tr -d '"')"
+if [ "$MILESTONE_DOTS" = "0" ]; then
+  step_ok "milestone strip empty state: no earned dots ($MILESTONE_DOTS)"
 else
-  step_fail "milestone track renders 5 cards (count='$MILESTONE_COUNT')"
+  step_fail "milestone strip empty state: no earned dots (count='$MILESTONE_DOTS')"
 fi
+MILESTONE_STRIP_PRESENT="$(playwright-cli --raw eval "!!document.querySelector('#milestone-strip')" 2>&1 | tr -d '"')"
+if [ "$MILESTONE_STRIP_PRESENT" = "false" ]; then
+  step_ok "milestone strip container absent in empty state"
+else
+  step_fail "milestone strip container absent in empty state (got '$MILESTONE_STRIP_PRESENT')"
+fi
+MILESTONE_NEXT="$(playwright-cli --raw eval "document.querySelector('.milestone-next')?.textContent.trim()" 2>&1 | tr -d '"')"
+case "$MILESTONE_NEXT" in
+  "Next: 10%"*) step_ok "milestone-next names the next checkpoint ($MILESTONE_NEXT)" ;;
+  *) step_fail "milestone-next names the next checkpoint (got '$MILESTONE_NEXT')" ;;
+esac
 playwright-cli screenshot --filename="smoke-ui.png" >/dev/null 2>&1
 [ -f smoke-ui.png ] && step_ok "screenshot saved (smoke-ui.png)" || step_fail "screenshot saved"
 

@@ -760,77 +760,100 @@ async def test_style_css_ships_goal_ring_and_streak_rules(client):
     )
 
 
-# ---- goals-dashboard S3 gate additions (PR 3): milestone track grid + gold fill ----
-# The grid test asserts the DELIVERED app.js ships the 5-card milestone grid: the
-# grid/state-class construction strings, the checkpointThresholds/kgToImperial
-# destructure (S1 helpers now consumed by the grid), the per-card data-percent
-# hook, and the pinned per-percent emoji set (design §Milestone card structure;
-# spec 'Five-Card Milestone Track'). The gold test pins the 100%-card fill-only
-# rule: gold styles the background via the gradient, never a text color property
-# (spec '100% gold is fill-only').
+# ---- milestone strip gate additions (UI refinement): achieved-dot strip + next line ----
+# The strip test asserts the DELIVERED app.js ships the one-line achieved-milestone
+# strip: milestone-strip/milestone-dot/is-last-achieved/milestone-next construction
+# strings, the checkpointThresholds/kgToImperial/milestoneNextLabel destructure, the
+# per-dot data-percent hook, and NO remnants of the old five-card grid (milestone-card
+# / milestone-grid / is-pending gone). The next-line test pins the pure
+# milestoneNextLabel builder on the format.js api export. The gold test pins the
+# last-achieved dot ring: gold styles the border/box-shadow/background only, never a
+# text color property (spec '100% gold is fill-only').
 
 
 @pytest.mark.asyncio
-async def test_app_js_ships_milestone_grid(client):
-    """app.js must build the five-card milestone grid: destructure
-    checkpointThresholds + kgToImperial from WeightFormat, emit .milestone-grid
-    with 5 .milestone-card carrying data-percent, and apply the state classes
-    is-earned/is-pending/is-next/is-recently-earned/is-100 with the pinned
-    per-percent emoji set (design §Milestone card structure; spec 'Five-Card
-    Milestone Track')."""
+async def test_app_js_ships_milestone_strip(client):
+    """app.js must build the achieved-milestone strip: destructure
+    checkpointThresholds + kgToImperial + milestoneNextLabel from WeightFormat,
+    emit .milestone-strip with a .milestone-dot (data-percent) per ACHIEVED
+    checkpoint, mark the max-percent dot .is-last-achieved, and render the
+    text-only .milestone-next line; the old five-card grid classes must be
+    gone (design §Milestone strip; spec 'Five-Card Milestone Track')."""
     resp = await client.get("/static/app.js")
     assert resp.status_code == 200
     body = resp.text
-    # Grid + card construction strings.
-    assert '"milestone-grid"' in body, (
-        "app.js must build a .milestone-grid container"
+    # Strip + dot + next-line construction strings.
+    assert '"milestone-strip"' in body, (
+        "app.js must build a .milestone-strip container"
     )
-    assert '"milestone-card"' in body, (
-        "app.js must emit .milestone-card elements"
+    assert '"milestone-dot"' in body, (
+        "app.js must emit .milestone-dot elements"
+    )
+    assert '"is-last-achieved"' in body, (
+        "app.js must mark the max-percent dot .is-last-achieved"
+    )
+    assert '"milestone-next"' in body, (
+        "app.js must render the .milestone-next text line"
     )
     assert "data-percent" in body, (
-        "each milestone card must carry data-percent"
+        "each milestone dot must carry data-percent"
     )
-    # checkpointThresholds + kgToImperial must be destructured from the S1 api.
-    assert re.search(
-        r"\{[^}]*checkpointThresholds[^}]*\}\s*=\s*globalThis\.WeightFormat", body
-    ) is not None, "app.js must destructure checkpointThresholds from WeightFormat"
-    assert re.search(
-        r"\{[^}]*kgToImperial[^}]*\}\s*=\s*globalThis\.WeightFormat", body
-    ) is not None, "app.js must destructure kgToImperial from WeightFormat"
-    # The five state classes (design §Milestone card structure).
-    for state_class in (
-        "is-earned",
-        "is-pending",
-        "is-next",
-        "is-recently-earned",
-        "is-100",
-    ):
-        assert state_class in body, f"app.js must apply the {state_class} state class"
+    # The strip helpers must be destructured from the format.js api.
+    for helper in ("checkpointThresholds", "kgToImperial", "milestoneNextLabel"):
+        assert re.search(
+            rf"\{{[^}}]*{helper}[^}}]*\}}\s*=\s*globalThis\.WeightFormat", body
+        ) is not None, f"app.js must destructure {helper} from WeightFormat"
+    # All-earned copy ships (next_checkpoint null with a goal set).
+    assert "All checkpoints earned!" in body
+    # The old five-card grid is gone from app.js (pending dots are not in the DOM).
+    assert '"milestone-card"' not in body, (
+        "the old .milestone-card grid must be removed from app.js"
+    )
+    assert '"milestone-grid"' not in body, (
+        "the old .milestone-grid container must be removed from app.js"
+    )
+    assert "is-pending" not in body, (
+        "pending-milestone classes must be gone (pending dots are not rendered)"
+    )
     # Pinned per-percent emoji set (design: 🚶🏃🔥🏆🎯 for 10/25/50/75/100).
     for emoji in ("🚶", "🏃", "🔥", "🏆", "🎯"):
         assert emoji in body, f"app.js must map an emoji per milestone percent ({emoji})"
 
 
 @pytest.mark.asyncio
+async def test_format_js_ships_milestone_next_builder(client):
+    """format.js must ship milestoneNextLabel — the pure builder for the
+    strip's next-milestone text line ('Next: {percent}% at ...'), registered on
+    the WeightFormat api export (spec 'Five-Card Milestone Track')."""
+    resp = await client.get("/static/format.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "function milestoneNextLabel" in body, (
+        "format.js must define milestoneNextLabel()"
+    )
+    assert re.search(r"kgToImperial,\s*milestoneNextLabel", body) is not None, (
+        "milestoneNextLabel must be registered on the api export"
+    )
+
+
+@pytest.mark.asyncio
 async def test_style_css_gold_is_fill_only(client):
-    """The 100% earned card must use gold as a fill only: background
-    linear-gradient(var(--gold), var(--gold-deep)) with text staying on the
-    text tokens, and gold must never be applied to any text color property
+    """Gold must style the last-achieved dot as a ring/fill only: border-color
+    and box-shadow from var(--gold)/color-mix, never any text color property
     anywhere in the sheet (spec '100% gold is fill-only')."""
     resp = await client.get("/static/style.css")
     assert resp.status_code == 200
     css = resp.text
-    rule = re.search(r"\.is-100\.is-earned\s*\{([^}]*)\}", css)
-    assert rule is not None, "style.css must declare a .is-100.is-earned rule"
-    body = rule.group(1)
-    # Gold styles the fill via the gradient (design §100% gold).
-    assert "linear-gradient(var(--gold), var(--gold-deep))" in body, (
-        "the 100% card must fill from the gold gradient"
+    rule = re.search(r"\.milestone-dot\.is-last-achieved\s*\{([^}]*)\}", css)
+    assert rule is not None, (
+        "style.css must declare a .milestone-dot.is-last-achieved rule"
     )
-    # The card's text must NOT be gold (stays on --text/--accent-dark).
-    assert "var(--gold" not in re.sub(r"background[^;]*;", "", body), (
-        "the 100% card must not apply gold to its text color"
+    body = rule.group(1)
+    # Gold rings the dot (border/box-shadow/background) — fill-only by design.
+    assert "var(--gold" in body, "the last-achieved dot must carry a gold ring"
+    stripped = re.sub(r"(?:background|border-color|box-shadow)[^;]*;", "", body)
+    assert "var(--gold" not in stripped, (
+        "the last-achieved dot must not apply gold to its text color"
     )
     # Gold must never be a text color anywhere in the sheet (fill-only).
     assert re.search(r"(?<!-)color\s*:\s*var\(--gold", css) is None, (

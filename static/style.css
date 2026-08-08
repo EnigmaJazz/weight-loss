@@ -573,69 +573,68 @@ button.link:hover { color: var(--accent); background: none; }
 
 .progress-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.5rem; }
 
-/* milestone track (goals-dashboard S3): five stateful cards replace the
- * checkpoint chips; tokens only, no palette hex (spec 'Five-Card Milestone
- * Track', design §Milestone card structure). */
-.milestone-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: 0.5rem;
+/* achieved-milestone strip (UI refinement of the five-card grid): compact
+ * round dots, one per earned checkpoint, on ONE line; the last achieved dot
+ * is scaled up with a gold ring; pending milestones are not rendered; the
+ * next milestone is a text-only line. Tokens only, no palette hex (spec
+ * 'Five-Card Milestone Track', design §Milestone card structure). */
+.milestone-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
   margin: 0.75rem 0 0;
 }
 
-.milestone-card {
+.milestone-dot {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.6rem 0.7rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  font-size: 0.85rem;
+  font-size: 1.15rem;
+  line-height: 1;
 }
+.milestone-dot-emoji { line-height: 1; }
+.milestone-dot-pct { font-size: 0.55rem; font-weight: 700; color: var(--accent-dark); line-height: 1; }
 
-.milestone-emoji { font-size: 1.3rem; line-height: 1; }
-.milestone-pct { font-weight: 700; color: var(--text); }
-.milestone-threshold { color: var(--muted); }
-.milestone-when { font-size: 0.78rem; color: var(--muted); }
-
-.milestone-card.is-pending {
-  background: color-mix(in srgb, var(--card) 90%, var(--border));
-  color: var(--muted);
-}
-
-.milestone-card.is-earned {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, var(--card));
-}
-.milestone-card.is-earned .milestone-pct { color: var(--accent-dark); }
-
-/* the next checkpoint card: accent ring highlight */
-.milestone-card.is-next {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-/* newest-earned highlight: subtle accent pulse (the reduced-motion block
- * kills the animation) */
-@keyframes milestone-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
-  }
-}
-.milestone-card.is-recently-earned {
+/* the last achieved milestone: scaled up ~1.4x with a gold ring — gold stays
+ * a fill/border, never a text color (spec '100% gold is fill-only') — plus
+ * the newest-earned pulse (the reduced-motion block kills the animation). */
+.milestone-dot.is-last-achieved {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.6rem;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 45%, transparent);
+  background: color-mix(in srgb, var(--gold) 12%, var(--card));
   animation: milestone-pulse 1.6s ease-in-out 2;
 }
 
-/* 100% earned: gold as a fill only — text stays on the text tokens (spec
- * '100% gold is fill-only', design §100% gold). */
-.milestone-card.is-100.is-earned {
-  background: linear-gradient(var(--gold), var(--gold-deep));
-  color: var(--text);
+/* next milestone: text info only, no icon */
+.milestone-next {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+/* newest-earned highlight: subtle gold pulse around the last-achieved dot
+ * (the reduced-motion block kills the animation) */
+@keyframes milestone-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--gold) 30%, transparent);
+  }
 }
 
 /* toast */
@@ -731,7 +730,7 @@ a:focus-visible,
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .milestone-card.is-recently-earned {
+  .milestone-dot.is-last-achieved {
     animation: none !important;
   }
   .progress-fill,
