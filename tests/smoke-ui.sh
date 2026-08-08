@@ -115,8 +115,32 @@ playwright-cli fill "#auth-password" "$TEST_PASSWORD" >/dev/null 2>&1
 playwright-cli click "#auth-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
-assert_visibility "tracker visible after signup" "#tracker" "visible"
+# A fresh account has no onboarding_complete row, so the SPA must land in the
+# wizard (the gate test pins this branch), NOT the tracker.
+assert_visibility "wizard visible after signup" "#onboarding-screen" "visible"
+assert_visibility "tracker hidden while wizard shows" "#tracker" "hidden"
 assert_visibility "auth screen hidden after signup" "#auth-screen" "hidden"
+assert_find "wizard heading visible" "set up your tracker"
+
+# ---- 2.5 complete the onboarding wizard -------------------------------------
+
+echo "-- onboarding wizard"
+# step 1: height (cm default) -> step 2: current weight -> step 3: target
+# (weight mode default) -> step 4: units (defaults) -> step 5: notifications
+# (defaults) -> finish. The wizard's weight entry is today's first entry, so
+# section 3's identical kg entry becomes an idempotent upsert.
+playwright-cli fill "#ob-height-cm" "175" >/dev/null 2>&1
+playwright-cli click "#wizard-step-height [data-action=next]" >/dev/null 2>&1
+playwright-cli fill "#ob-weight-kg" "$TEST_WEIGHT" >/dev/null 2>&1
+playwright-cli click "#wizard-step-weight [data-action=next]" >/dev/null 2>&1
+playwright-cli fill "#ob-target-weight" "70" >/dev/null 2>&1
+playwright-cli click "#wizard-step-target [data-action=next]" >/dev/null 2>&1
+playwright-cli click "#wizard-step-units [data-action=next]" >/dev/null 2>&1
+playwright-cli click "#wizard-step-notifications [data-action=finish]" >/dev/null 2>&1
+sleep 1
+
+assert_visibility "tracker visible after wizard" "#tracker" "visible"
+assert_visibility "wizard hidden after completion" "#onboarding-screen" "hidden"
 assert_find "summary section visible" "Summary"
 assert_find "log-weight form visible" "Log weight"
 assert_find "logout button visible" "Log out"
