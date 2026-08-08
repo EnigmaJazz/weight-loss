@@ -418,3 +418,102 @@ async def test_app_js_ships_confetti_wiring(client):
     assert "shouldCelebrate(" in body
     assert "let prevEarned = null" in body
     assert 'matchMedia("(prefers-reduced-motion: reduce)")' in body
+
+
+# ---- dark-mode S1: [data-theme="dark"] block + toast tokens ----------------
+# The dark block MUST use the bare-stripped `[data-theme="dark"]` selector
+# (design D1) so the gate `_root_block` regex `:root\s*\{` can never collide
+# with it; the pinned token values come from design §CSS. `--accent` must NOT
+# be redeclared in the dark block (palette lockstep stays #2f7d54 in :root).
+
+_DARK_TOKENS = {
+    "--bg": "#0f172a",
+    "--card": "#1e293b",
+    "--text": "#e2e8f0",
+    "--muted": "#94a3b8",
+    "--border": "#334155",
+    "--accent-dark": "#58a97e",
+    "--danger": "#f06a5d",
+    "--fox": "#f5a850",
+    "--gold": "#fbd34a",
+    "--gold-deep": "#e0b020",
+    "--toast-bg": "#1e293b",
+    "--toast-text": "#e2e8f0",
+}
+
+
+@pytest.mark.asyncio
+async def test_style_css_ships_dark_theme_block_with_pinned_tokens(client):
+    """The served stylesheet must declare a [data-theme="dark"] block after
+    :root redefining the semantic tokens to the pinned dark values, and must
+    NOT redeclare --accent (design §CSS, spec 'Dark token block')."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    match = re.search(r'\[data-theme="dark"\]\s*\{([^}]*)\}', css)
+    assert match is not None, (
+        'style.css must declare a [data-theme="dark"] block'
+    )
+    block = match.group(1)
+    for token, value in _DARK_TOKENS.items():
+        assert re.search(rf"{token}\s*:\s*{re.escape(value)}", block) is not None, (
+            f"dark block must declare {token}: {value}"
+        )
+    # --accent stays the brand anchor in :root; never redeclared in dark.
+    assert re.search(r"--accent\s*:", block) is None, (
+        "--accent must not be redeclared in the dark block"
+    )
+
+
+@pytest.mark.asyncio
+async def test_style_css_has_exactly_one_bare_root_selector(client):
+    """The dark block MUST use [data-theme="dark"], never a bare `:root {`
+    (gate `_root_block` regex collision guard, design D1): the stylesheet may
+    contain exactly one `:root\\s*\\{` selector — the real :root block."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    assert len(re.findall(r":root\s*\{", css)) == 1, (
+        "exactly one bare :root { selector allowed; dark block must use "
+        '[data-theme="dark"]'
+    )
+
+
+@pytest.mark.asyncio
+async def test_index_html_has_no_media_variant_theme_color_meta(client):
+    """No `<meta name="theme-color" media=...>` variant may exist — palette
+    lockstep requires name immediately followed by content (spec 'Accent
+    constant across themes')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    for meta in re.findall(r"<meta[^>]*>", html):
+        if 'name="theme-color"' in meta:
+            assert "media=" not in meta, (
+                "theme-color meta must not carry a media variant"
+            )
+
+
+@pytest.mark.asyncio
+async def test_style_css_toast_tokens_declared_in_root_and_consumed(client):
+    """Toast colors must be tokenized: --toast-bg/--toast-text declared in
+    :root and consumed by .toast, with no hardcoded rgba background left in
+    the rule (spec 'Toast tokenized')."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    root = _root_block(css)
+    assert re.search(r"--toast-bg\s*:", root) is not None, (
+        ":root must declare --toast-bg"
+    )
+    assert re.search(r"--toast-text\s*:", root) is not None, (
+        ":root must declare --toast-text"
+    )
+    toast = re.search(r"\.toast\s*\{([^}]*)\}", css)
+    assert toast is not None, "style.css must declare a .toast rule"
+    toast_body = toast.group(1)
+    assert "var(--toast-bg)" in toast_body, ".toast must consume --toast-bg"
+    assert "var(--toast-text)" in toast_body, ".toast must consume --toast-text"
+    assert "rgba(15,23,42" not in toast_body, (
+        ".toast must not hardcode the rgba background"
+    )
