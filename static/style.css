@@ -315,6 +315,58 @@ button.link:hover { color: var(--accent); background: none; }
 }
 .stat-sub { font-size: 0.78rem; color: var(--muted); }
 
+/* goal progress ring (design §Ring SVG math; spec 'Goal Progress Ring'):
+ * hero SVG inside #summary-card. Token-only strokes — the track paints
+ * var(--border), the progress arc paints url(#goalGrad) whose stops are
+ * styled from tokens below (never chart hex). The stroke-dashoffset
+ * transition is neutralized for reduced-motion users in the gate block. */
+.goal-ring {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto var(--space-3);
+}
+.goal-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.goal-ring-track {
+  stroke: var(--border);
+  stroke-width: 10;
+}
+.goal-ring-progress {
+  stroke-width: 10;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 0.5s ease;
+}
+#goalGrad stop:first-child { stop-color: var(--fox); }
+#goalGrad stop:last-child { stop-color: var(--accent); }
+.goal-ring-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  text-align: center;
+  pointer-events: none;
+}
+.goal-ring-pct {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--accent-dark);
+}
+.goal-ring-remaining {
+  font-size: 0.72rem;
+  color: var(--muted);
+  max-width: 9.5rem;
+  line-height: 1.25;
+}
+
 /* history */
 
 .entry-list { list-style: none; margin: 0; padding: 0; }
@@ -425,6 +477,17 @@ button.link:hover { color: var(--accent); background: none; }
 .flame {
   font-size: 1.15rem;
   line-height: 1;
+}
+
+/* streak tile upgrade (design §Streak tile upgrade; spec 'Motivation
+ * surfaces'): larger flame + count on the upgraded tiles. .flame and
+ * dataset.streakActive stay exactly as pinned; renderStreaks tags each tile
+ * with .streak-tile so the sizing stays off the shared .stat-value rule. */
+.streak-tile .flame {
+  font-size: 1.7rem;
+}
+.streak-tile .stat-value {
+  font-size: 1.3rem;
 }
 
 /* active-streak pulse: gentle scale + glow, ~2s ease-in-out infinite */
@@ -647,7 +710,8 @@ a:focus-visible,
   }
   .progress-fill,
   .toast,
-  .wizard-indicator li {
+  .wizard-indicator li,
+  .goal-ring-progress {
     transition: none !important;
   }
   /* motion-gate additions (Phase 3): confetti never spawns visibly and the
