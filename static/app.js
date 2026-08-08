@@ -35,8 +35,14 @@ function bmiLabel(bmi) {
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.hidden = false;
+  // Class-swap reveal: paint the base state first so the .is-visible
+  // opacity/transform transition actually animates (no @starting-style).
+  requestAnimationFrame(() => toastEl.classList.add("is-visible"));
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => (toastEl.hidden = true), 3000);
+  toast._t = setTimeout(() => {
+    toastEl.classList.remove("is-visible");
+    toastEl.hidden = true;
+  }, 3000);
 }
 
 async function fetchJson(url, options) {
@@ -241,6 +247,14 @@ function showOnboarding() {
 function showWizardStep(step) {
   for (const el of document.querySelectorAll(".wizard-step")) {
     el.hidden = el.dataset.step !== step;
+  }
+  // Sync the dot indicator: the active dot gets .is-current + aria-current
+  // (dots are non-text, so the state must be exposed to assistive tech).
+  for (const dot of document.querySelectorAll(".wizard-indicator li")) {
+    const active = dot.dataset.step === step;
+    dot.classList.toggle("is-current", active);
+    if (active) dot.setAttribute("aria-current", "step");
+    else dot.removeAttribute("aria-current");
   }
   if (step === "target") updateWizardRangeHint();
 }
@@ -1010,6 +1024,12 @@ function renderStreaks(s) {
   for (const [key, label, unit] of STREAK_TILES) {
     const tile = document.createElement("div");
     tile.className = "stat";
+    // Active-streak data attribute gates the flame pulse (Phase 3); the
+    // flame itself renders for every tile, styled by .flame.
+    tile.dataset.streakActive = String(s[key] > 0);
+    const flame = document.createElement("span");
+    flame.className = "flame";
+    flame.textContent = "🔥";
     const value = document.createElement("div");
     value.className = "stat-value";
     value.textContent = String(s[key]);
@@ -1019,7 +1039,7 @@ function renderStreaks(s) {
     const name = document.createElement("div");
     name.className = "stat-label";
     name.textContent = label;
-    tile.append(value, unitEl, name);
+    tile.append(flame, value, unitEl, name);
     grid.append(tile);
   }
 }
