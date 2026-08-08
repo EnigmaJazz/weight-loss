@@ -250,6 +250,43 @@ else
   step_fail "meals chart draws on progress tab (clientWidth=$MEALS_CHART_W)"
 fi
 
+# ---- 5.75 theme toggle + Appearance radio (selector-only, no text pins) ----
+
+echo "-- theme toggle"
+# The header toggle is always visible (design D3). The theme pref defaults to
+# "system", which in the headless browser resolves to light — so first pin the
+# pref to Light via the Settings Appearance radio (deterministic), then the
+# toggle cycle system->light->dark->system gives exactly: dark, then back to
+# the system-resolved theme. All assertions are selector-only.
+playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+sleep 1
+RADIO_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+if [ "$RADIO_THEME" = "light" ]; then
+  step_ok "Appearance radio (light) applies data-theme=light"
+else
+  step_fail "Appearance radio (light) applies data-theme=light (got '$RADIO_THEME')"
+fi
+playwright-cli click "#theme-toggle" >/dev/null 2>&1
+sleep 1
+TOGGLE_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+if [ "$TOGGLE_THEME" = "dark" ]; then
+  step_ok "theme toggle flips data-theme to dark"
+else
+  step_fail "theme toggle flips data-theme to dark (got '$TOGGLE_THEME')"
+fi
+# Second click: dark -> system, which must resolve to the OS scheme the
+# browser reports (live system-follow without reload, design D5).
+playwright-cli click "#theme-toggle" >/dev/null 2>&1
+sleep 1
+SYSTEM_RESOLVED="$(playwright-cli --raw eval "matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'" 2>&1 | tr -d '"')"
+TOGGLE_BACK="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+if [ "$TOGGLE_BACK" = "$SYSTEM_RESOLVED" ]; then
+  step_ok "theme toggle returns to system-resolved theme ($SYSTEM_RESOLVED)"
+else
+  step_fail "theme toggle returns to system-resolved theme (got '$TOGGLE_BACK', system '$SYSTEM_RESOLVED')"
+fi
+
 # ---- 6. rewards + screenshot -----------------------------------------------
 
 echo "-- rewards / capture"

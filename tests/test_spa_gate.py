@@ -517,3 +517,105 @@ async def test_style_css_toast_tokens_declared_in_root_and_consumed(client):
     assert "rgba(15,23,42" not in toast_body, (
         ".toast must not hardcode the rgba background"
     )
+
+
+# ---- dark-mode S2: JS theming lifecycle + UX surfaces ----------------------
+# Phase 4 gate additions (dark-mode PR 2): app.js must ship the JS theme
+# lifecycle hooks (applyTheme / refreshChartColors / resolveTheme / the
+# prefers-color-scheme matchMedia listener) and index.html the UX surfaces
+# (FOUC-safe head script, #theme-toggle, Appearance radio group).
+
+
+@pytest.mark.asyncio
+async def test_app_js_ships_theme_lifecycle_hooks(client):
+    """app.js must define applyTheme + refreshChartColors, consume
+    resolveTheme from format.js, and register a prefers-color-scheme
+    matchMedia listener (design D5: system-follow without reload)."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "function applyTheme" in body, "app.js must define applyTheme()"
+    assert "function refreshChartColors" in body, (
+        "app.js must define refreshChartColors()"
+    )
+    assert "resolveTheme(" in body, "app.js must consume resolveTheme"
+    assert 'matchMedia("(prefers-color-scheme: dark)")' in body, (
+        "app.js must read the system color scheme via matchMedia"
+    )
+    assert "addEventListener" in body and "removeEventListener" in body, (
+        "app.js must add/remove the matchMedia change listener"
+    )
+    # The system-follow listener must be gated to "system" mode (D5): the
+    # add/remove branch keys off the theme preference value.
+    assert re.search(r'=== "system"', body) is not None, (
+        "app.js must branch on the \"system\" pref for the listener"
+    )
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_fouc_head_script(client):
+    """index.html must carry a FOUC-safe inline <head> script that sets
+    data-theme pre-paint: localStorage first, matchMedia fallback, no
+    media-variant meta (design §JS Theming Lifecycle, spec 'FOUC-Safe
+    Pre-Auth Theming')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    head = html[html.index("<head>") : html.index("</head>")]
+    assert "localStorage.getItem(\"theme\")" in head, (
+        "FOUC script must read the persisted theme from localStorage"
+    )
+    assert 'matchMedia("(prefers-color-scheme: dark)")' in head, (
+        "FOUC script must fall back to the system color scheme"
+    )
+    assert "documentElement.dataset.theme" in head, (
+        "FOUC script must set data-theme on <html> before paint"
+    )
+    assert "<script>" in head, "FOUC bootstrap must be a <script>, not a meta"
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_theme_toggle_beside_logout(client):
+    """The header must ship #theme-toggle (always visible, beside
+    #logout-btn) with an aria-label (design D3: visible pre-auth; D4:
+    grouped with logout at flex-end)."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    header_row = html[html.index('<div class="header-row">') : html.index("</header>")]
+    assert 'id="theme-toggle"' in header_row
+    assert "aria-label=" in header_row, "theme toggle must carry an aria-label"
+    toggle_at = header_row.index('id="theme-toggle"')
+    logout_at = header_row.index('id="logout-btn"')
+    assert toggle_at < logout_at, "theme-toggle must sit before #logout-btn"
+    # D3: the toggle is always visible — no hidden attribute (unlike logout).
+    assert "hidden" not in header_row[header_row.index('id="theme-toggle"') : logout_at], (
+        "theme toggle must be visible pre-auth (no hidden attribute)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_appearance_radio_group(client):
+    """The Settings tab must ship the three-state Appearance radio group
+    (name="appearance": system/light/dark) that drives the same theme
+    setting as the header toggle (spec 'Theme UX Surfaces')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    # Slice the whole Settings panel: from the tab-panel open tag up to the
+    # last card in it (push-card), so every Settings card is included.
+    settings = html[html.index('id="tab-settings"') : html.index('id="push-card"')]
+    assert 'name="appearance"' in settings
+    for value in ("system", "light", "dark"):
+        assert f'name="appearance" value="{value}"' in settings, (
+            f"Appearance radio group must ship value {value!r}"
+        )
+    # The radio group must live in a card after the Units & display card
+    # (design §JS Theming Lifecycle: Appearance card after weight-display).
+    assert 'id="tab-settings"' in html
+    assert "Appearance" in settings, "the Appearance card must ship in Settings"
+    assert 'name="weight-display"' in settings, "weight-display group must still ship"
+    assert settings.index('name="weight-display"') < settings.index('name="appearance"'), (
+        "Appearance card must come after the Units & display card"
+    )
+
