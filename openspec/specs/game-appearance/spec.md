@@ -105,3 +105,14 @@ Every new CSS, JS, and font asset MUST be registered in `main.py` `_CSS_HREFS` /
 - GIVEN the full change applied
 - WHEN pytest, `node:test`, and `smoke-ui.sh` run
 - THEN previously-green tests MUST still pass and the new gate assertions MUST pass
+
+
+## Extended by dark-mode (2026-08-08)
+
+### ADDED Requirement: Dark Chart Color Refresh
+
+`static/app.js` MUST keep the `CHART_COLORS` identifier and add a `refreshChartColors()` that re-reads the semantic tokens via `getComputedStyle` into the same mutable object. Chart colors MUST be token-sourced — `app.js` MUST NOT contain hex literals for chart colors. On a theme change, the theme hook MUST call `refreshChartColors()` and redraw any visible chart. `CHART_FONT` MUST remain unchanged.
+
+### MODIFIED Requirement: Design Tokens and Palette Lockstep
+
+A `[data-theme="dark"]` block after `:root` MUST redefine the semantic tokens (--bg #0f172a, --card #1e293b, --text #e2e8f0, --muted #94a3b8, --border #334155) and lighten --accent-dark (≈#58a97e) and --danger, plus adjust --fox, --gold, and --gold-deep for dark surfaces. --accent MUST stay #2f7d54 in both themes. The dark block MUST NOT use a bare `:root {` selector and MUST NOT introduce a media-variant theme-color meta. Toast colors MUST be tokenized as --toast-bg / --toast-text.

@@ -147,3 +147,10 @@ When a pre-auth database is migrated, all legacy rows MUST be discarded — no a
 
 - Automated tests MUST cover upsert, delete, conversions, configured-height BMI, and no-height BMI.
 - The API and UI MUST present canonical kg plus derived lb, stone, and BMI consistently.
+
+
+## Extended by dark-mode (2026-08-08)
+
+### ADDED Requirement: Theme Preference Key
+
+The settings contract MUST support a per-user `theme` key with values "system" (default), "light", or "dark"; any other value MUST be rejected with 422. The key MUST round-trip through PUT/GET /api/settings, default to "system" when the row is absent, be per-user isolated, and MUST NOT be accepted by the onboarding payload.
