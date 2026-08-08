@@ -56,6 +56,135 @@
         </form>
       </section>
 
+      <section class="card" id="onboarding-screen" hidden>
+        <h2>Welcome — set up your tracker</h2>
+        <p class="hint">A few quick details get your goals, reminders, and progress tracking ready.</p>
+        <form id="onboarding-form" autocomplete="off" novalidate>
+          <!-- step 1: height -->
+          <div class="wizard-step" id="wizard-step-height" data-step="height">
+            <h3>1. Your height</h3>
+            <fieldset class="unit-group">
+              <legend>Height unit</legend>
+              <label class="radio-option"><input type="radio" name="ob-height-unit" value="cm" checked> cm</label>
+              <label class="radio-option"><input type="radio" name="ob-height-unit" value="ft-in"> ft + in</label>
+            </fieldset>
+            <label for="ob-height-cm">Height (cm)</label>
+            <input type="number" id="ob-height-cm" step="any" min="50" max="250" placeholder="e.g. 175">
+            <div id="ob-height-ft-in" hidden>
+              <label for="ob-height-ft">Feet</label>
+              <input type="number" id="ob-height-ft" step="1" min="0" placeholder="e.g. 5">
+              <label for="ob-height-in">Inches</label>
+              <input type="number" id="ob-height-in" step="any" min="0" max="12" placeholder="e.g. 10">
+            </div>
+            <div class="wizard-step-buttons">
+              <button type="button" data-action="next" data-step="height">Continue</button>
+            </div>
+          </div>
+
+          <!-- step 2: current weight -->
+          <div class="wizard-step" id="wizard-step-weight" data-step="weight" hidden>
+            <h3>2. Your current weight</h3>
+            <fieldset class="unit-group">
+              <legend>Weight unit</legend>
+              <label class="radio-option"><input type="radio" name="ob-weight-unit" value="kg" checked> kg</label>
+              <label class="radio-option"><input type="radio" name="ob-weight-unit" value="st-lb"> st + lb</label>
+            </fieldset>
+            <label for="ob-weight-kg">Weight (kg)</label>
+            <input type="number" id="ob-weight-kg" step="any" min="1" max="700" placeholder="e.g. 82.5">
+            <div id="ob-weight-st-lb" hidden>
+              <label for="ob-weight-stone">Stone</label>
+              <input type="number" id="ob-weight-stone" step="1" min="0" placeholder="e.g. 13">
+              <label for="ob-weight-lb">Pounds</label>
+              <input type="number" id="ob-weight-lb" step="any" min="0" max="14" placeholder="e.g. 4">
+            </div>
+            <div class="wizard-step-buttons">
+              <button type="button" data-action="back" data-step="weight" class="secondary">Back</button>
+              <button type="button" data-action="next" data-step="weight">Continue</button>
+            </div>
+          </div>
+
+          <!-- step 3: target (weight or BMI mode) -->
+          <div class="wizard-step" id="wizard-step-target" data-step="target" hidden>
+            <h3>3. Your target</h3>
+            <fieldset class="unit-group">
+              <legend>Target mode</legend>
+              <label class="radio-option"><input type="radio" name="ob-target-mode" value="weight" checked> Target weight</label>
+              <label class="radio-option"><input type="radio" name="ob-target-mode" value="bmi"> Target BMI</label>
+            </fieldset>
+            <div id="ob-target-weight-fields">
+              <fieldset class="unit-group">
+                <legend>Target unit</legend>
+                <label class="radio-option"><input type="radio" name="ob-target-unit" value="kg" checked> kg</label>
+                <label class="radio-option"><input type="radio" name="ob-target-unit" value="st-lb"> st + lb</label>
+              </fieldset>
+              <label for="ob-target-weight">Target weight</label>
+              <input type="number" id="ob-target-weight" step="any" min="1" max="700" placeholder="e.g. 70.0">
+              <div id="ob-target-st-lb" hidden>
+                <label for="ob-target-stone">Stone</label>
+                <input type="number" id="ob-target-stone" step="1" min="0" placeholder="e.g. 11">
+                <label for="ob-target-lb">Pounds</label>
+                <input type="number" id="ob-target-lb" step="any" min="0" max="14" placeholder="e.g. 0">
+              </div>
+            </div>
+            <div id="ob-target-bmi-fields" hidden>
+              <label for="ob-target-bmi">Target BMI</label>
+              <input type="number" id="ob-target-bmi" step="any" min="10" max="40" placeholder="e.g. 22">
+              <p class="hint" id="ob-bmi-derived"></p>
+            </div>
+            <p class="hint" id="ob-range-hint" hidden></p>
+            <div class="wizard-step-buttons">
+              <button type="button" data-action="back" data-step="target" class="secondary">Back</button>
+              <button type="button" data-action="next" data-step="target">Continue</button>
+            </div>
+          </div>
+
+          <!-- step 4: units & display -->
+          <div class="wizard-step" id="wizard-step-units" data-step="units" hidden>
+            <h3>4. Units &amp; display</h3>
+            <fieldset class="unit-group" id="ob-weight-display-group">
+              <legend>Weight display — follow kg with</legend>
+              <label class="radio-option"><input type="radio" name="ob-weight-display" value="lb" checked> Total pounds (lb)</label>
+              <label class="radio-option"><input type="radio" name="ob-weight-display" value="st-lb"> Stones + pounds (st lb)</label>
+            </fieldset>
+            <fieldset class="unit-group">
+              <legend>Target unit</legend>
+              <label class="radio-option"><input type="radio" name="ob-target-unit" value="kg"> kg</label>
+              <label class="radio-option"><input type="radio" name="ob-target-unit" value="st-lb"> st + lb</label>
+            </fieldset>
+            <p class="hint">Unit and display choices save automatically with your setup.</p>
+            <div class="wizard-step-buttons">
+              <button type="button" data-action="back" data-step="units" class="secondary">Back</button>
+              <button type="button" data-action="next" data-step="units">Continue</button>
+            </div>
+          </div>
+
+          <!-- step 5: notifications (mandatory v1 — no skip button) -->
+          <div class="wizard-step" id="wizard-step-notifications" data-step="notifications" hidden>
+            <h3>5. Reminders</h3>
+            <label for="ob-tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
+            <input type="time" id="ob-tip-time">
+            <label for="ob-reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
+            <input type="time" id="ob-reminder-time">
+            <label for="ob-reminder-weekday">Weigh-in reminder day — weekly</label>
+            <select id="ob-reminder-weekday">
+              <option value="0">Monday</option>
+              <option value="1">Tuesday</option>
+              <option value="2">Wednesday</option>
+              <option value="3">Thursday</option>
+              <option value="4">Friday</option>
+              <option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+            </select>
+            <label for="ob-exercise-time">Exercise nudge time (HH:MM) — leave blank to disable</label>
+            <input type="time" id="ob-exercise-time">
+            <div class="wizard-step-buttons">
+              <button type="button" data-action="back" data-step="notifications" class="secondary">Back</button>
+              <button type="button" data-action="finish" data-step="notifications">Finish</button>
+            </div>
+          </div>
+        </form>
+      </section>
+
       <div id="tracker" hidden>
         <nav class="tabs" role="tablist">
           <button type="button" class="tab-btn active" data-tab="today" role="tab" aria-selected="true">Today</button>
@@ -208,6 +337,7 @@
               </div>
               <label for="start-override">Start weight override (kg)</label>
               <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
+              <p class="hint" id="goal-range-hint" hidden></p>
               <button type="submit">Save goal</button>
             </form>
           </section>

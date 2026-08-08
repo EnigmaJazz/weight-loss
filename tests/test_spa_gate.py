@@ -83,3 +83,79 @@ async def test_app_js_exercise_types_literal_matches_server_constant(client):
     match = re.search(r"EXERCISE_TYPES\s*=\s*(\[[^\]]*\])", resp.text)
     assert match is not None, "app.js must embed the EXERCISE_TYPES literal"
     assert ast.literal_eval(match.group(1)) == list(EXERCISE_TYPES)
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_onboarding_wizard_between_auth_and_tracker(client):
+    """The onboarding wizard ships in the delivered HTML, starts hidden, sits
+    between the auth gate and the tracker, and carries all five step blocks
+    plus the target mode toggle and schedule fields the wizard submits."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    auth_at = html.find('id="auth-screen"')
+    wizard_at = html.find('id="onboarding-screen"')
+    tracker_at = html.find('id="tracker"')
+    assert wizard_at != -1, "index.html must ship the onboarding screen"
+    assert auth_at != -1 and tracker_at != -1 and auth_at < wizard_at < tracker_at
+    assert 'id="onboarding-screen" hidden' in html
+    # All five wizard steps ship, in order: height -> weight -> target ->
+    # units -> notifications.
+    for step_id in (
+        "wizard-step-height",
+        "wizard-step-weight",
+        "wizard-step-target",
+        "wizard-step-units",
+        "wizard-step-notifications",
+    ):
+        assert f'id="{step_id}"' in html
+    assert (
+        html.find('id="wizard-step-height"')
+        < html.find('id="wizard-step-weight"')
+        < html.find('id="wizard-step-target"')
+        < html.find('id="wizard-step-units"')
+        < html.find('id="wizard-step-notifications"')
+    )
+    # Target step: weight/BMI mode toggle + healthy-range hint container.
+    assert 'name="ob-target-mode"' in html
+    assert 'value="bmi"' in html
+    assert 'id="ob-range-hint"' in html
+    # Units step: weight_display + target_unit preferences.
+    assert 'name="ob-weight-display"' in html
+    assert 'name="ob-target-unit"' in html
+    # Notifications step: schedule preferences (mandatory step, no skip button).
+    assert 'id="ob-tip-time"' in html
+    assert 'id="ob-reminder-time"' in html
+    assert 'id="ob-reminder-weekday"' in html
+    assert 'id="ob-exercise-time"' in html
+
+
+@pytest.mark.asyncio
+async def test_app_js_branches_on_needs_onboarding(client):
+    """The wizard gate is client-side: app.js must read needs_onboarding off
+    the /api/auth/me payload and show the wizard for flagged users without
+    loading tracker data. Regex drift-guard in the style of the EXERCISE_TYPES
+    literal test — behavior is exercised by tests/smoke-ui.sh."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "needs_onboarding" in body
+    assert re.search(r"me\??\.needs_onboarding", body) is not None, (
+        "app.js must branch on me().needs_onboarding"
+    )
+    assert "showOnboarding" in body, "app.js must define showOnboarding()"
+    assert "showTracker" in body
+    # The wizard submission posts the atomic OnboardingIn payload to the
+    # Phase-3 endpoint; submitOnboarding must be wired up.
+    assert '"/api/onboarding"' in body
+    assert "submitOnboarding" in body
+    # OnboardingIn keys the payload builder must produce.
+    for key in (
+        "height_cm",
+        "weight_kg",
+        "target_bmi",
+        "target_weight",
+        "weight_display",
+        "reminder_weekday",
+    ):
+        assert key in body
