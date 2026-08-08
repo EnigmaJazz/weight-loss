@@ -41,3 +41,52 @@ def weight_display(weight_kg: float, height_cm: Optional[float]) -> WeightDispla
         stone_lb=remaining,
         bmi=calculate_bmi(weight_kg, height_cm),
     )
+
+
+# ---- BMI target resolution (bmi-goal-setting) -----------------------------
+
+
+def weight_kg_from_bmi(
+    bmi: Optional[float], height_cm: Optional[float]
+) -> Optional[float]:
+    """Target kg for a BMI at a height: round(bmi*(h/100)**2, 1); None when
+    either input is unset."""
+    if bmi is None or height_cm is None:
+        return None
+    meters = height_cm / 100.0
+    return round(bmi * meters * meters, 1)
+
+
+def healthy_weight_range(
+    height_cm: Optional[float],
+) -> Optional[tuple[float, float]]:
+    """Healthy BMI band (18.5-24.9) expressed in kg; None when height is
+    unset."""
+    if height_cm is None:
+        return None
+    meters = height_cm / 100.0
+    return (
+        round(18.5 * meters * meters, 1),
+        round(24.9 * meters * meters, 1),
+    )
+
+
+def classify_bmi(bmi: float) -> str:
+    """BMI bucket: underweight (<18.5), healthy (18.5-24.9), overweight (>=25)."""
+    if bmi < 18.5:
+        return "underweight"
+    if bmi <= 24.9:
+        return "healthy"
+    return "overweight"
+
+
+def resolve_target_kg(
+    target_weight: Optional[float],
+    target_bmi: Optional[float],
+    height_cm: Optional[float],
+) -> Optional[float]:
+    """The active target kg shared by rewards and summary: target_weight wins;
+    otherwise the BMI-derived target (None when either BMI input is unset)."""
+    if target_weight is not None:
+        return target_weight
+    return weight_kg_from_bmi(target_bmi, height_cm)
