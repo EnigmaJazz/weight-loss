@@ -120,6 +120,7 @@ class WeightDisplay:
 @dataclass
 class AppSettings:
     target_weight: Optional[float] = None
+    target_bmi: Optional[float] = None  # BMI goal; resolved to kg on read
     tip_time: str = "09:00"
     reminder_time: str = "20:00"
     reminder_weekday: Optional[int] = 0  # Monday=0 ... Sunday=6
@@ -130,6 +131,7 @@ class AppSettings:
     height_unit: str = "cm"  # preferred input unit: "cm" | "ft-in"
     target_unit: str = "kg"  # preferred target input unit: "kg" | "st-lb"
     weight_display: str = "lb"  # display preference: "lb" | "st-lb"
+    onboarding_complete: bool = False  # wizard finished (flag lands Phase 3)
 
     def time_for(self, notif_type: str) -> str:
         """Scheduled "HH:MM" for a notification type ("" disables it)."""
