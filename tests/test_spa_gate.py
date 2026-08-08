@@ -759,3 +759,81 @@ async def test_style_css_ships_goal_ring_and_streak_rules(client):
         "streak tile value must size up to 1.3rem"
     )
 
+
+# ---- goals-dashboard S3 gate additions (PR 3): milestone track grid + gold fill ----
+# The grid test asserts the DELIVERED app.js ships the 5-card milestone grid: the
+# grid/state-class construction strings, the checkpointThresholds/kgToImperial
+# destructure (S1 helpers now consumed by the grid), the per-card data-percent
+# hook, and the pinned per-percent emoji set (design §Milestone card structure;
+# spec 'Five-Card Milestone Track'). The gold test pins the 100%-card fill-only
+# rule: gold styles the background via the gradient, never a text color property
+# (spec '100% gold is fill-only').
+
+
+@pytest.mark.asyncio
+async def test_app_js_ships_milestone_grid(client):
+    """app.js must build the five-card milestone grid: destructure
+    checkpointThresholds + kgToImperial from WeightFormat, emit .milestone-grid
+    with 5 .milestone-card carrying data-percent, and apply the state classes
+    is-earned/is-pending/is-next/is-recently-earned/is-100 with the pinned
+    per-percent emoji set (design §Milestone card structure; spec 'Five-Card
+    Milestone Track')."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    # Grid + card construction strings.
+    assert '"milestone-grid"' in body, (
+        "app.js must build a .milestone-grid container"
+    )
+    assert '"milestone-card"' in body, (
+        "app.js must emit .milestone-card elements"
+    )
+    assert "data-percent" in body, (
+        "each milestone card must carry data-percent"
+    )
+    # checkpointThresholds + kgToImperial must be destructured from the S1 api.
+    assert re.search(
+        r"\{[^}]*checkpointThresholds[^}]*\}\s*=\s*globalThis\.WeightFormat", body
+    ) is not None, "app.js must destructure checkpointThresholds from WeightFormat"
+    assert re.search(
+        r"\{[^}]*kgToImperial[^}]*\}\s*=\s*globalThis\.WeightFormat", body
+    ) is not None, "app.js must destructure kgToImperial from WeightFormat"
+    # The five state classes (design §Milestone card structure).
+    for state_class in (
+        "is-earned",
+        "is-pending",
+        "is-next",
+        "is-recently-earned",
+        "is-100",
+    ):
+        assert state_class in body, f"app.js must apply the {state_class} state class"
+    # Pinned per-percent emoji set (design: 🚶🏃🔥🏆🎯 for 10/25/50/75/100).
+    for emoji in ("🚶", "🏃", "🔥", "🏆", "🎯"):
+        assert emoji in body, f"app.js must map an emoji per milestone percent ({emoji})"
+
+
+@pytest.mark.asyncio
+async def test_style_css_gold_is_fill_only(client):
+    """The 100% earned card must use gold as a fill only: background
+    linear-gradient(var(--gold), var(--gold-deep)) with text staying on the
+    text tokens, and gold must never be applied to any text color property
+    anywhere in the sheet (spec '100% gold is fill-only')."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    rule = re.search(r"\.is-100\.is-earned\s*\{([^}]*)\}", css)
+    assert rule is not None, "style.css must declare a .is-100.is-earned rule"
+    body = rule.group(1)
+    # Gold styles the fill via the gradient (design §100% gold).
+    assert "linear-gradient(var(--gold), var(--gold-deep))" in body, (
+        "the 100% card must fill from the gold gradient"
+    )
+    # The card's text must NOT be gold (stays on --text/--accent-dark).
+    assert "var(--gold" not in re.sub(r"background[^;]*;", "", body), (
+        "the 100% card must not apply gold to its text color"
+    )
+    # Gold must never be a text color anywhere in the sheet (fill-only).
+    assert re.search(r"(?<!-)color\s*:\s*var\(--gold", css) is None, (
+        "gold must never be applied to a text color property"
+    )
+

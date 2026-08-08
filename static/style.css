@@ -554,7 +554,6 @@ button.link:hover { color: var(--accent); background: none; }
 /* rewards */
 
 .rewards-count { font-size: 1.05rem; font-weight: 700; color: var(--accent-dark); margin: 0 0 0.35rem; }
-.rewards-next { margin: 0.25rem 0; color: var(--text); }
 .rewards-done { margin: 0.25rem 0; color: var(--accent-dark); }
 
 .progress-track {
@@ -574,43 +573,70 @@ button.link:hover { color: var(--accent); background: none; }
 
 .progress-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.5rem; }
 
-.checkpoint-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
-
-/* reward chips: pill shape + pop-in (reduced-motion neutralizes the animation) */
-@keyframes chip-pop {
-  from {
-    transform: scale(0.9);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+/* milestone track (goals-dashboard S3): five stateful cards replace the
+ * checkpoint chips; tokens only, no palette hex (spec 'Five-Card Milestone
+ * Track', design §Milestone card structure). */
+.milestone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
 }
 
-.checkpoint-list li {
+.milestone-card {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0.6rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
+  background: var(--card);
   font-size: 0.85rem;
+}
+
+.milestone-emoji { font-size: 1.3rem; line-height: 1; }
+.milestone-pct { font-weight: 700; color: var(--text); }
+.milestone-threshold { color: var(--muted); }
+.milestone-when { font-size: 0.78rem; color: var(--muted); }
+
+.milestone-card.is-pending {
+  background: color-mix(in srgb, var(--card) 90%, var(--border));
   color: var(--muted);
-  background: color-mix(in srgb, var(--accent) 4%, var(--card));
-  animation: chip-pop 0.25s ease-out;
 }
 
-.checkpoint-badge {
-  background: color-mix(in srgb, var(--accent) 12%, var(--card));
-  color: var(--accent-dark);
-  border-radius: var(--radius-sm);
-  padding: 0.05rem 0.45rem;
-  font-weight: 700;
+.milestone-card.is-earned {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+}
+.milestone-card.is-earned .milestone-pct { color: var(--accent-dark); }
+
+/* the next checkpoint card: accent ring highlight */
+.milestone-card.is-next {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.checkpoint-label { font-weight: 600; color: var(--text); }
-.checkpoint-when { font-size: 0.78rem; }
+/* newest-earned highlight: subtle accent pulse (the reduced-motion block
+ * kills the animation) */
+@keyframes milestone-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+}
+.milestone-card.is-recently-earned {
+  animation: milestone-pulse 1.6s ease-in-out 2;
+}
+
+/* 100% earned: gold as a fill only — text stays on the text tokens (spec
+ * '100% gold is fill-only', design §100% gold). */
+.milestone-card.is-100.is-earned {
+  background: linear-gradient(var(--gold), var(--gold-deep));
+  color: var(--text);
+}
 
 /* toast */
 
@@ -705,7 +731,7 @@ a:focus-visible,
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .checkpoint-list li {
+  .milestone-card.is-recently-earned {
     animation: none !important;
   }
   .progress-fill,
