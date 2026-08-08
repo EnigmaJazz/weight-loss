@@ -188,6 +188,57 @@
     };
   }
 
+  /** Python's round(x, 4) — round half to even (banker's rounding). Mirrors
+   * rewards.checkpoint_thresholds' `round(..., 4)` so threshold kg matches
+   * the server. Private: not part of the public api surface. */
+  function round4(value) {
+    const factor = 10000;
+    const scaled = value * factor;
+    const floored = Math.floor(scaled);
+    const frac = scaled - floored;
+    if (frac < 0.5) return floored / factor;
+    if (frac > 0.5) return (floored + 1) / factor;
+    return (floored % 2 === 0 ? floored : floored + 1) / factor;
+  }
+
+  /** 0..1 goal progress: (baseline − current) / (baseline − target), clamped
+   * to 0..1 so overshoot never exceeds 100% and weight gain floors at 0;
+   * null when any input is missing OR baseline <= target (no loss goal). */
+  function goalProgress(baseline, current, target) {
+    if (baseline == null || current == null || target == null || baseline <= target) {
+      return null;
+    }
+    const pct = (baseline - current) / (baseline - target);
+    return Math.max(0, Math.min(1, pct));
+  }
+
+  /** Threshold kg per checkpoint — mirrors rewards.checkpoint_thresholds:
+   * baseline − (p/100)·(baseline − target), banker's-rounded to 4dp, for p in
+   * 10/25/50/75/100; [] when inputs are missing or target >= baseline. */
+  function checkpointThresholds(baseline, target) {
+    if (baseline == null || target == null || target >= baseline) return [];
+    const totalLoss = baseline - target;
+    return [10, 25, 50, 75, 100].map((percent) =>
+      round4(baseline - (percent / 100) * totalLoss)
+    );
+  }
+
+  /** kg -> {lb, stone, stoneLb} — mirrors units.kg_to_stone incl. the 14-lb
+   * carry snap (a float epsilon a hair below an exact stone lands on the
+   * whole stone, not "9 st 14 lb"). Raw values; display rounding is the
+   * SPA's job. Null-safe. */
+  function kgToImperial(kg) {
+    if (kg == null) return null;
+    const lb = kg * 2.2046226218;
+    let stone = Math.floor(lb / 14);
+    let stoneLb = lb - 14 * stone;
+    if (stoneLb >= 14 - 1e-6) {
+      stone += 1;
+      stoneLb = 0.0;
+    }
+    return { lb, stone, stoneLb };
+  }
+
   /** Confetti eligibility gate (design §Confetti): "fire" only when the
    * earned checkpoint count increased since the previous load; the first
    * render (null/undefined previous count) is always "suppress". Equal or
@@ -207,7 +258,7 @@
     return systemPref === "dark" ? "dark" : "light";
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate, resolveTheme };
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, shouldCelebrate, resolveTheme };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
