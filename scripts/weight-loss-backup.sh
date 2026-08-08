@@ -2,16 +2,25 @@
 # Daily backup of the Weight Loss Tracker data.
 #
 # Copies weight_loss.db using SQLite's online backup API (safe even while the
-# app is writing) plus vapid_keys.json, to a separate disk
-# (/mnt/ai_storage). Keeps the last N backups; never silently fails.
+# app is writing) plus vapid_keys.json, to a separate disk. Keeps the last N
+# backups; never silently fails.
 #
-# Intended to run from a systemd timer as the james user. Usage:
+# Intended to run from a systemd timer. Paths resolve from scripts/config.local.sh
+# when present (see config.local.example.sh), else $HOME-relative defaults.
+# Usage:
 #   weight-loss-backup.sh [backup-dir]
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/home/james/weight_loss}"
-BACKUP_ROOT="${1:-/mnt/ai_storage/backups/weight-loss}"
+# Source local overrides first (gitignored); missing file is fine.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/config.local.sh" ]; then
+    # shellcheck source=config.local.sh
+    source "$SCRIPT_DIR/config.local.sh"
+fi
+
+APP_DIR="${APP_DIR:-$HOME/weight_loss}"
+BACKUP_ROOT="${1:-${BACKUP_ROOT:-$HOME/backups/weight-loss}}"
 KEEP="${KEEP:-14}"          # keep 14 daily backups
 DB_PATH="$APP_DIR/weight_loss.db"
 VAPID_PATH="$APP_DIR/vapid_keys.json"

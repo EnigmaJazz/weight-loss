@@ -10,9 +10,16 @@
 
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/home/james/weight_loss}"
+# Source local overrides first (gitignored); missing file is fine.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/config.local.sh" ]; then
+    # shellcheck source=config.local.sh
+    source "$SCRIPT_DIR/config.local.sh"
+fi
+
+APP_DIR="${APP_DIR:-$HOME/weight_loss}"
 BACKUP_ROOT="${1:+$1}"
-BACKUP_ROOT_DEFAULT="/mnt/ai_storage/backups/weight-loss"
+BACKUP_ROOT_DEFAULT="${BACKUP_ROOT:-$HOME/backups/weight-loss}"
 
 STAMP="${1:-}"
 if [ -z "$STAMP" ]; then
