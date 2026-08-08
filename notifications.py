@@ -11,7 +11,12 @@ from cryptography.hazmat.primitives import serialization
 from py_vapid import Vapid, b64urlencode
 from pywebpush import WebPushException, webpush
 
-from constants import NOTIFICATION_MESSAGES, VAPID_SUBJECT, get_logger
+from constants import (
+    CELEBRATION_MESSAGES,
+    NOTIFICATION_MESSAGES,
+    VAPID_SUBJECT,
+    get_logger,
+)
 from models import PushSubscription
 
 logger = get_logger("notifications")
@@ -86,6 +91,29 @@ def pick_message(notif_type: str, rng: random.Random | None = None) -> tuple[str
     Pass a seeded random.Random for deterministic tests; otherwise random."""
     variants = NOTIFICATION_MESSAGES[notif_type]
     return (rng or random).choice(variants)
+
+
+def pick_celebration(percent: int, rng: random.Random | None = None) -> tuple[str, str]:
+    """Pick one (title, body) celebration variant with {percent} interpolated.
+
+    Mirrors pick_message's seeded-RNG determinism; the {percent} placeholder
+    is replaced with the just-earned percent wherever it appears (one variant
+    carries it in the title)."""
+    title, body = (rng or random).choice(CELEBRATION_MESSAGES)
+    return title.replace("{percent}", str(percent)), body.replace(
+        "{percent}", str(percent)
+    )
+
+
+async def send_celebration(
+    subscriptions: Iterable[PushSubscription], percent: int, vapid: Vapid
+) -> int:
+    """Send one checkpoint-earn celebration push to every subscription.
+
+    Tagged "checkpoint" so the service worker renders it as an independent
+    notification slot. Returns the successful-send count from send_to_all."""
+    title, body = pick_celebration(percent)
+    return await send_to_all(subscriptions, title, body, vapid, notif_type="checkpoint")
 
 
 def send_push(

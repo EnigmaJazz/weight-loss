@@ -2,12 +2,15 @@
 
 import base64
 import random
+from typing import Any, Iterable
 
 import pytest
 
-from constants import NOTIFICATION_MESSAGES, NOTIFICATION_TYPES
+from constants import CELEBRATION_MESSAGES, NOTIFICATION_MESSAGES, NOTIFICATION_TYPES
 import notifications as notifications_module
+from models import PushSubscription
 from notifications import _vapid_from_payload, load_or_generate_vapid
+from py_vapid import Vapid
 
 
 def test_vapid_from_payload_roundtrips_public_key():
@@ -166,3 +169,93 @@ def test_pick_message_deterministic_with_seeded_rng():
         for notif_type in NOTIFICATION_TYPES
     }
     assert seeded_42 != seeded_44
+
+
+# ---- checkpoint celebration pool and picker (checkpoint-celebrations) ------
+
+
+def test_celebration_pool_contract():
+    # Spec: CELEBRATION_MESSAGES has >= 3 (title, body) variants of non-empty
+    # strings, >= 3 distinct bodies, every body carries a {percent} placeholder,
+    # and titles are emoji-free per the design note.
+    assert len(CELEBRATION_MESSAGES) >= 3
+    bodies = [body for _, body in CELEBRATION_MESSAGES]
+    assert len(set(bodies)) >= 3
+    for title, body in CELEBRATION_MESSAGES:
+        assert isinstance(title, str) and title
+        assert isinstance(body, str) and body
+        # Every variant carries the placeholder in title, body, or both.
+        assert "{percent}" in f"{title}{body}"
+        assert all(ord(ch) < 0x10000 for ch in title)  # no emoji in titles
+
+
+def test_pick_celebration_deterministic_with_seeded_rng():
+    # Spec: same seed + percent -> identical (title, body) across calls.
+    first = notifications_module.pick_celebration(25, random.Random(42))
+    again = notifications_module.pick_celebration(25, random.Random(42))
+    assert first == again
+    # Different seed -> the pick can differ for some percent (variety is real).
+    picks_42 = {
+        percent: notifications_module.pick_celebration(percent, random.Random(42))
+        for percent in (10, 25, 50)
+    }
+    picks_44 = {
+        percent: notifications_module.pick_celebration(percent, random.Random(44))
+        for percent in (10, 25, 50)
+    }
+    assert any(picks_42[p] != picks_44[p] for p in (10, 25, 50))
+
+
+def test_pick_celebration_interpolates_percent():
+    # Spec: the returned message must contain the percent and never the raw
+    # {percent} token — in the body (most variants) and the title (variant 3).
+    title, body = notifications_module.pick_celebration(25, random.Random(1))
+    assert "{percent}" not in title and "{percent}" not in body
+    assert "25%" in title + body
+    # Triangulate with a different percent.
+    title50, body50 = notifications_module.pick_celebration(50, random.Random(1))
+    assert "{percent}" not in title50 and "{percent}" not in body50
+    assert "50%" in title50 + body50
+
+
+@pytest.mark.asyncio
+async def test_send_celebration_passes_checkpoint_type(monkeypatch):
+    # Spec: send_celebration must call send_to_all with notif_type="checkpoint"
+    # and the picked pool message with {percent} interpolated.
+    calls: list[dict[str, Any]] = []
+
+    async def fake_send_to_all(
+        subscriptions: Iterable[PushSubscription],
+        title: str,
+        body: str,
+        vapid: Vapid,
+        notif_type: str = "test",
+    ) -> int:
+        calls.append(
+            {"title": title, "body": body, "vapid": vapid, "notif_type": notif_type}
+        )
+        return len(list(subscriptions))
+
+    monkeypatch.setattr(notifications_module, "send_to_all", fake_send_to_all)
+    sub = PushSubscription(
+        id=1,
+        endpoint="https://push.example.com/celeb",
+        p256dh="p256",
+        auth="auth",
+        created_at="2026-01-01 00:00:00",
+    )
+    vapid = notifications_module._generate_vapid()
+
+    sent = await notifications_module.send_celebration([sub], 25, vapid)
+
+    assert sent == 1
+    assert len(calls) == 1
+    assert calls[0]["notif_type"] == "checkpoint"
+    assert calls[0]["vapid"] is vapid
+    assert "{percent}" not in calls[0]["title"] + calls[0]["body"]
+    assert "25%" in calls[0]["title"] + calls[0]["body"]
+    assert any(
+        calls[0]["title"] == title.replace("{percent}", "25")
+        and calls[0]["body"] == body.replace("{percent}", "25")
+        for title, body in CELEBRATION_MESSAGES
+    )
