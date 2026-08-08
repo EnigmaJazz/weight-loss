@@ -112,8 +112,10 @@ header h1 {
   height: 2.2rem;
   display: block;
 }
-/* Log out stays pinned to the far right of the header row. */
-#logout-btn { margin-left: auto; }
+/* Theme toggle + Log out group at the far right of the header row (design
+ * D4: margin-left:auto moved from #logout-btn to #theme-toggle so the pair
+ * stays grouped at flex-end; the toggle is always visible pre-auth, D3). */
+#theme-toggle { margin-left: auto; }
 .tagline { margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.9rem; }
 
 main {

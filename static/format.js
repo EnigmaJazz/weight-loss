@@ -197,7 +197,17 @@
     return curEarned > prevEarned ? "fire" : "suppress";
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate };
+  /** Resolve a three-state theme preference to a concrete light/dark choice.
+   * An explicit light/dark pref always wins; "system" (or any unknown pref)
+   * follows the OS color scheme via systemPref ("dark" | "light"); an
+   * unavailable/null systemPref resolves to light (the no-JS default). */
+  function resolveTheme(pref, systemPref) {
+    if (pref === "dark") return "dark";
+    if (pref === "light") return "light";
+    return systemPref === "dark" ? "dark" : "light";
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate, resolveTheme };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
