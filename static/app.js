@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -525,6 +525,10 @@ async function submitOnboarding() {
 // charts are drawn on visibility, not just at load time).
 let chartData = { weightEntries: [], weightSummary: null, exerciseEntries: [], mealEntries: [], rewards: null };
 
+// Last earned-checkpoint count seen by loadData. null until the first load
+// so the first render is always suppressed (design §Confetti).
+let prevEarned = null;
+
 async function loadData() {
   const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
     fetchJson("/api/weight"),
@@ -547,6 +551,13 @@ async function loadData() {
   drawExerciseChart(chartData.exerciseEntries);
   drawMealChart(chartData.mealEntries);
   renderRewards(rewards);
+  // Confetti eligibility: fire only when the earned checkpoint count rose
+  // since the previous load; the first render (prevEarned === null) is
+  // always suppressed (design §Confetti).
+  if (shouldCelebrate(prevEarned, rewards.earned_count) === "fire") {
+    fireConfetti();
+  }
+  prevEarned = rewards.earned_count;
   renderSettings(settings, me);
   renderExerciseHistory(exercise.entries);
   renderMealHistory(meals.entries);
@@ -1270,6 +1281,31 @@ function drawBars(canvas, ctx, values, labels) {
 }
 
 /* ---- rewards ----------------------------------------------------------- */
+
+/* Confetti burst on a newly-earned checkpoint (design §Confetti): decorative
+ * non-text fills only, so the AA text rule does not apply (same exemption as
+ * --gold). --danger is a fill accent here, never text. */
+const CONFETTI_COLORS = ["var(--fox)", "var(--gold)", "var(--accent)", "var(--danger)"];
+const CONFETTI_COUNT = 24;
+
+function fireConfetti() {
+  // Reduced-motion gate: never spawn pieces for users who opt out (the CSS
+  // reduced-motion block hides any strays as well).
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  for (let i = 0; i < CONFETTI_COUNT; i++) {
+    const piece = document.createElement("span");
+    piece.className = "confetti-piece";
+    // Randomized inline vars drive the CSS fall: --x horizontal drift, --rot
+    // end rotation, --delay stagger, --color from the token palette.
+    piece.style.setProperty("--x", `${(Math.random() * 240 - 120).toFixed(0)}px`);
+    piece.style.setProperty("--rot", `${(Math.random() * 540 - 270).toFixed(0)}deg`);
+    piece.style.setProperty("--delay", `${(Math.random() * 0.4).toFixed(2)}s`);
+    piece.style.setProperty("--color", CONFETTI_COLORS[i % CONFETTI_COLORS.length]);
+    piece.style.left = `${20 + Math.random() * 60}%`;
+    piece.addEventListener("animationend", () => piece.remove());
+    document.body.append(piece);
+  }
+}
 
 function renderRewards(r) {
   const el = $("rewards-content");
