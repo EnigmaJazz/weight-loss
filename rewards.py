@@ -3,6 +3,7 @@
 from typing import Optional, Sequence
 
 from models import ActiveCheckpoint, AppSettings, RewardState, WeightEntry
+from units import resolve_target_kg
 
 
 CHECKPOINTS: tuple[int, ...] = (10, 25, 50, 75, 100)
@@ -77,7 +78,9 @@ def reward_state(
     """Derive the complete checkpoint state from entries and settings."""
     start = compute_baseline(entries, settings.start_weight_override)
     current = compute_current(entries)
-    target = settings.target_weight
+    target = resolve_target_kg(
+        settings.target_weight, settings.target_bmi, settings.height_cm
+    )
     active = [
         ActiveCheckpoint(percent=percent, threshold_kg=threshold)
         for percent, threshold in active_checkpoints(start, target, current)

@@ -133,6 +133,39 @@ def test_reward_state_empty_without_target():
     assert state.progress_to_next == 0.0
 
 
+# ---- shared target resolver (target-progress-rewards) ---------------------
+
+
+def test_reward_state_resolves_target_from_bmi():
+    # Spec: height 175 + target_bmi 22 (resolved 67.4 kg), no target_weight.
+    settings = AppSettings(target_bmi=22.0, height_cm=175.0)
+    entries = [_entry("2026-08-01", 100.0), _entry("2026-08-02", 95.0)]
+    state = reward_state(entries, settings)
+    assert state.target_kg == 67.4
+    # 10% threshold = 100 - 0.1*32.6 = 96.74; current 95 has earned it.
+    assert [(cp.percent, cp.threshold_kg) for cp in state.active] == [(10, 96.74)]
+
+
+def test_reward_state_weight_precedence_over_bmi():
+    # Spec: target_weight 80 wins over target_bmi 22 + height 175.
+    settings = AppSettings(target_weight=80.0, target_bmi=22.0, height_cm=175.0)
+    entries = [_entry("2026-08-01", 100.0), _entry("2026-08-02", 95.0)]
+    state = reward_state(entries, settings)
+    assert state.target_kg == 80.0
+    assert [(cp.percent, cp.threshold_kg) for cp in state.active] == [
+        (10, 98.0),
+        (25, 95.0),
+    ]
+
+
+def test_reward_state_null_target_when_unresolvable():
+    # Spec: BMI target without height resolves to None -> no checkpoints.
+    state = reward_state(ENTRIES, AppSettings(target_bmi=22.0))
+    assert state.target_kg is None
+    assert state.active == []
+    assert state.earned_count == 0
+
+
 # ---- preserved baseline helpers (approval: behavior unchanged) -------------
 
 
