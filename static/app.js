@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate, resolveTheme } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -545,6 +545,11 @@ async function loadData() {
   chartData.mealEntries = meals.entries;
   chartData.rewards = rewards;
   displayUnit = unitPref(settings.weight_display, "lb");
+  // Server theme wins post-login (design §JS Theming Lifecycle): resolve the
+  // persisted three-state pref to a concrete theme and apply it — this
+  // overwrites any pre-auth localStorage choice from the FOUC bootstrap.
+  themePref = unitPref(settings.theme, "system");
+  applyTheme(resolveTheme(themePref, systemPref()));
   renderSummary(weight.summary);
   renderHistory(weight.entries);
   drawChart(chartData.weightEntries, chartData.weightSummary);
@@ -1073,6 +1078,57 @@ const CHART_COLORS = {
 const CHART_FONT = `11px ${chartFontFamily}`;
 const CHART_FONT_LARGE = `14px ${chartFontFamily}`;
 
+/* Dark-mode theme lifecycle (design §JS Theming Lifecycle): a three-state
+ * preference (system|light|dark) resolves to a concrete light/dark theme.
+ * The preference is tracked here so the prefers-color-scheme listener can
+ * be added only in "system" mode and removed otherwise (design D5). */
+let themePref = "system";
+const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+let themeSystemHandler = null;
+
+function systemPref() {
+  return themeQuery.matches ? "dark" : "light";
+}
+
+function refreshChartColors() {
+  const cs = getComputedStyle(document.documentElement);
+  CHART_COLORS.line = cs.getPropertyValue("--accent").trim();
+  CHART_COLORS.grid = cs.getPropertyValue("--border").trim();
+  CHART_COLORS.muted = cs.getPropertyValue("--muted").trim();
+  CHART_COLORS.tooltip = cs.getPropertyValue("--text").trim();
+  CHART_COLORS.tooltipText = cs.getPropertyValue("--card").trim();
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("theme", theme);
+  refreshChartColors();
+  // Redraw only what is visible: hidden panels re-render on switchTab (design
+  // 'Redraw only when visible').
+  if (!$("tab-progress").hidden) {
+    drawChart(chartData.weightEntries, chartData.weightSummary);
+    drawExerciseChart(chartData.exerciseEntries);
+    drawMealChart(chartData.mealEntries);
+  }
+  syncThemeSystemListener();
+}
+
+/* D5: the OS color-scheme listener exists ONLY in "system" mode; every
+ * applyTheme (called on load + every pref change) re-syncs it, so the
+ * listener never drifts after a mode switch. The stored handler ref lets us
+ * remove the exact same listener we added. */
+function syncThemeSystemListener() {
+  if (themePref === "system") {
+    if (themeSystemHandler == null) {
+      themeSystemHandler = () => applyTheme(resolveTheme("system", systemPref()));
+      themeQuery.addEventListener("change", themeSystemHandler);
+    }
+  } else if (themeSystemHandler != null) {
+    themeQuery.removeEventListener("change", themeSystemHandler);
+    themeSystemHandler = null;
+  }
+}
+
 function drawChart(entries, summary) {
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
@@ -1383,6 +1439,9 @@ function renderSettings(s, me) {
   setRadio("height-unit", unitPref(s.height_unit, "cm"));
   setRadio("target-unit", unitPref(s.target_unit, "kg"));
   setRadio("weight-display", unitPref(s.weight_display, "lb"));
+  // Appearance radio mirrors the same theme preference as the header toggle
+  // (design §JS Theming Lifecycle): system/light/dark, default "system".
+  setRadio("appearance", unitPref(s.theme, "system"));
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
@@ -1749,6 +1808,42 @@ async function saveUnitPreference() {
   }, 300);
 }
 
+/* ---- theme preference (design §JS Theming Lifecycle) ------------------- */
+
+let _themeSaveTimer = null;
+
+function nextThemePref(pref) {
+  // Header toggle cycles system -> light -> dark -> system (task 5.4). The
+  // Settings radio sets the pref directly; both persist via the same PUT.
+  if (pref === "system") return "light";
+  if (pref === "light") return "dark";
+  return "system";
+}
+
+async function saveThemePreference() {
+  // Theme changes are preference changes: persist immediately (debounced) so
+  // a reload keeps the choice; a failed save is silent — the DOM already
+  // updated. Mirrors saveUnitPreference.
+  clearTimeout(_themeSaveTimer);
+  _themeSaveTimer = setTimeout(async () => {
+    try {
+      await fetchJson("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme: themePref }),
+      });
+    } catch (_) {
+      /* preference save is best-effort */
+    }
+  }, 300);
+}
+
+function onThemeToggle() {
+  themePref = nextThemePref(themePref);
+  applyTheme(resolveTheme(themePref, systemPref()));
+  saveThemePreference();
+}
+
 async function init() {
   authForm.addEventListener("submit", submitAuth);
   $("auth-toggle").addEventListener("click", () =>
@@ -1759,6 +1854,7 @@ async function init() {
   $("forgot-form").addEventListener("submit", submitForgot);
   $("reset-form").addEventListener("submit", submitReset);
   $("logout-btn").addEventListener("click", logout);
+  $("theme-toggle").addEventListener("click", onThemeToggle);
   for (const btn of document.querySelectorAll(".tab-btn")) {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   }
@@ -1798,6 +1894,13 @@ async function init() {
       displayUnit = r.value;
       refreshWeightLabels();
       saveUnitPreference();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="appearance"]')) {
+    r.addEventListener("change", () => {
+      themePref = r.value;
+      applyTheme(resolveTheme(themePref, systemPref()));
+      saveThemePreference();
     });
   }
   $("onboarding-form").addEventListener("submit", onWizardSubmit);
