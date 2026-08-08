@@ -5,11 +5,13 @@ context: |
     (Web Push), stdlib sqlite3, vanilla JS SPA in static/ (no framework, no build step).
   Architecture: module-per-concern — main.py app factory, routes.py /api/* endpoints,
     database.py (sync sqlite + run_db thread helper), rewards.py pure logic, notifications.py,
-    scheduler.py background loop, constants.py, models.py dataclasses. State on fastapi
-    app.state; async request path. Single-user, no auth.
+    scheduler.py background loop, constants.py, models.py dataclasses, units.py pure conversions,
+    streaks.py pure streak engine, auth.py session auth + mailer.py password reset. State on
+    fastapi app.state; async request path. Multi-user: HttpOnly session-cookie auth (scrypt),
+    per-user rows, per-user scheduler loop.
   Testing: pytest 9.1.1 + pytest-asyncio 1.4.0 (asyncio_mode=strict), httpx ASGITransport
     in-process API tests, conftest harness (tmp_path DB, scheduler disabled, send_to_all
-    stubbed). 37 tests passing.
+    stubbed). 349 pytest + 88 node:test frontend passing; browser smoke via tests/smoke-ui.sh.
   Style: type hints required, dataclasses for state objects, no global state outside
     app.state, no print() (get_logger), no bare except, conventional commits, no AI
     attribution in commits.
@@ -23,16 +25,16 @@ testing:
   layers:
     unit: pytest
     integration: httpx.ASGITransport (in-process, tests/conftest.py client fixture)
-    e2e: none
+    e2e: playwright smoke (tests/smoke-ui.sh)
   coverage: false
   quality:
     linter: none
-    type_checker: none
+    type_checker: pyright (.venv/bin/pyright, CI-blocking)
     formatter: none
 
 rules:
   proposal:
-    - Scope to a single-user, no-auth app.
+    - Scope to the authenticated multi-user app; per-user data isolation applies everywhere.
     - Include rollback plan for risky changes.
   specs:
     - Use Given/When/Then for scenarios.
