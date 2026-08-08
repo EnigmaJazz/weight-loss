@@ -188,7 +188,16 @@
     };
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint };
+  /** Confetti eligibility gate (design §Confetti): "fire" only when the
+   * earned checkpoint count increased since the previous load; the first
+   * render (null/undefined previous count) is always "suppress". Equal or
+   * lower counts are also suppressed. */
+  function shouldCelebrate(prevEarned, curEarned) {
+    if (prevEarned == null) return "suppress";
+    return curEarned > prevEarned ? "fire" : "suppress";
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
