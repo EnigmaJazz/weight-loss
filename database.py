@@ -335,19 +335,33 @@ class Database:
         self, user_id: int, date: str, weight_kg: float, time: Optional[str] = None
     ) -> WeightEntry:
         with self._tx() as conn:
-            conn.execute(
-                "INSERT INTO weight_entries (user_id, date, time, weight_kg, created_at)"
-                " VALUES (?, ?, ?, ?, ?)"
-                " ON CONFLICT(user_id, date) DO UPDATE SET"
-                " weight_kg = excluded.weight_kg, time = excluded.time",
-                (user_id, date, time, weight_kg, _local_now()),
-            )
-            row = conn.execute(
-                "SELECT id, date, time, weight_kg, created_at"
-                " FROM weight_entries WHERE user_id = ? AND date = ?",
-                (user_id, date),
-            ).fetchone()
+            entry = self._upsert_entry_conn(conn, user_id, date, weight_kg, time)
             self._reconcile_active_rewards(conn, user_id)
+        return entry
+
+    def _upsert_entry_conn(
+        self,
+        conn: sqlite3.Connection,
+        user_id: int,
+        date: str,
+        weight_kg: float,
+        time: Optional[str],
+    ) -> WeightEntry:
+        """Insert-or-update one weight row using the caller's transaction; the
+        UNIQUE(user_id, date) constraint makes re-POSTing the same date
+        idempotent. Shared by upsert_entry and complete_onboarding."""
+        conn.execute(
+            "INSERT INTO weight_entries (user_id, date, time, weight_kg, created_at)"
+            " VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(user_id, date) DO UPDATE SET"
+            " weight_kg = excluded.weight_kg, time = excluded.time",
+            (user_id, date, time, weight_kg, _local_now()),
+        )
+        row = conn.execute(
+            "SELECT id, date, time, weight_kg, created_at"
+            " FROM weight_entries WHERE user_id = ? AND date = ?",
+            (user_id, date),
+        ).fetchone()
         if row is None:
             raise RuntimeError("upsert produced no row")
         return _weight_from_row(row)
@@ -870,24 +884,62 @@ class Database:
             weight_display=str(
                 stored.get("weight_display", DEFAULT_SETTINGS["weight_display"])
             ),
+            onboarding_complete=_optional_bool(stored.get("onboarding_complete")),
         )
+
+    def _apply_settings(
+        self, conn: sqlite3.Connection, user_id: int, updates: dict[str, Any]
+    ) -> None:
+        """Persist one settings update batch using the caller's transaction.
+        None deletes the row (restore default); anything else upserts the
+        string form. Shared by update_settings and complete_onboarding."""
+        for key, value in updates.items():
+            if value is None:
+                conn.execute(
+                    "DELETE FROM settings WHERE user_id = ? AND key = ?",
+                    (user_id, key),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)"
+                    " ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
+                    (user_id, key, str(value)),
+                )
 
     def update_settings(self, user_id: int, updates: dict[str, Any]) -> None:
         with self._tx() as conn:
-            for key, value in updates.items():
-                if value is None:
-                    conn.execute(
-                        "DELETE FROM settings WHERE user_id = ? AND key = ?",
-                        (user_id, key),
-                    )
-                else:
-                    conn.execute(
-                        "INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)"
-                        " ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
-                        (user_id, key, str(value)),
-                    )
+            self._apply_settings(conn, user_id, updates)
             if any(key in self.REWARD_AFFECTING_KEYS for key in updates):
                 self._reconcile_active_rewards(conn, user_id)
+
+    def complete_onboarding(
+        self, user_id: int, payload: dict[str, Any]
+    ) -> None:
+        """Atomic wizard completion: settings, today's first weight entry, and
+        reward reconciliation in one transaction.
+
+        ``payload`` is the validated OnboardingIn dump: height, one target,
+        unit/schedule preferences, and the first weight. The flag is written
+        inside the same transaction as everything else, so a mid-transaction
+        failure leaves no settings, weight, or reward change behind, and a
+        re-POST (same or updated prefs) overwrites rather than appends.
+        """
+        with self._tx() as conn:
+            updates: dict[str, Any] = dict(payload)
+            updates.pop("weight_kg", None)
+            updates["onboarding_complete"] = "True"
+            # AD2: exactly one of target_weight/target_bmi is present (the
+            # OnboardingIn XOR); null the other so a mode switch on a later
+            # POST cannot leave two persisted targets (same rule as put_settings).
+            if updates.get("target_weight") is not None:
+                updates["target_bmi"] = None
+            elif updates.get("target_bmi") is not None:
+                updates["target_weight"] = None
+            self._apply_settings(conn, user_id, updates)
+            self._upsert_entry_conn(
+                conn, user_id, _today(), float(payload["weight_kg"]), None
+            )
+            self._reconcile_active_rewards(conn, user_id)
 
     # ---- push subscriptions ----
 
@@ -1049,9 +1101,21 @@ def _optional_int(value: Optional[str]) -> Optional[int]:
     return int(value)
 
 
+def _optional_bool(value: Optional[str]) -> bool:
+    """Parse the settings k/v boolean representation; absent/empty -> False."""
+    if value is None or value == "":
+        return False
+    return value.strip().lower() == "true"
+
+
 def _local_now() -> str:
     """Host-local wall-clock timestamp for persisted event times."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _today() -> str:
+    """Host-local today's date (YYYY-MM-DD) for "today's entry" semantics."""
+    return datetime.now().strftime("%Y-%m-%d")
 
 
 def _utc_now() -> str:
