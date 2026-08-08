@@ -619,3 +619,45 @@ async def test_index_html_ships_appearance_radio_group(client):
         "Appearance card must come after the Units & display card"
     )
 
+
+# ---- goals-dashboard S1 gate additions (PR 1): mirror helpers + ring container ----
+# The helper test asserts the DELIVERED format.js ships the three mirror helpers
+# contiguously on the api export (spec 'Goal Progress and Threshold Mirror
+# Helpers'); the container test pins the hero ring div inside #summary-card
+# (spec 'Goal Progress Ring', design §File Changes S1 row).
+
+
+@pytest.mark.asyncio
+async def test_format_js_ships_goal_helpers(client):
+    """The served format.js must ship the goals-dashboard mirror helpers
+    goalProgress/checkpointThresholds/kgToImperial, registered together on the
+    WeightFormat api export (spec 'Goal Progress and Threshold Mirror
+    Helpers')."""
+    resp = await client.get("/static/format.js")
+    assert resp.status_code == 200
+    body = resp.text
+    for helper in ("goalProgress", "checkpointThresholds", "kgToImperial"):
+        assert helper in body, f"format.js must ship {helper}"
+    # All three must be registered on the api export, not just defined.
+    assert "goalProgress, checkpointThresholds, kgToImperial" in body, (
+        "the three helpers must be registered together on the api export"
+    )
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_goal_ring_container(client):
+    """The Today tab must ship the hero goal-ring container inside
+    #summary-card, after its h2 and before #summary-stats (design §File
+    Changes; spec 'Goal Progress Ring')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    summary = html[html.index('id="summary-card"') : html.index('id="summary-stats"')]
+    assert 'class="goal-ring" id="goal-ring"' in summary, (
+        "summary-card must ship the goal-ring container"
+    )
+    assert 'aria-hidden="true"' in summary, "goal-ring must be aria-hidden"
+    assert summary.index("<h2>") < summary.index('id="goal-ring"'), (
+        "goal-ring must sit after the summary h2"
+    )
+
