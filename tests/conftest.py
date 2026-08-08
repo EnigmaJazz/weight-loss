@@ -1,7 +1,7 @@
 """Shared test harness: temp-DB app without a scheduler, stubbed push sending."""
 
 import os
-from typing import Iterable
+from typing import Iterable, Optional
 
 # The live deployment sets WEIGHT_LOSS_COOKIE_SECURE=true in .env so the
 # session cookie carries the Secure flag over HTTPS. httpx test clients talk
@@ -24,6 +24,7 @@ from py_vapid import Vapid
 
 DEFAULT_PASSWORD = "password123"
 AUTH_USERNAME = "tester"  # the username the auth_client fixture registers
+ONBOARDED_USERNAME = "onboarded"  # the username the onboarded_client fixture registers
 
 
 @pytest_asyncio.fixture
@@ -62,6 +63,27 @@ async def auth_client(app):
 
 
 @pytest_asyncio.fixture
+async def onboarded_client(app):
+    """Client whose user has completed onboarding through the public API
+    (PUT /api/settings + POST /api/weight). Phase 3's POST /api/onboarding does
+    this atomically; until then tests simulate the wizard via the existing
+    endpoints. Routes that assume a ready tracker use this once gating lands."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post(
+            "/api/auth/register",
+            json={
+                "username": ONBOARDED_USERNAME,
+                "password": DEFAULT_PASSWORD,
+                "email": f"{ONBOARDED_USERNAME}@example.com",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        await complete_onboarding_via_api(ac)
+        yield ac
+
+
+@pytest_asyncio.fixture
 async def pair(app):
     """Two authenticated clients (alice, bob) on the same app for isolation
     tests: each registers its own account, so each owns an independent session."""
@@ -72,6 +94,29 @@ async def pair(app):
         await register_user(alice, "alice")
         await register_user(bob, "bob")
         yield alice, bob
+
+
+async def complete_onboarding_via_api(
+    client: httpx.AsyncClient,
+    *,
+    height_cm: float = 175.0,
+    weight_kg: float = 80.0,
+    target_weight: Optional[float] = 70.0,
+    date: str = "2026-08-01",
+) -> None:
+    """Simulate wizard completion via the existing endpoints: save settings
+    (height + target) then log today's first weight entry. Non-2xx responses
+    raise so a broken setup fails loudly. Phase 3 replaces this with the
+    atomic POST /api/onboarding payload."""
+    resp = await client.put(
+        "/api/settings",
+        json={"height_cm": height_cm, "target_weight": target_weight},
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await client.post(
+        "/api/weight", json={"date": date, "weight_kg": weight_kg}
+    )
+    assert resp.status_code == 201, resp.text
 
 
 async def register_user(
