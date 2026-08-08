@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from py_vapid import Vapid
+
 import mailer
 from auth import (
     generate_password_salt,
@@ -48,6 +50,7 @@ from rewards import (
     compute_baseline,
     compute_current,
     compute_lost,
+    newly_earned_checkpoints,
     remaining_to_target,
     reward_state,
 )
@@ -83,6 +86,29 @@ async def require_user(
     if user is None:
         raise HTTPException(status_code=401, detail="not authenticated")
     return user
+
+
+async def _celebrate_if_earned(
+    db: Database,
+    vapid: Vapid,
+    user_id: int,
+    before: list[dict[str, Any]],
+    after: list[dict[str, Any]],
+) -> int:
+    """Fire one checkpoint celebration push when new percents were earned.
+
+    Diff = newly-earned percents (after − before by checkpoint_percent). When
+    non-empty, send ONE batched push naming the TOP percent, but only to the
+    user's own subscriptions. Returns the successful-send count (0 when nothing
+    was newly earned or the user has no subscriptions)."""
+    diff = newly_earned_checkpoints(before, after)
+    if not diff:
+        return 0
+    top = max(r["checkpoint_percent"] for r in diff)
+    subs = await run_db(db.list_subscriptions, user_id)
+    if not subs:
+        return 0
+    return await notifications.send_celebration(subs, top, vapid)
 
 
 # ---- authentication ----------------------------------------------------
@@ -750,15 +776,19 @@ async def reset_password(
 @router.post("/api/onboarding")
 async def complete_onboarding(
     payload: OnboardingIn,
+    request: Request,
     user: User = Depends(require_user),
     db: Database = Depends(get_db),
 ) -> dict[str, bool]:
     """Atomic wizard completion: settings + today's first weight + rewards in
     one database transaction. Idempotent — re-POSTing overwrites settings and
     upserts today's entry rather than duplicating it."""
+    before = await run_db(db.list_active_rewards, user.id)
     await run_db(
         db.complete_onboarding, user.id, payload.model_dump(exclude_unset=True)
     )
+    after = await run_db(db.list_active_rewards, user.id)
+    await _celebrate_if_earned(db, request.app.state.vapid, user.id, before, after)
     logger.info("completed onboarding for user %s", user.username)
     return {"ok": True}
 
@@ -782,13 +812,17 @@ async def get_weight(
 @router.post("/api/weight")
 async def upsert_weight(
     payload: WeightIn,
+    request: Request,
     user: User = Depends(require_user),
     db: Database = Depends(get_db),
 ) -> JSONResponse:
+    before = await run_db(db.list_active_rewards, user.id)
     existing = await run_db(db.get_entry_by_date, user.id, payload.date)
     entry = await run_db(
         db.upsert_entry, user.id, payload.date, payload.weight_kg, payload.time
     )
+    after = await run_db(db.list_active_rewards, user.id)
+    await _celebrate_if_earned(db, request.app.state.vapid, user.id, before, after)
     settings = await run_db(db.get_settings, user.id)
     status_code = 200 if existing is not None else 201
     return JSONResponse(
@@ -800,12 +834,14 @@ async def upsert_weight(
 async def edit_weight(
     entry_id: int,
     payload: WeightIn,
+    request: Request,
     user: User = Depends(require_user),
     db: Database = Depends(get_db),
 ) -> dict[str, Any]:
     # Ownership + date-conflict checks live in update_entry: a cross-user id
     # surfaces as 404 (checked first), and moving onto another entry's date
     # surfaces as 409 rather than silently overwriting that day's weight.
+    before = await run_db(db.list_active_rewards, user.id)
     try:
         entry = await run_db(
             db.update_entry,
@@ -819,6 +855,8 @@ async def edit_weight(
         raise HTTPException(status_code=409, detail="date already has an entry")
     if entry is None:
         raise HTTPException(status_code=404, detail="entry not found")
+    after = await run_db(db.list_active_rewards, user.id)
+    await _celebrate_if_earned(db, request.app.state.vapid, user.id, before, after)
     settings = await run_db(db.get_settings, user.id)
     logger.info("updated weight for user %s", user.username)
     return _entry_dict(entry, settings.height_cm)
@@ -827,14 +865,18 @@ async def edit_weight(
 @router.delete("/api/weight/{entry_id}")
 async def delete_weight(
     entry_id: int,
+    request: Request,
     user: User = Depends(require_user),
     db: Database = Depends(get_db),
 ) -> dict[str, bool]:
     # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
     # id deletes nothing and surfaces as 404, leaking no information.
+    before = await run_db(db.list_active_rewards, user.id)
     deleted = await run_db(db.delete_entry, user.id, entry_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="entry not found")
+    after = await run_db(db.list_active_rewards, user.id)
+    await _celebrate_if_earned(db, request.app.state.vapid, user.id, before, after)
     return {"deleted": True}
 
 
@@ -1050,9 +1092,11 @@ async def get_settings(
 @router.put("/api/settings")
 async def put_settings(
     payload: SettingsIn,
+    request: Request,
     user: User = Depends(require_user),
     db: Database = Depends(get_db),
 ) -> dict[str, Any]:
+    before = await run_db(db.list_active_rewards, user.id)
     updates = payload.model_dump(exclude_unset=True)
     # Design AD2 — bidirectional target clearing: saving one target form nulls
     # the other, so the two persisted targets can never diverge. (A null save
@@ -1065,6 +1109,8 @@ async def put_settings(
         updates["target_weight"] = None
     if updates:
         await run_db(db.update_settings, user.id, updates)
+    after = await run_db(db.list_active_rewards, user.id)
+    await _celebrate_if_earned(db, request.app.state.vapid, user.id, before, after)
     settings = await run_db(db.get_settings, user.id)
     return asdict(settings)
 
