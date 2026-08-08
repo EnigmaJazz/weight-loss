@@ -1,9 +1,11 @@
-"""Tests for VAPID key persistence: a second boot must load keys, not crash."""
+"""Tests for VAPID key persistence and the notification message pools."""
 
 import base64
+import random
 
 import pytest
 
+from constants import NOTIFICATION_MESSAGES, NOTIFICATION_TYPES
 import notifications as notifications_module
 from notifications import _vapid_from_payload, load_or_generate_vapid
 
@@ -99,3 +101,68 @@ def test_load_or_generate_vapid_migrates_legacy_der_key(tmp_path):
         serialization.PublicFormat.UncompressedPoint,
     )
     assert raw == original_point
+
+
+# ---- notification message pools (gamification step 1) -------------------
+
+
+def test_message_pool_contract():
+    # Every notification type must map to at least one (title, body) variant
+    # of non-empty strings, and the FIRST variant must keep the original
+    # single message so existing behavior stays backward-compatible.
+    original = {
+        "tip": (
+            "Daily weight-loss tip",
+            "Consistency beats intensity — log every day, even the bad ones.",
+        ),
+        "reminder": ("Weigh-in reminder", "Time to log your weight for today!"),
+        "exercise": (
+            "Exercise encouragement",
+            "Time to move — a 10-minute walk counts. You've got this!",
+        ),
+    }
+    for notif_type in NOTIFICATION_TYPES:
+        variants = NOTIFICATION_MESSAGES[notif_type]
+        assert len(variants) >= 1
+        for title, body in variants:
+            assert isinstance(title, str) and title
+            assert isinstance(body, str) and body
+        assert variants[0] == original[notif_type]
+
+
+def test_message_pool_has_variety():
+    # Guards against regression back to a single message per type: variety is
+    # the whole point of the pool.
+    for notif_type in NOTIFICATION_TYPES:
+        bodies = {body for _, body in NOTIFICATION_MESSAGES[notif_type]}
+        assert len(bodies) >= 3
+
+
+def test_pick_message_returns_pool_member():
+    for notif_type in NOTIFICATION_TYPES:
+        pool = NOTIFICATION_MESSAGES[notif_type]
+        for _ in range(200):
+            assert notifications_module.pick_message(notif_type) in pool
+
+
+def test_pick_message_deterministic_with_seeded_rng():
+    # Same seed -> same pick for the same type across repeated calls; a
+    # different seed -> a different pick for at least one type (proves the
+    # variety is real, not a constant).
+    for notif_type in NOTIFICATION_TYPES:
+        first = notifications_module.pick_message(notif_type, random.Random(42))
+        again = notifications_module.pick_message(notif_type, random.Random(42))
+        assert first == again
+    seeded_42 = {
+        notif_type: notifications_module.pick_message(
+            notif_type, random.Random(42)
+        )
+        for notif_type in NOTIFICATION_TYPES
+    }
+    seeded_44 = {
+        notif_type: notifications_module.pick_message(
+            notif_type, random.Random(44)
+        )
+        for notif_type in NOTIFICATION_TYPES
+    }
+    assert seeded_42 != seeded_44

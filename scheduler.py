@@ -5,7 +5,6 @@ from datetime import datetime
 from typing import Any
 
 from constants import (
-    NOTIFICATION_MESSAGES,
     NOTIFICATION_TYPES,
     SCHEDULER_INTERVAL_SECONDS,
     get_logger,
@@ -53,7 +52,7 @@ async def run_due_checks(app_state: Any, now: datetime) -> int:
                 continue
             if await run_db(db.is_notification_sent, user.id, today, notif_type):
                 continue
-            title, body = NOTIFICATION_MESSAGES[notif_type]
+            title, body = notifications.pick_message(notif_type)
             subscriptions = await run_db(db.list_subscriptions, user.id)
             if not subscriptions:
                 # Nothing was delivered, so do NOT consume the period's dedupe
