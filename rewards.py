@@ -1,12 +1,23 @@
 """Pure reward/milestone logic — no I/O, trivially unit-testable."""
 
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from models import ActiveCheckpoint, AppSettings, RewardState, WeightEntry
 from units import resolve_target_kg
 
 
 CHECKPOINTS: tuple[int, ...] = (10, 25, 50, 75, 100)
+
+
+def newly_earned_checkpoints(
+    before: list[dict[str, Any]], after: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """after − before by checkpoint_percent, on the row dicts returned by
+    ``list_active_rewards``. Returns the after-dicts whose percent is not in
+    before — empty when nothing was newly earned (idempotent re-POST,
+    revoke-only, or a same-event revoke+re-earn of the same percent)."""
+    before_pct = {r["checkpoint_percent"] for r in before}
+    return [r for r in after if r["checkpoint_percent"] not in before_pct]
 
 
 def checkpoint_thresholds(
