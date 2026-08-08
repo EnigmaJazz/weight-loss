@@ -4,11 +4,18 @@ from datetime import datetime
 
 import pytest
 
+from constants import NOTIFICATION_MESSAGES
 import database as database_module
 import notifications as notifications_module
 from main import create_app, init_app_state
 from scheduler import run_due_checks
 from tests.conftest import auth_user_id
+
+# Allowed titles come from the message pools so scheduler tests stay green as
+# variants are added/rewritten (exact-title pins would break on any edit).
+TIP_TITLES = {title for title, _ in NOTIFICATION_MESSAGES["tip"]}
+REMINDER_TITLES = {title for title, _ in NOTIFICATION_MESSAGES["reminder"]}
+EXERCISE_TITLES = {title for title, _ in NOTIFICATION_MESSAGES["exercise"]}
 
 
 @pytest.mark.asyncio
@@ -236,14 +243,16 @@ async def test_dst_skipped_time_fires_on_next_tick(tmp_path, monkeypatch):
     now = datetime(2026, 3, 8, 3, 0)
     count = await run_due_checks(app.state, now)
     assert count == 1
-    assert sent == ["Exercise encouragement"]
+    assert len(sent) == 1 and sent[0] in EXERCISE_TITLES
     assert app.state.db.is_notification_sent(user.id, "2026-03-08", "exercise")
 
     # And exercise stays deduped for the rest of that local date. The later
     # tick only adds tip (reminder is weekly and 2026-03-08 is a Sunday).
     count = await run_due_checks(app.state, datetime(2026, 3, 8, 23, 59))
     assert count == 1
-    assert sent.count("Exercise encouragement") == 1
+    assert len(sent) == 2
+    assert sent[0] in EXERCISE_TITLES  # the 03:00 exercise send, deduped here
+    assert sent[1] in TIP_TITLES  # the later tick added only tip
 
 
 # ---- notification-schedule-disable: full API -> scheduler path ----------
@@ -313,7 +322,9 @@ async def test_weekly_reminder_fires_only_on_configured_weekday(tmp_path, monkey
     assert monday.weekday() == 0
     count = await run_due_checks(app.state, monday)
     assert count == 1  # tip only
-    assert sent == [("tip", "Daily weight-loss tip")]
+    assert len(sent) == 1
+    assert sent[0][0] == "tip"
+    assert sent[0][1] in TIP_TITLES
     assert not app.state.db.is_notification_sent(user.id, "2026-08-03", "reminder")
 
     # Tuesday 09:30: time passed AND weekday matches -> reminder fires (plus tip).
@@ -321,7 +332,8 @@ async def test_weekly_reminder_fires_only_on_configured_weekday(tmp_path, monkey
     assert tuesday.weekday() == 1
     count = await run_due_checks(app.state, tuesday)
     assert count == 2
-    assert sent[-1] == ("reminder", "Weigh-in reminder")
+    assert sent[-1][0] == "reminder"
+    assert sent[-1][1] in REMINDER_TITLES
     assert app.state.db.is_notification_sent(user.id, "2026-08-04", "reminder")
 
     # Wednesday 09:30: next day, no dedupe for that date, but wrong weekday ->
@@ -330,7 +342,8 @@ async def test_weekly_reminder_fires_only_on_configured_weekday(tmp_path, monkey
     assert wednesday.weekday() == 2
     count = await run_due_checks(app.state, wednesday)
     assert count == 1
-    assert sent[-1] == ("tip", "Daily weight-loss tip")
+    assert sent[-1][0] == "tip"
+    assert sent[-1][1] in TIP_TITLES
 
 
 # ---- per-user scheduling (user-accounts-auth, slice 2) -------------------

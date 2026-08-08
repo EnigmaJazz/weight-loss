@@ -1,6 +1,7 @@
 """Shared test harness: temp-DB app without a scheduler, stubbed push sending."""
 
 import os
+from typing import Iterable, Optional
 
 # The live deployment sets WEIGHT_LOSS_COOKIE_SECURE=true in .env so the
 # session cookie carries the Secure flag over HTTPS. httpx test clients talk
@@ -13,12 +14,17 @@ os.environ["WEIGHT_LOSS_COOKIE_SECURE"] = ""
 import httpx
 import pytest
 import pytest_asyncio
+from fastapi import FastAPI
 
 import notifications as notifications_module
+from database import Database
 from main import create_app, init_app_state
+from models import PushSubscription, User
+from py_vapid import Vapid
 
 DEFAULT_PASSWORD = "password123"
 AUTH_USERNAME = "tester"  # the username the auth_client fixture registers
+ONBOARDED_USERNAME = "onboarded"  # the username the onboarded_client fixture registers
 
 
 @pytest_asyncio.fixture
@@ -57,6 +63,27 @@ async def auth_client(app):
 
 
 @pytest_asyncio.fixture
+async def onboarded_client(app):
+    """Client whose user has completed onboarding through the public API
+    (PUT /api/settings + POST /api/weight). Phase 3's POST /api/onboarding does
+    this atomically; until then tests simulate the wizard via the existing
+    endpoints. Routes that assume a ready tracker use this once gating lands."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post(
+            "/api/auth/register",
+            json={
+                "username": ONBOARDED_USERNAME,
+                "password": DEFAULT_PASSWORD,
+                "email": f"{ONBOARDED_USERNAME}@example.com",
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        await complete_onboarding_via_api(ac)
+        yield ac
+
+
+@pytest_asyncio.fixture
 async def pair(app):
     """Two authenticated clients (alice, bob) on the same app for isolation
     tests: each registers its own account, so each owns an independent session."""
@@ -69,7 +96,32 @@ async def pair(app):
         yield alice, bob
 
 
-async def register_user(client, username, password=DEFAULT_PASSWORD):
+async def complete_onboarding_via_api(
+    client: httpx.AsyncClient,
+    *,
+    height_cm: float = 175.0,
+    weight_kg: float = 80.0,
+    target_weight: Optional[float] = 70.0,
+    date: str = "2026-08-01",
+) -> None:
+    """Simulate wizard completion via the existing endpoints: save settings
+    (height + target) then log today's first weight entry. Non-2xx responses
+    raise so a broken setup fails loudly. Phase 3 replaces this with the
+    atomic POST /api/onboarding payload."""
+    resp = await client.put(
+        "/api/settings",
+        json={"height_cm": height_cm, "target_weight": target_weight},
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await client.post(
+        "/api/weight", json={"date": date, "weight_kg": weight_kg}
+    )
+    assert resp.status_code == 201, resp.text
+
+
+async def register_user(
+    client: httpx.AsyncClient, username: str, password: str = DEFAULT_PASSWORD
+) -> int:
     """Register a user through the API; returns the new user's id."""
     resp = await client.post(
         "/api/auth/register",
@@ -83,28 +135,34 @@ async def register_user(client, username, password=DEFAULT_PASSWORD):
     return resp.json()["id"]
 
 
-def auth_user_id(app) -> int:
+def auth_user_id(app: FastAPI) -> int:
     """The user id of the account the auth_client fixture registered."""
     user = app.state.db.get_user_by_username(AUTH_USERNAME)
     assert user is not None
     return user.id
 
 
-def make_user(db, username="user"):
+def make_user(db: Database, username: str = "user") -> User:
     """Create a user directly in the DB (no API, no scrypt); returns the User."""
     return db.create_user(username, "hash", "salt")
 
 
 @pytest.fixture(autouse=True)
-def stub_push(monkeypatch):
+def stub_push(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
     """Never send a real web push in tests; record calls for assertions."""
-    sent: list = []
+    sent: list[dict[str, str]] = []
 
-    async def fake_send_to_all(subscriptions, title, body, vapid, notif_type="test"):
+    async def fake_send_to_all(
+        subscriptions: Iterable[PushSubscription],
+        title: str,
+        body: str,
+        vapid: Vapid,
+        notif_type: str = "test",
+    ) -> int:
         count = 0
         for sub in subscriptions:
             sent.append(
-                {"endpoint": sub.endpoint, "title": title, "body": body}
+                {"endpoint": sub.endpoint, "title": title, "body": body, "notif_type": notif_type}
             )
             count += 1
         return count
