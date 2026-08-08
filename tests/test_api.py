@@ -30,7 +30,22 @@ async def test_settings_get_returns_defaults(auth_client):
     assert data["reminder_time"] == "20:00"
     assert data["exercise_time"] == "17:00"
     assert data["target_weight"] is None
+    assert data["target_bmi"] is None
+    assert data["onboarding_complete"] is False
     assert data["start_weight_override"] is None
+
+
+@pytest.mark.asyncio
+async def test_onboarded_client_completed_onboarding(app, onboarded_client):
+    # Fixture contract: the helper's wizard simulation leaves a ready tracker —
+    # settings hold the defaults and today's first weight entry exists.
+    data = (await onboarded_client.get("/api/settings")).json()
+    assert data["height_cm"] == 175
+    assert data["target_weight"] == 70.0
+    assert data["target_bmi"] is None
+    weight = (await onboarded_client.get("/api/weight")).json()
+    assert weight["summary"]["baseline_kg"] == 80.0
+    assert weight["summary"]["current_kg"] == 80.0
 
 
 @pytest.mark.asyncio
