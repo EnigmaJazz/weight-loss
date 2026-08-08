@@ -12,6 +12,7 @@ the auth API behind them is covered by test_auth_api.py.
 """
 
 import ast
+import json
 import re
 
 import pytest
@@ -159,3 +160,109 @@ async def test_app_js_branches_on_needs_onboarding(client):
         "reminder_weekday",
     ):
         assert key in body
+
+
+# Design-token / font / favicon / asset-stamp gate additions for the
+# game-appearance change. These assert the DELIVERED artifacts, so they parse
+# the served CSS/HTML/manifest exactly as a browser would receive them.
+
+# Token names the :root block must declare (design §Token Architecture).
+_TOKEN_NAMES = (
+    "--fox",
+    "--gold",
+    "--radius-sm",
+    "--radius-md",
+    "--radius-lg",
+    "--radius-pill",
+    "--shadow-1",
+    "--shadow-2",
+    "--shadow-3",
+    "--space-1",
+    "--space-2",
+    "--space-3",
+    "--space-4",
+    "--space-5",
+    "--font-display",
+    "--font-body",
+)
+
+# main.py serves these with a ?v= cache stamp (the tuples are unchanged by
+# this change; the gate verifies they still stamp correctly).
+_STAMPED_ASSETS = (
+    ("/static/style.css", "href"),
+    ("/static/format.js", "src"),
+    ("/static/auth.js", "src"),
+    ("/static/app.js", "src"),
+)
+
+
+def _root_block(css: str) -> str:
+    match = re.search(r":root\s*\{([^}]*)\}", css)
+    assert match is not None, "style.css must declare a :root block"
+    return match.group(1)
+
+
+@pytest.mark.asyncio
+async def test_style_css_ships_design_tokens_and_font_faces(client):
+    """The served stylesheet must declare the game-appearance design tokens in
+    :root and self-host Baloo 2 via versioned @font-face rules with a
+    system-ui fallback in the font stacks (design §Token Architecture,
+    spec 'Versioned font face')."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    root = _root_block(css)
+    # Every token name is declared in :root.
+    for token in _TOKEN_NAMES:
+        assert re.search(rf"{token}\s*:", root) is not None, (
+            f":root must declare {token}"
+        )
+    # Pinned token values (design §Token Architecture).
+    assert re.search(r"--fox\s*:\s*#eb892c", root) is not None
+    assert re.search(r"--gold\s*:\s*#f5c518", root) is not None
+    assert re.search(r"--radius-sm\s*:\s*8px", root) is not None
+    assert re.search(r"--radius-md\s*:\s*12px", root) is not None
+    assert re.search(r"--radius-lg\s*:\s*18px", root) is not None
+    assert re.search(r"--radius-pill\s*:\s*999px", root) is not None
+    # Font stacks must lead with Baloo 2 and fall back to system-ui.
+    assert re.search(r"--font-display\s*:\s*'Baloo 2'[^;]*system-ui", root) is not None
+    assert re.search(r"--font-body\s*:\s*'Baloo 2'[^;]*system-ui", root) is not None
+    # Self-hosted, filename-versioned woff2 @font-face rules (swap display).
+    assert "baloo2-400.v1.woff2" in css
+    assert "baloo2-600.v1.woff2" in css
+    assert re.search(r"font-display\s*:\s*swap", css) is not None
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_fox_favicon_without_diamond(client):
+    """The inline SVG favicon must be the fox glyph (fox-orange accents) and
+    the diamond path must be gone (spec 'Fox favicon')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'rel="icon"' in html
+    assert "%23eb892c" in html, "favicon must carry the fox-orange accent"
+    assert "M32 8l14 22" not in html, "diamond favicon path must be removed"
+
+
+@pytest.mark.asyncio
+async def test_asset_tuples_carry_cache_stamps(client):
+    """Every CSS/JS asset in the main.py tuples must be served with the ?v=
+    cache stamp (spec 'Assets stamped')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    for asset, attr in _STAMPED_ASSETS:
+        assert re.search(re.escape(asset) + r"\?v=", html) is not None, (
+            f"{asset} must carry a ?v= stamp on its {attr} attribute"
+        )
+
+
+@pytest.mark.asyncio
+async def test_manifest_theme_color_stays_brand_accent(client):
+    """manifest.webmanifest theme_color must remain #2f7d54 (spec 'Fox
+    favicon and manifest theme')."""
+    resp = await client.get("/static/manifest.webmanifest")
+    assert resp.status_code == 200
+    manifest = json.loads(resp.text)
+    assert manifest["theme_color"] == "#2f7d54"
