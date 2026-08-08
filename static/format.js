@@ -239,6 +239,17 @@
     return { lb, stone, stoneLb };
   }
 
+  /** The milestone strip's next line: "Next: 50% at 90.0 kg (14 st 2.4 lb)"
+   * from the raw threshold kg + display unit (same weightLabel path the
+   * milestone dots use). The all-earned copy ("All checkpoints earned!") is
+   * the caller's concern — it has no percent. Null-safe: missing percent or
+   * kg -> "" (no goal data renders no next line). */
+  function milestoneNextLabel(percent, kg, displayUnit) {
+    if (percent == null || kg == null) return "";
+    const imp = kgToImperial(kg);
+    return `Next: ${percent}% at ${weightLabel(kg, imp.lb, imp.stone, imp.stoneLb, displayUnit)}`;
+  }
+
   /** Confetti eligibility gate (design §Confetti): "fire" only when the
    * earned checkpoint count increased since the previous load; the first
    * render (null/undefined previous count) is always "suppress". Equal or
@@ -258,7 +269,7 @@
     return systemPref === "dark" ? "dark" : "light";
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, shouldCelebrate, resolveTheme };
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
