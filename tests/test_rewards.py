@@ -1,5 +1,7 @@
 """Unit tests for pure reward logic: checkpoint thresholds and active state (no I/O)."""
 
+from typing import Any
+
 from models import AppSettings, WeightEntry
 from rewards import (
     CHECKPOINTS,
@@ -8,6 +10,7 @@ from rewards import (
     compute_baseline,
     compute_current,
     compute_lost,
+    newly_earned_checkpoints,
     next_checkpoint,
     progress_to_next_checkpoint,
     remaining_to_target,
@@ -164,6 +167,93 @@ def test_reward_state_null_target_when_unresolvable():
     assert state.target_kg is None
     assert state.active == []
     assert state.earned_count == 0
+
+
+# ---- newly-earned checkpoint diff (checkpoint-celebrations) -----------------
+
+
+def _reward_row(
+    percent: int, threshold_kg: float = 98.0, earned_at: str = "2026-08-01 10:00:00"
+) -> dict[str, Any]:
+    """One active_rewards row as returned by list_active_rewards."""
+    return {
+        "checkpoint_percent": percent,
+        "threshold_kg": threshold_kg,
+        "earned_at": earned_at,
+    }
+
+
+def test_newly_earned_single_earn():
+    # Spec: before = {10}, after = {10, 25} -> the diff returns {25}.
+    before = [_reward_row(10)]
+    after = [_reward_row(10), _reward_row(25, threshold_kg=95.0)]
+    assert newly_earned_checkpoints(before, after) == [
+        _reward_row(25, threshold_kg=95.0)
+    ]
+
+
+def test_newly_earned_batched_returns_after_rows():
+    # Spec: batched earn {10, 25, 50} -> diff returns the after-dicts for 25 and 50.
+    before = [_reward_row(10)]
+    after = [
+        _reward_row(10),
+        _reward_row(25, threshold_kg=95.0),
+        _reward_row(50, threshold_kg=90.0),
+    ]
+    assert newly_earned_checkpoints(before, after) == [
+        _reward_row(25, threshold_kg=95.0),
+        _reward_row(50, threshold_kg=90.0),
+    ]
+
+
+def test_newly_earned_idempotent_repost():
+    # Spec: before = after = {10, 25} -> empty diff (idempotent re-POST).
+    before = after = [_reward_row(10), _reward_row(25, threshold_kg=95.0)]
+    assert newly_earned_checkpoints(before, after) == []
+
+
+def test_newly_earned_revoke_only():
+    # Spec: before = {10, 25}, after = {10} -> empty diff (revoke-only).
+    before = [_reward_row(10), _reward_row(25, threshold_kg=95.0)]
+    after = [_reward_row(10)]
+    assert newly_earned_checkpoints(before, after) == []
+
+
+def test_newly_earned_same_event_revoke_and_reearn():
+    # Spec: before = {25}, after = {25} (revoked then re-earned) -> empty diff:
+    # a percent present on both sides is not newly earned, so no double-fire.
+    before = [_reward_row(25, threshold_kg=95.0)]
+    after = [_reward_row(25, threshold_kg=95.0, earned_at="2026-08-02 09:00:00")]
+    assert newly_earned_checkpoints(before, after) == []
+
+
+def test_newly_earned_revoke_and_earn_different_percent():
+    # Same-event revoke + earn of a DIFFERENT percent: 25 present on both sides
+    # stays silent, but a fresh 10 in after is newly earned.
+    before = [_reward_row(25, threshold_kg=95.0)]
+    after = [_reward_row(10), _reward_row(25, threshold_kg=95.0)]
+    assert newly_earned_checkpoints(before, after) == [_reward_row(10)]
+
+
+def test_newly_earned_duplicate_percent_safety():
+    # list_active_rewards never yields duplicate percents (UNIQUE constraint),
+    # but the diff must stay correct if it ever does: duplicates in before are
+    # deduped by the set, and every after-row for a newly-earned percent returns.
+    before = [_reward_row(10), _reward_row(10, threshold_kg=98.5)]
+    after = [
+        _reward_row(10),
+        _reward_row(10, threshold_kg=98.5),
+        _reward_row(25, threshold_kg=95.0),
+        _reward_row(25, threshold_kg=95.0, earned_at="2026-08-02 09:00:00"),
+    ]
+    assert newly_earned_checkpoints(before, after) == [
+        _reward_row(25, threshold_kg=95.0),
+        _reward_row(25, threshold_kg=95.0, earned_at="2026-08-02 09:00:00"),
+    ]
+
+
+def test_newly_earned_empty_to_empty():
+    assert newly_earned_checkpoints([], []) == []
 
 
 # ---- preserved baseline helpers (approval: behavior unchanged) -------------
