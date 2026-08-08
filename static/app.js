@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, shouldCelebrate, resolveTheme } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, shouldCelebrate, resolveTheme } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -551,6 +551,7 @@ async function loadData() {
   themePref = unitPref(settings.theme, "system");
   applyTheme(resolveTheme(themePref, systemPref()));
   renderSummary(weight.summary);
+  renderGoalRing(chartData.weightSummary);
   renderHistory(weight.entries);
   drawChart(chartData.weightEntries, chartData.weightSummary);
   drawExerciseChart(chartData.exerciseEntries);
@@ -618,6 +619,51 @@ function renderSummary(s) {
 }
 
 /* ---- history ----------------------------------------------------------- */
+
+/* ---- goal ring --------------------------------------------------------- */
+
+/* Hero goal-progress ring inside #summary-card (design §Ring SVG math; spec
+ * 'Goal Progress Ring'): an inline SVG whose progress arc is stroke-dasharray
+ * = C = 2πr with stroke-dashoffset = C·(1−pct), so the arc fills pct of the
+ * ring (C ≈ 376.991 for r=60). pct comes from the goalProgress mirror helper:
+ * null (no loss goal / missing inputs) renders the empty state with helper
+ * copy and NO progress circle. The stroke paints url(#goalGrad), whose stops
+ * are token-driven in style.css — no chart hex here. The center overlay shows
+ * the rounded pct plus the remaining-to-target copy via summary.remaining_*.
+ * Empty summaries (fresh accounts) land in the pct==null branch: overlay
+ * renders "—" + helper copy, no arc, so the card never breaks. */
+function renderGoalRing(summary) {
+  const host = $("goal-ring");
+  if (!host) return;
+  const pct = goalProgress(summary.baseline_kg, summary.current_kg, summary.target_kg);
+  const C = 2 * Math.PI * 60; // circumference of the r=60 ring
+  const hasGoal = pct != null;
+  const arc = hasGoal
+    ? `<circle class="goal-ring-progress" cx="70" cy="70" r="60" fill="none" stroke="url(#goalGrad)" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/>`
+    : "";
+  const pctText = hasGoal ? `${Math.round(pct * 100)}%` : "—";
+  const remainingText = hasGoal
+    ? (() => {
+        const imp = weightImperial(summary.remaining_lb, summary.remaining_stone, summary.remaining_stone_lb, displayUnit);
+        return imp ? `${imp} left` : `${fmt1(summary.remaining_kg)} kg left`;
+      })()
+    : "Set a target weight to start tracking.";
+  host.innerHTML = `
+    <svg viewBox="0 0 140 140" class="goal-ring-svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="goalGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" class="goal-grad-from"/>
+          <stop offset="1" class="goal-grad-to"/>
+        </linearGradient>
+      </defs>
+      <circle class="goal-ring-track" cx="70" cy="70" r="60" fill="none"/>
+      ${arc}
+    </svg>
+    <div class="goal-ring-overlay">
+      <div class="goal-ring-pct">${pctText}</div>
+      <div class="goal-ring-remaining">${remainingText}</div>
+    </div>`;
+}
 
 function renderHistory(entries) {
   const list = $("entry-list");
@@ -1039,7 +1085,7 @@ function renderStreaks(s) {
   grid.innerHTML = "";
   for (const [key, label, unit] of STREAK_TILES) {
     const tile = document.createElement("div");
-    tile.className = "stat";
+    tile.className = "stat streak-tile";
     // Active-streak data attribute gates the flame pulse (Phase 3); the
     // flame itself renders for every tile, styled by .flame.
     tile.dataset.streakActive = String(s[key] > 0);

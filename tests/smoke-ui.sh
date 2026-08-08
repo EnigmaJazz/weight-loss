@@ -157,6 +157,16 @@ if [ "$FLAME_COUNT" -gt 0 ] 2>/dev/null; then
 else
   step_fail "streak tiles render flames (count='$FLAME_COUNT')"
 fi
+# goals-dashboard S2: the hero goal ring must render on the Today tab with an
+# arc — a non-zero stroke-dashoffset means less than a full ring (a fresh
+# account has 0% progress, dashoffset = C; the null empty state also renders
+# no arc). Selector-only, no text pins.
+RING_ARC="$(playwright-cli --raw eval "(() => { const p = document.querySelector('#goal-ring .goal-ring-progress'); return String(!!p && parseFloat(p.getAttribute('stroke-dashoffset')) > 0); })()" 2>&1 | tr -d '"')"
+if [ "$RING_ARC" = "true" ]; then
+  step_ok "goal ring renders with an arc on Today"
+else
+  step_fail "goal ring renders with an arc on Today (got '$RING_ARC')"
+fi
 assert_find "summary section visible" "Summary"
 assert_find "log-weight form visible" "Log weight"
 assert_find "logout button visible" "Log out"
