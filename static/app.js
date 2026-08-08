@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, shouldCelebrate, resolveTheme } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, shouldCelebrate, resolveTheme } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -1409,6 +1409,15 @@ function fireConfetti() {
   }
 }
 
+/* Five-card milestone track (design §Milestone drop + §Milestone card
+ * structure; spec 'Five-Card Milestone Track'): replaces the rewards-next
+ * line + checkpoint chips with a 10/25/50/75/100 grid. All five threshold
+ * labels derive uniformly from kg via kgToImperial -> weightLabel (the API
+ * threshold_lb/stone/stone_lb keys are ignored for the track), so earned and
+ * pending cards can never diverge. */
+const MILESTONE_EMOJI = ["🚶", "🏃", "🔥", "🏆", "🎯"];
+const MILESTONE_PERCENTS = [10, 25, 50, 75, 100];
+
 function renderRewards(r) {
   const el = $("rewards-content");
   el.innerHTML = "";
@@ -1418,12 +1427,6 @@ function renderRewards(r) {
   el.append(earned);
 
   if (r.next_checkpoint) {
-    const nxt = r.next_checkpoint;
-    const row = document.createElement("p");
-    row.className = "rewards-next";
-    row.textContent = `Next checkpoint (${nxt.percent}%): ${weightLabel(nxt.threshold_kg, nxt.threshold_lb, nxt.threshold_stone, nxt.threshold_stone_lb, displayUnit)}`;
-    el.append(row);
-
     const track = document.createElement("div");
     track.className = "progress-track";
     const fill = document.createElement("div");
@@ -1442,25 +1445,66 @@ function renderRewards(r) {
     el.append(done);
   }
 
-  if (r.active_checkpoints.length) {
-    const list = document.createElement("ul");
-    list.className = "checkpoint-list";
-    for (const cp of r.active_checkpoints) {
-      const li = document.createElement("li");
-      const badge = document.createElement("span");
-      badge.className = "checkpoint-badge";
-      badge.textContent = `${cp.percent}%`;
-      const label = document.createElement("span");
-      label.className = "checkpoint-label";
-      label.textContent = weightLabel(cp.threshold_kg, cp.threshold_lb, cp.threshold_stone, cp.threshold_stone_lb, displayUnit);
-      const when = document.createElement("span");
-      when.className = "checkpoint-when";
-      when.textContent = cp.earned_at ? `earned ${formatDate(cp.earned_at.slice(0, 10))}` : "pending";
-      li.append(badge, label, when);
-      list.append(li);
-    }
-    el.append(list);
+  // Thresholds for all five percents from the mirror helper; the baseline
+  // rides on the cached weight summary (identical to rewards start_kg by
+  // construction — same compute_baseline), the target ships in the payload.
+  const thresholds = checkpointThresholds(
+    chartData.weightSummary?.baseline_kg ?? null,
+    r.target_kg ?? null
+  );
+  const earnedPct = new Set((r.active_checkpoints || []).map((cp) => cp.percent));
+  // Date-granular newest earned_at (YYYY-MM-DD) across the active set.
+  let latestEarnedDate = "";
+  for (const cp of r.active_checkpoints || []) {
+    if (!cp.earned_at) continue;
+    const day = String(cp.earned_at).slice(0, 10);
+    if (day > latestEarnedDate) latestEarnedDate = day;
   }
+  // next = next_checkpoint.percent, or the first pending when it is null.
+  const nextPct = r.next_checkpoint ? r.next_checkpoint.percent : null;
+  const firstPending = MILESTONE_PERCENTS.find((p) => !earnedPct.has(p)) ?? null;
+
+  const grid = document.createElement("div");
+  grid.className = "milestone-grid";
+  MILESTONE_PERCENTS.forEach((percent, i) => {
+    const isEarned = earnedPct.has(percent);
+    const earnedAt = (r.active_checkpoints || []).find(
+      (cp) => cp.percent === percent
+    )?.earned_at;
+    const when = earnedAt ? String(earnedAt).slice(0, 10) : "";
+    const isRecentlyEarned = isEarned && when !== "" && when === latestEarnedDate;
+    const kg = thresholds[i] ?? null;
+    const imp = kgToImperial(kg);
+    const card = document.createElement("div");
+    card.className =
+      "milestone-card" +
+      (isEarned ? " is-earned" : " is-pending") +
+      (percent === (nextPct ?? firstPending) ? " is-next" : "") +
+      (isRecentlyEarned ? " is-recently-earned" : "") +
+      (percent === 100 ? " is-100" : "");
+    card.setAttribute("data-percent", String(percent));
+    const emoji = document.createElement("span");
+    emoji.className = "milestone-emoji";
+    emoji.textContent = MILESTONE_EMOJI[i];
+    const pctLabel = document.createElement("span");
+    pctLabel.className = "milestone-pct";
+    pctLabel.textContent = `${percent}%`;
+    const threshold = document.createElement("span");
+    threshold.className = "milestone-threshold";
+    threshold.textContent = weightLabel(
+      kg,
+      imp ? imp.lb : null,
+      imp ? imp.stone : null,
+      imp ? imp.stoneLb : null,
+      displayUnit
+    );
+    const whenLabel = document.createElement("span");
+    whenLabel.className = "milestone-when";
+    whenLabel.textContent = when !== "" ? when : "pending";
+    card.append(emoji, pctLabel, threshold, whenLabel);
+    grid.append(card);
+  });
+  el.append(grid);
 }
 
 /* ---- settings ---------------------------------------------------------- */

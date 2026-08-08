@@ -303,6 +303,14 @@ echo "-- rewards / capture"
 # Checkpoints live on the Today tab; switch back before asserting.
 playwright-cli click "[data-tab=today]" >/dev/null 2>&1
 assert_find "checkpoints section visible" "Checkpoints"
+# goals-dashboard S3: the milestone track must render exactly five cards
+# (10/25/50/75/100). Selector-only, no text pins.
+MILESTONE_COUNT="$(playwright-cli --raw eval "document.querySelectorAll('.milestone-card').length" 2>&1 | tr -d '"')"
+if [ "$MILESTONE_COUNT" = "5" ]; then
+  step_ok "milestone track renders 5 cards ($MILESTONE_COUNT)"
+else
+  step_fail "milestone track renders 5 cards (count='$MILESTONE_COUNT')"
+fi
 playwright-cli screenshot --filename="smoke-ui.png" >/dev/null 2>&1
 [ -f smoke-ui.png ] && step_ok "screenshot saved (smoke-ui.png)" || step_fail "screenshot saved"
 

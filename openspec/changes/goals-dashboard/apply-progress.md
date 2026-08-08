@@ -1,4 +1,4 @@
-# Apply Progress — goals-dashboard (Slices 1 + 2 / PRs 1 + 2)
+# Apply Progress — goals-dashboard (Slices 1 + 2 + 3 / PRs 1 + 2 + 3)
 
 - **Artifact store**: OpenSpec (file) + Engram topic `sdd/goals-dashboard/apply-progress`
 - **Mode**: Strict TDD (pytest + node --test runners present, `openspec/config.yaml` strict_tdd: true)
@@ -149,15 +149,106 @@ Triangulation notes (S2): the smoke exercises the pct=0 fresh-account arc (dasho
 - Ad-hoc browser check (null goal): empty-state copy + "—" + no `.goal-ring-progress` circle ✓
 - `git status` → clean on `feat/goals-dashboard-s2`
 
+## Slice 3 / PR 3 (2026-08-08)
+
+- **Branch**: `feat/goals-dashboard-s3` (stacked-to-main chain, slice 3 of 3, based on S2 tip `cb9a2cf`)
+
+### Scope
+
+Slice 3 only — milestone track (the FINAL implementation slice):
+- `renderRewards` rewrite in `static/app.js`: keep `.rewards-count` + `.progress-track` band, drop `.rewards-next` + `.checkpoint-list`, emit `.milestone-grid` with 5 `.milestone-card` (data-percent, emoji 🚶🏃🔥🏆🎯, pct, threshold via `weightLabel(kgToImperial)` uniform for all 5, when YYYY-MM-DD|pending) with state classes is-earned/is-pending/is-next/is-recently-earned/is-100
+- `style.css`: `.milestone-grid` responsive grid, `.milestone-card` states (earned accent / pending muted / next ring / recently-earned pulse gated by reduced-motion), `.is-100.is-earned` gold gradient fill-only (text on --text/--accent-dark); dead `.rewards-next`/`.checkpoint-list`/`chip-pop` rules removed
+- Gate additions: `test_app_js_ships_milestone_grid` + `test_style_css_gold_is_fill_only`
+- Smoke addition: `.milestone-card` count == 5 (additions-only)
+
+Deliberately out of scope: format.js, index.html, backend, S1/S2 work.
+
+### Audit (task 3.1) — recorded before any edit
+
+| Baseline | Result |
+|---|---|
+| smoke "Checkpoints" section assert | ✔ passed (35/35) |
+| smoke "streak tiles render flames" | ✔ passed |
+| gate `test_app_js_ships_component_hooks` | ✔ passed |
+| gate `test_style_css_ships_confetti_and_flame_motion` | ✔ passed |
+| gate `test_style_css_ships_reduced_motion_block_without_starting_style` | ✔ passed |
+| gate pytest | 30 passed |
+| full pytest | 411 passed |
+| node --test | 110 pass |
+| pyright | 0 errors |
+| smoke total | 35 passed, 0 failed |
+
+Audit conclusion: no existing assertion pins `.rewards-next`/`.checkpoint-list`/`.progress-track` markup or chip CSS; the confetti wiring (earned_count diff in loadData) is untouched by the renderRewards rewrite. Safe to proceed.
+
+### Completed Tasks
+
+- [x] 3.1 AUDIT (pre-rewrite): smoke+gate baseline; none pin .rewards-next/.checkpoint-list/.progress-track — audited: smoke "checkpoints section visible" + "streak tiles render flames"; gate test_app_js_ships_component_hooks, test_style_css_ships_confetti_and_flame_motion, test_style_css_ships_reduced_motion_block_without_starting_style
+- [x] 3.2 RED gate: test_app_js_ships_milestone_grid (.milestone-grid/.milestone-card in served app.js) + test_style_css_gold_is_fill_only (`.is-100.is-earned` background gradient; no gold text)
+- [x] 3.3 RED smoke: `.milestone-card` count == 5
+- [x] 3.4 GREEN: rewrite `renderRewards` — keep `.rewards-count` + `.progress-track`; drop `.rewards-next` + `.checkpoint-list`; emit 5 `.milestone-card` (data-percent, emoji 🚶🏃🔥🏆🎯, pct, threshold via weightLabel(kgToImperial), when YYYY-MM-DD|pending): is-earned (∈ active set), is-next (next_checkpoint.percent else first pending), is-recently-earned (max earned_at, date-granular), is-100
+- [x] 3.5 CSS: `.milestone-grid` grid + `.milestone-card` states (is-next ring, is-recently-earned highlight); `.is-100.is-earned` background linear-gradient(var(--gold),var(--gold-deep)), text var(--text)/var(--accent-dark)
+- [x] 3.6 verify: pytest 413 + node 110 + smoke 36 green
+- [x] 4.1 additions-only: no edits to routes.py/database.py/rewards.py/main.py (tuples stamped); pinned ids/strings unchanged; full pytest 413 + node 110 + smoke 36 green
+
+### TDD Cycle Evidence (S3)
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| 3.1 | (audit) | — | ✅ 30-gate/411-pytest/110-node/0-pyright/35-smoke | — | — | — | — |
+| 3.2 | `tests/test_spa_gate.py` (2 new tests written BEFORE app.js/CSS edits) | Integration | ✅ 30/30 gate baseline | ✅ `test_app_js_ships_milestone_grid` + `test_style_css_gold_is_fill_only` both failed (2 failed, 30 passed) | ✅ Gate 32/32 after app.js + CSS; app.js-only pass (31/31) proven between the two edits | ✅ 2 tests over 2 distinct artifacts (app.js grid + style.css gold) with distinct sub-asserts (destructure regex, 5 state classes, 5 emoji, data-percent; gradient tokens, no gold text anywhere incl. `(?<!-)color` lookbehind) | ✅ Dead `.checkpoint-list`/`chip-pop`/`.rewards-next` rules removed with the markup; reduced-motion kill moved to `.milestone-card.is-recently-earned` |
+| 3.3 | `tests/smoke-ui.sh` (milestone eval written BEFORE implementation) | E2E | ✅ smoke 35/35 pre-edit | ✅ New "milestone track renders 5 cards" step failed (count='0') — 35 passed, 1 failed | ✅ smoke 36/36 after implementation | ✅ Runtime triangulation: fresh-account path (0 earned, next=10, 5 uniform thresholds) + browser session with baseline 95/current 85 (earned {10,25}, next 50, both recently-earned same-day; distinct-date path is the same YYYY-MM-DD max comparison) | ➖ None needed |
+| 3.4 | same (implementation) | Integration | ✅ app.js syntax check + gate baselines | ✅ (from 3.2) | ✅ Passed — gate 32/32, node 110/110, pytest 413, smoke 36 | ✅ State derivation exercised at runtime across 3 payload states (0/1/2 earned + next transitions); thresholds verified recomputing with baseline change (86.9/84.1/79.4/74.7/70 → 92.5/88.8/82.5/76.3/70) | ✅ Constants `MILESTONE_EMOJI`/`MILESTONE_PERCENTS` extracted; threshold label built from one `kgToImperial` call |
+| 3.5 | `tests/test_spa_gate.py` (gold test) | Integration | ✅ (from 3.2) | ✅ (from 3.2) | ✅ Passed — gold gradient fill-only rule, no gold text property anywhere | ✅ (from 3.2) | ✅ Dead rules removed; tokens only (no palette hex) |
+| 3.6 | verify gate | — | ✅ baselines above | — | ✅ pytest 413, node 110, smoke 36, pyright 0 errors, git clean | — | — |
+
+Triangulation notes (S3): the milestone state logic (earned/next/recently-earned) has no node:test layer — app.js is a browser script with no DOM harness (S1/S2 precedent), so it is covered by the served-bytes gate (state class strings + destructure) and behavioral E2E (smoke + ad-hoc browser session). Three runtime states exercised: fresh (0 earned, next=10), baseline-95/current-88.8 (1 earned, next=25), current-85 (2 earned, next=50, recently-earned on same-day earns). The distinct-date recently-earned case is the identical YYYY-MM-DD max comparison; same-date earns correctly tie on the class per the literal spec ("earned_at(YYYY-MM-DD) == max earned_at among active").
+
+### Work Unit Evidence (S3)
+
+| Evidence | Work unit 1 (milestone grid render + gate + smoke) |
+|---|---|
+| Focused test command + exact result | `.venv/bin/python -m pytest tests/test_spa_gate.py -q` → **32 passed** (30 + grid + gold); `node --check static/app.js` → OK; `node --test tests/frontend/*.test.mjs` → **110 pass** |
+| Runtime harness command/scenario + exact result | `tests/smoke-ui.sh http://127.0.0.1:8130` (scratch server, tmp DB/VAPID) → **36 passed, 0 failed** incl. "milestone track renders 5 cards (5)"; ad-hoc playwright session: fresh path 5 cards/next-10/uniform thresholds, earned {10,25}/next-50/recently-earned after real weight entries |
+| Rollback boundary | Revert `33c22f6` (with docs revert) — removes the milestone grid rewrite + milestone CSS + the 2 gate tests + the smoke eval; dead `.rewards-next`/`.checkpoint-list` CSS rules return with the revert; pinned ids/strings/selectors untouched, suite returns to 30-gate/411-pytest/35-smoke |
+
+### Files Changed (S3)
+
+| File | Action | What Was Done |
+|------|--------|---------------|
+| `static/app.js` | Modified | Destructured `checkpointThresholds` + `kgToImperial` from WeightFormat; rewrote `renderRewards` — keeps `.rewards-count` + `.progress-track`/`.progress-fill`/`.progress-label` band + `.rewards-done`, drops `.rewards-next` + `.checkpoint-list`, emits `.milestone-grid` with 5 `.milestone-card` (data-percent, emoji 🚶🏃🔥🏆🎯, pct, threshold via `kgToImperial(kg)` → `weightLabel(..., displayUnit)` uniform for all 5, when YYYY-MM-DD|pending); state classes is-earned/is-pending/is-next/is-recently-earned/is-100; thresholds from `checkpointThresholds(chartData.weightSummary?.baseline_kg, r.target_kg)` |
+| `static/style.css` | Modified | Added `.milestone-grid` (auto-fit minmax grid), `.milestone-card` base + `.is-pending`/`.is-earned`/`.is-next`/`.is-recently-earned` (accent pulse keyframes) + `.is-100.is-earned` gold gradient fill-only; removed dead `.rewards-next`, `.checkpoint-list`, `chip-pop` rules; reduced-motion block now kills `.milestone-card.is-recently-earned` animation |
+| `tests/test_spa_gate.py` | Modified | Added `test_app_js_ships_milestone_grid` + `test_style_css_gold_is_fill_only` |
+| `tests/smoke-ui.sh` | Modified | Added `.milestone-card` count == 5 eval after the Checkpoints assert; additions-only |
+| `openspec/changes/goals-dashboard/tasks.md` | Modified | Phase 3 tasks 3.1–3.6 + Phase 4 task 4.1 marked `[x]` |
+| `openspec/changes/goals-dashboard/apply-progress.md` | Modified | Merged S1 + S2 + S3 progress (this file) |
+
+### Deviations / Notes (S3)
+
+1. **Baseline source for the threshold grid**: `/api/rewards` ships `target_kg` but NOT the baseline, so the grid computes `checkpointThresholds(baseline, target)` with baseline read from `chartData.weightSummary?.baseline_kg` (identical to rewards `start_kg` by construction — same `compute_baseline`; same pattern as `renderGoalRangeHint`). All five labels then flow through the uniform `kgToImperial` → `weightLabel` path per design; pending-card thresholds are never server-provided.
+2. **Dead CSS removed with the markup**: `.rewards-next`, `.checkpoint-list`, `.checkpoint-badge/-label/-when`, and `@keyframes chip-pop` were removed (audit confirmed nothing pins them); the reduced-motion kill moved from `.checkpoint-list li` to `.milestone-card.is-recently-earned`. The `.rewards-done` else-branch and its CSS are kept (still reached when all 5 are earned).
+3. **Milestone-when label is the bare YYYY-MM-DD** (task 3.4 "when YYYY-MM-DD|pending"), not the old chips' "earned dd/mm/yy" — the card's earned state is already signalled by classes/emoji/styling.
+4. **Recently-earned ties on the max date** per the literal spec: two cards earned the same YYYY-MM-DD both carry the class. Distinct-date behavior is the same comparison (max wins).
+5. **Gate landmines held**: `.flame` + `dataset.streakActive` untouched; single `:root`; no `@starting-style`; no hardcoded chart hex in app.js or new CSS (tokens only, incl. gold gradient); pinned strings ("Checkpoints" etc.) and ids unchanged; confetti `prevEarned`/`shouldCelebrate`/`fireConfetti` wiring in loadData untouched; additions-only smoke.
+6. **Work-unit commit bundling**: render + style + both gate tests + smoke eval landed in ONE `feat(spa)` commit (211+/55−, well under 400) — the milestone track is a single deliverable and the two gate tests form one contiguous hunk in the gate file, so splitting mid-file would have forced a non-green intermediate commit (S2 precedent: single feat commit).
+
+### Verification (S3 final numbers)
+
+- `.venv/bin/python -m pytest tests/test_spa_gate.py -q` → 32 passed (baseline 30)
+- `.venv/bin/python -m pytest -q` → 413 passed (baseline 411)
+- `node --test tests/frontend/*.test.mjs` → 110 pass, 0 fail (baseline 110, unchanged)
+- `.venv/bin/pyright` → 0 errors, 0 warnings, 0 informations
+- `tests/smoke-ui.sh http://127.0.0.1:8130` (scratch server, tmp DB/VAPID) → 36 passed, 0 failed (baseline 35 + milestone count)
+- Ad-hoc browser triangulation: fresh (5 cards, 0 earned, next=10, thresholds 86.9/84.1/79.4/74.7/70.0 kg+lb); baseline 95/current 88.8 (earned {10}, next {25}); current 85 (earned {10,25}, next {50}, recently-earned same-day) ✓
+- `git status` → clean on `feat/goals-dashboard-s3`
+
 ## Workload / PR Boundary (cumulative)
 
 - Mode: stacked PR slice (auto-chain, stacked-to-main)
 - S1 boundary: starts at `main` (68bb204), ends with docs commit; ~190 authored changed lines
 - S2 boundary: starts at S1 tip `be5fcef`, ends at `cf417f8` + docs commit; 221 insertions / 3 deletions (~224 changed lines), under 400
-- S3 (PR 3): milestone-grid rewrite + CSS + smoke + audit — next PR targeting this branch
-- Then `sdd-verify` for the full change
+- S3 boundary: starts at S2 tip `cb9a2cf`, ends at `33c22f6` + docs commit; 211 insertions / 55 deletions (~266 changed lines), under 400
+- Full change complete: all tasks 1.1–4.1 marked `[x]`; next phase is `sdd-verify` for the full change
 
 ## Next Steps
 
-- S3 (PR 3): milestone-grid rewrite + CSS + smoke + audit
-- Then `sdd-verify` for the full change
+- Slice 3 (PR 3) complete — all implementation slices landed; run `sdd-verify` for the full change
