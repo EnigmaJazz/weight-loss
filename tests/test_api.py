@@ -30,7 +30,22 @@ async def test_settings_get_returns_defaults(auth_client):
     assert data["reminder_time"] == "20:00"
     assert data["exercise_time"] == "17:00"
     assert data["target_weight"] is None
+    assert data["target_bmi"] is None
+    assert data["onboarding_complete"] is False
     assert data["start_weight_override"] is None
+
+
+@pytest.mark.asyncio
+async def test_onboarded_client_completed_onboarding(app, onboarded_client):
+    # Fixture contract: the helper's wizard simulation leaves a ready tracker —
+    # settings hold the defaults and today's first weight entry exists.
+    data = (await onboarded_client.get("/api/settings")).json()
+    assert data["height_cm"] == 175
+    assert data["target_weight"] == 70.0
+    assert data["target_bmi"] is None
+    weight = (await onboarded_client.get("/api/weight")).json()
+    assert weight["summary"]["baseline_kg"] == 80.0
+    assert weight["summary"]["current_kg"] == 80.0
 
 
 @pytest.mark.asyncio
@@ -255,6 +270,7 @@ async def test_manual_notify_endpoints(auth_client, stub_push):
         assert res.status_code == 200
         assert res.json() == {"sent": 1, "total": 1}
     assert len(stub_push) == 3
+    assert [call["notif_type"] for call in stub_push] == ["tip", "reminder", "exercise"]
 
     res = await auth_client.post("/api/notify/bogus")
     assert res.status_code == 404
@@ -371,6 +387,76 @@ async def test_settings_update_reconciles_rewards(auth_client):
     await auth_client.put("/api/settings", json={"start_weight_override": 110.0})
     data = (await auth_client.get("/api/rewards")).json()
     assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25, 50]
+
+
+# ---- target_bmi reconciliation (target-progress-rewards) ----------------
+# DB-level regressions: reward-affecting settings keys (target_bmi, height_cm)
+# must recompute the persisted checkpoint set per user on change.
+
+
+def _reward_rows(db, user_id):
+    """(percent, threshold_kg) pairs for a user's persisted checkpoints."""
+    return [
+        (r["checkpoint_percent"], r["threshold_kg"])
+        for r in db.list_active_rewards(user_id)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_settings_target_bmi_reconciles_checkpoints(app):
+    # Spec: GIVEN the 10% checkpoint active with target_weight 80 and start 100;
+    # WHEN target_bmi 24 + height 175 are persisted and target_weight cleared
+    # (resolved target 73.5 kg); THEN rewards recompute against 73.5.
+    db = app.state.db
+    user = make_user(db, "bmi-reconcile")
+    db.upsert_entry(user.id, "2026-08-01", 100.0)
+    db.upsert_entry(user.id, "2026-08-02", 95.0)
+    db.update_settings(user.id, {"target_weight": 80.0})
+    assert _reward_rows(db, user.id) == [(10, 98.0), (25, 95.0)]
+
+    db.update_settings(
+        user.id,
+        {"target_weight": None, "target_bmi": 24.0, "height_cm": 175},
+    )
+    # Derived target 73.5 -> 10% threshold 97.35; current 95 still inside it.
+    assert _reward_rows(db, user.id) == [(10, 97.35)]
+
+
+@pytest.mark.asyncio
+async def test_settings_unset_target_bmi_revokes_checkpoints(app):
+    # Spec: clearing target_bmi with target_weight unset leaves no resolved
+    # target -> every active checkpoint is revoked.
+    db = app.state.db
+    user = make_user(db, "bmi-revoke")
+    db.upsert_entry(user.id, "2026-08-01", 100.0)
+    db.upsert_entry(user.id, "2026-08-02", 95.0)
+    db.update_settings(user.id, {"height_cm": 175.0, "target_bmi": 24.0})
+    assert _reward_rows(db, user.id) == [(10, 97.35)]
+
+    db.update_settings(user.id, {"target_bmi": None})
+    assert db.list_active_rewards(user.id) == []
+
+
+@pytest.mark.asyncio
+async def test_settings_target_bmi_reconcile_isolated_per_user(app):
+    # Spec: A's target_bmi change reconciles only A; B's persisted rewards
+    # (percent, threshold, earned_at) remain untouched.
+    db = app.state.db
+    alice = make_user(db, "alice-reconcile")
+    bob = make_user(db, "bob-reconcile")
+    for user in (alice, bob):
+        db.upsert_entry(user.id, "2026-08-01", 100.0)
+        db.upsert_entry(user.id, "2026-08-02", 95.0)
+        db.update_settings(user.id, {"target_weight": 80.0})
+    bob_rows_before = db.list_active_rewards(bob.id)
+    assert _reward_rows(db, alice.id) == [(10, 98.0), (25, 95.0)]
+
+    db.update_settings(
+        alice.id,
+        {"target_weight": None, "target_bmi": 24.0, "height_cm": 175},
+    )
+    assert _reward_rows(db, alice.id) == [(10, 97.35)]
+    assert db.list_active_rewards(bob.id) == bob_rows_before
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,7 @@ VAPID_SUBJECT = "mailto:weight-tracker@localhost"
 
 DEFAULT_SETTINGS: dict[str, object] = {
     "target_weight": None,
+    "target_bmi": None,  # BMI goal; resolved to kg on read
     "tip_time": "09:00",
     "reminder_time": "20:00",
     "reminder_weekday": 0,  # Monday=0 ... Sunday=6 (datetime.weekday())
@@ -38,6 +39,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "height_unit": "cm",  # per-user input preference: "cm" | "ft-in"
     "target_unit": "kg",  # per-user target input preference: "kg" | "st-lb"
     "weight_display": "lb",  # display preference: "lb" | "st-lb"
+    "onboarding_complete": False,  # wizard finished (flag lands Phase 3)
 }
 
 # Notification types and whether each fires daily or weekly (fixed weekday).
@@ -52,18 +54,83 @@ NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "reminder", "exercise")
 # NOTIFICATION_TYPES allowlist pattern.
 EXERCISE_TYPES: tuple[str, ...] = ("walk", "run", "gym", "cycling", "swim", "other")
 
-NOTIFICATION_MESSAGES: dict[str, tuple[str, str]] = {
+# Notification message pools: each type has multiple (title, body) variants,
+# one picked randomly at send time so users see varied text. The FIRST variant
+# per type is the original single message (backward-compatible).
+NOTIFICATION_MESSAGES: dict[str, tuple[tuple[str, str], ...]] = {
     "tip": (
-        "Daily weight-loss tip",
-        "Consistency beats intensity — log every day, even the bad ones.",
+        (
+            "Daily weight-loss tip",
+            "Consistency beats intensity — log every day, even the bad ones.",
+        ),
+        (
+            "Your daily nudge",
+            "Small steps compound. One entry today beats a perfect streak tomorrow.",
+        ),
+        (
+            "Daily tip",
+            "You don't need a perfect day — just a logged one. Future you says thanks.",
+        ),
+        (
+            "Keep the streak alive",
+            "Your chart only grows when you log. Give it today's point!",
+        ),
+        (
+            "Daily tip",
+            "Every entry is data — and data is power. Weigh in, win the day.",
+        ),
+        (
+            "Daily nudge",
+            "One minute now, one data point forever. That's the whole game.",
+        ),
     ),
     "reminder": (
-        "Weigh-in reminder",
-        "Time to log your weight for today!",
+        (
+            "Weigh-in reminder",
+            "Time to log your weight for today!",
+        ),
+        (
+            "Scale time!",
+            "Step on the scale — it's weigh-in day. Quick and done.",
+        ),
+        (
+            "Weigh-in day",
+            "Your weekly check-in is due. Numbers don't lie — and neither do you.",
+        ),
+        (
+            "Scale check",
+            "Time for your weekly weigh-in. Every week logged is a story you can see.",
+        ),
+        (
+            "Weigh-in time",
+            "Don't let the scale win the week unread. Log it!",
+        ),
     ),
     "exercise": (
-        "Exercise encouragement",
-        "Time to move — a 10-minute walk counts. You've got this!",
+        (
+            "Exercise encouragement",
+            "Time to move — a 10-minute walk counts. You've got this!",
+        ),
+        (
+            "Move time!",
+            "10 minutes of movement is a win. Your future self is already stronger.",
+        ),
+        (
+            "Exercise nudge",
+            "Bonus points for moving today — any movement counts, no judgement.",
+        ),
+        (
+            "Get moving",
+            "Your body is built for this. 10 minutes now, energy all day.",
+        ),
+        (
+            "Move it!",
+            "Today's quest: move a little. Walk, stretch, dance — just don't sit still.",
+        ),
+        (
+            "Exercise boost",
+            "A quick session today keeps the streak green. You've got this!",
+        ),
     ),
 }
 

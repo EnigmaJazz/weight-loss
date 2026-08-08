@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import random
 from typing import Any, Iterable
 
 import requests
@@ -10,7 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from py_vapid import Vapid, b64urlencode
 from pywebpush import WebPushException, webpush
 
-from constants import VAPID_SUBJECT, get_logger
+from constants import NOTIFICATION_MESSAGES, VAPID_SUBJECT, get_logger
 from models import PushSubscription
 
 logger = get_logger("notifications")
@@ -77,6 +78,14 @@ def _subscription_info(subscription: PushSubscription) -> dict[str, Any]:
         "endpoint": subscription.endpoint,
         "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
     }
+
+
+def pick_message(notif_type: str, rng: random.Random | None = None) -> tuple[str, str]:
+    """Pick one (title, body) variant for a notification type.
+
+    Pass a seeded random.Random for deterministic tests; otherwise random."""
+    variants = NOTIFICATION_MESSAGES[notif_type]
+    return (rng or random).choice(variants)
 
 
 def send_push(
