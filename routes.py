@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 import mailer
 from auth import (
@@ -330,6 +330,24 @@ class PushUnsubscribeIn(BaseModel):
         return value
 
 
+def _valid_weight_unit(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in ("kg", "st-lb"):
+        raise ValueError('unit must be "kg" or "st-lb"')
+    return value
+
+
+def _valid_height_unit(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in ("cm", "ft-in"):
+        raise ValueError('height_unit must be "cm" or "ft-in"')
+    return value
+
+
+def _valid_weight_display(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in ("lb", "st-lb"):
+        raise ValueError('weight_display must be "lb" or "st-lb"')
+    return value
+
+
 class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -354,23 +372,72 @@ class SettingsIn(BaseModel):
     @field_validator("weight_unit", "target_unit")
     @classmethod
     def validate_weight_unit(cls, value: Optional[str]) -> Optional[str]:
-        if value is not None and value not in ("kg", "st-lb"):
-            raise ValueError('unit must be "kg" or "st-lb"')
-        return value
+        return _valid_weight_unit(value)
 
     @field_validator("height_unit")
     @classmethod
     def validate_height_unit(cls, value: Optional[str]) -> Optional[str]:
-        if value is not None and value not in ("cm", "ft-in"):
-            raise ValueError('height_unit must be "cm" or "ft-in"')
-        return value
+        return _valid_height_unit(value)
 
     @field_validator("weight_display")
     @classmethod
     def validate_weight_display(cls, value: Optional[str]) -> Optional[str]:
-        if value is not None and value not in ("lb", "st-lb"):
-            raise ValueError('weight_display must be "lb" or "st-lb"')
-        return value
+        return _valid_weight_display(value)
+
+
+class OnboardingIn(BaseModel):
+    """Body for POST /api/onboarding — the atomic wizard completion payload.
+
+    AD6: target_bmi carries only gt=0 at the field level; the (10, 40] bounds
+    live in the model validator, which runs AFTER the height check — so a
+    missing or non-positive height surfaces before any BMI-bound error.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    height_cm: float = Field(gt=0)  # required, positive
+    weight_kg: float = Field(gt=0)  # required, positive (today's first entry)
+    target_weight: Optional[float] = Field(default=None, gt=0)
+    target_bmi: Optional[float] = Field(default=None, gt=0)  # bounds in validator
+    weight_unit: Optional[str] = None  # "kg" | "st-lb"
+    height_unit: Optional[str] = None  # "cm" | "ft-in"
+    target_unit: Optional[str] = None  # "kg" | "st-lb"
+    weight_display: Optional[str] = None  # "lb" | "st-lb"
+    tip_time: Optional[str] = None
+    reminder_time: Optional[str] = None
+    reminder_weekday: Optional[int] = Field(default=None, ge=0, le=6)
+    exercise_time: Optional[str] = None
+
+    @field_validator("tip_time", "reminder_time", "exercise_time")
+    @classmethod
+    def validate_time(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_time(value)
+
+    @field_validator("weight_unit", "target_unit")
+    @classmethod
+    def validate_weight_unit(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_weight_unit(value)
+
+    @field_validator("height_unit")
+    @classmethod
+    def validate_height_unit(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_height_unit(value)
+
+    @field_validator("weight_display")
+    @classmethod
+    def validate_weight_display(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_weight_display(value)
+
+    @model_validator(mode="after")
+    def _check_target(self) -> "OnboardingIn":
+        if (self.target_weight is None) == (self.target_bmi is None):
+            raise ValueError("exactly one of target_weight or target_bmi is required")
+        # AD6: BMI bounds are checked here — AFTER height presence/positivity
+        # (height_cm's field-level gt=0 has already run by this point), so a
+        # bad height never reports a BMI-bound error.
+        if self.target_bmi is not None and not (10 < self.target_bmi <= 40):
+            raise ValueError("target_bmi must be in (10, 40]")
+        return self
 
 
 # ---- serialization ------------------------------------------------------
@@ -557,8 +624,16 @@ async def login(
 
 
 @router.get("/api/auth/me")
-async def me(user: User = Depends(require_user)) -> dict[str, Any]:
-    return _user_view(user)
+async def me(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    # AD4 default: one settings read per call. needs_onboarding derives from
+    # the onboarding_complete row — absent means the account predates the
+    # wizard (or never finished it) and must be surfaced once.
+    settings = await run_db(db.get_settings, user.id)
+    view = _user_view(user)
+    view["needs_onboarding"] = not settings.onboarding_complete
+    return view
 
 
 @router.put("/api/auth/me")
@@ -655,6 +730,25 @@ async def reset_password(
     )
     logger.info("password reset for user %s", user.username)
     return {"message": "password reset — you can log in now"}
+
+
+# ---- onboarding ---------------------------------------------------------
+
+
+@router.post("/api/onboarding")
+async def complete_onboarding(
+    payload: OnboardingIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, bool]:
+    """Atomic wizard completion: settings + today's first weight + rewards in
+    one database transaction. Idempotent — re-POSTing overwrites settings and
+    upserts today's entry rather than duplicating it."""
+    await run_db(
+        db.complete_onboarding, user.id, payload.model_dump(exclude_unset=True)
+    )
+    logger.info("completed onboarding for user %s", user.username)
+    return {"ok": True}
 
 
 # ---- weight -------------------------------------------------------------
