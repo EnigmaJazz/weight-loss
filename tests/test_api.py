@@ -3,13 +3,20 @@
 import pytest
 
 import database as database_module
-from tests.conftest import auth_user_id, make_user
+from tests.conftest import ONBOARDED_USERNAME, auth_user_id, make_user
 
 SUBSCRIBE_BODY = {
     "endpoint": "https://push.example.com/v1/abcd1234",
     "p256dh": "BEl62iUYgUivxIkv69yViEuiBIa_IbT8n1sWj3N5nPw",
     "auth": "F8UVa5fTzFQXlq6dZ0Gt7g",
 }
+
+
+def _onboarded_user_id(app):
+    """The user id of the account the onboarded_client fixture registered."""
+    user = app.state.db.get_user_by_username(ONBOARDED_USERNAME)
+    assert user is not None
+    return user.id
 
 
 @pytest.mark.asyncio
@@ -286,11 +293,11 @@ async def test_rewards_empty(auth_client):
 
 
 @pytest.mark.asyncio
-async def test_rewards_checkpoints_earned_via_upserts(auth_client):
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
-    data = (await auth_client.get("/api/rewards")).json()
+async def test_rewards_checkpoints_earned_via_upserts(onboarded_client):
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
     assert data["active_checkpoints"][0]["threshold_kg"] == 98.0
     assert data["active_checkpoints"][0]["earned_at"] is not None
@@ -305,12 +312,12 @@ async def test_rewards_checkpoints_earned_via_upserts(auth_client):
 
 
 @pytest.mark.asyncio
-async def test_rewards_regression_revokes_checkpoints(auth_client):
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 99.0})
-    data = (await auth_client.get("/api/rewards")).json()
+async def test_rewards_regression_revokes_checkpoints(onboarded_client):
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 99.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert data["active_checkpoints"] == []
     assert data["earned_count"] == 0
     nxt = data["next_checkpoint"]
@@ -322,70 +329,73 @@ async def test_rewards_regression_revokes_checkpoints(auth_client):
 
 
 @pytest.mark.asyncio
-async def test_rewards_reenroll_refreshes_earned_at(auth_client, app, monkeypatch):
+async def test_rewards_reenroll_refreshes_earned_at(onboarded_client, app, monkeypatch):
     monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-02 09:00:00")
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
-    user_id = auth_user_id(app)
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    user_id = _onboarded_user_id(app)
     rows = app.state.db.list_active_rewards(user_id)
     assert {r["checkpoint_percent"] for r in rows} == {10, 25}
     assert all(r["earned_at"] == "2026-08-02 09:00:00" for r in rows)
 
     # Regression revokes every checkpoint.
-    await auth_client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 99.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-03", "weight_kg": 99.0})
     assert app.state.db.list_active_rewards(user_id) == []
 
     # Renewed progress re-earns with a NEW local timestamp.
     monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-04 18:30:00")
-    await auth_client.post("/api/weight", json={"date": "2026-08-04", "weight_kg": 90.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-04", "weight_kg": 90.0})
     rows = app.state.db.list_active_rewards(user_id)
     assert {r["checkpoint_percent"] for r in rows} == {10, 25, 50}
     assert all(r["earned_at"] == "2026-08-04 18:30:00" for r in rows)
 
 
 @pytest.mark.asyncio
-async def test_rewards_historical_upsert_changes_start(auth_client):
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
-    data = (await auth_client.get("/api/rewards")).json()
+async def test_rewards_historical_upsert_changes_start(onboarded_client):
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert data["active_checkpoints"] == []
 
     # An earlier-dated entry moves the start (and thresholds) back to 100.
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    data = (await auth_client.get("/api/rewards")).json()
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
 
 
 @pytest.mark.asyncio
-async def test_rewards_delete_reconciles(auth_client, app):
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    created = (await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})).json()
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
-    user_id = auth_user_id(app)
+async def test_rewards_delete_reconciles(onboarded_client, app):
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    created = (await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})).json()
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    user_id = _onboarded_user_id(app)
     assert len(app.state.db.list_active_rewards(user_id)) == 2
 
-    await auth_client.delete(f"/api/weight/{created['id']}")
-    data = (await auth_client.get("/api/rewards")).json()
+    await onboarded_client.delete(f"/api/weight/{created['id']}")
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert data["active_checkpoints"] == []
     assert app.state.db.list_active_rewards(user_id) == []
 
 
 @pytest.mark.asyncio
-async def test_settings_update_reconciles_rewards(auth_client):
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
-    data = (await auth_client.get("/api/rewards")).json()
+async def test_settings_update_reconciles_rewards(onboarded_client):
+    # The onboarded fixture seeds a target, so clear it first: this test
+    # exercises reconciliation from a no-target start.
+    await onboarded_client.put("/api/settings", json={"target_weight": None})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert data["active_checkpoints"] == []
 
     # Setting a target triggers reconciliation.
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    data = (await auth_client.get("/api/rewards")).json()
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
 
     # Moving the override (start 100 -> 110) re-derives thresholds.
-    await auth_client.put("/api/settings", json={"start_weight_override": 110.0})
-    data = (await auth_client.get("/api/rewards")).json()
+    await onboarded_client.put("/api/settings", json={"start_weight_override": 110.0})
+    data = (await onboarded_client.get("/api/rewards")).json()
     assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25, 50]
 
 
@@ -460,11 +470,13 @@ async def test_settings_target_bmi_reconcile_isolated_per_user(app):
 
 
 @pytest.mark.asyncio
-async def test_weight_created_at_uses_local_time(auth_client, app, monkeypatch):
+async def test_weight_created_at_uses_local_time(onboarded_client, app, monkeypatch):
+    # Fresh date: the fixture already seeded 08-01, and an upsert over it would
+    # keep its original created_at (ON CONFLICT updates weight/time only).
     monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-02 21:30:00")
-    res = await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 90.5})
+    res = await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 90.5})
     assert res.json()["created_at"] == "2026-08-02 21:30:00"
-    row = app.state.db.get_entry_by_date(auth_user_id(app), "2026-08-01")
+    row = app.state.db.get_entry_by_date(_onboarded_user_id(app), "2026-08-02")
     assert row.created_at == "2026-08-02 21:30:00"
 
 
@@ -483,10 +495,10 @@ async def test_notification_sent_at_uses_local_time(app, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_weight_summary_includes_target(auth_client):
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 90.5})
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    data = (await auth_client.get("/api/weight")).json()
+async def test_weight_summary_includes_target(onboarded_client):
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 90.5})
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    data = (await onboarded_client.get("/api/weight")).json()
     assert data["summary"]["target_kg"] == 80.0
     assert data["summary"]["remaining_kg"] == 10.5
 
@@ -495,11 +507,13 @@ async def test_weight_summary_includes_target(auth_client):
 
 
 @pytest.mark.asyncio
-async def test_weight_entries_include_display_units(auth_client):
+async def test_weight_entries_include_display_units(onboarded_client):
     # Spec: each history row derives lb/stone from canonical kg; BMI is "—"
-    # (None) until height is configured.
-    res = await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 70.0})
-    assert res.status_code == 201
+    # (None) until height is configured. The onboarded fixture seeds height, so
+    # clear it to hold the "no height yet" contract.
+    await onboarded_client.put("/api/settings", json={"height_cm": None})
+    res = await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 70.0})
+    assert res.status_code == 200  # upserts the fixture's seeded 08-01 entry
     entry = res.json()
     assert entry["weight_kg"] == 70.0
     assert entry["lb"] == pytest.approx(70 * 2.2046226218)
@@ -507,7 +521,7 @@ async def test_weight_entries_include_display_units(auth_client):
     assert entry["stone_lb"] == pytest.approx(70 * 2.2046226218 - 14 * 11)
     assert entry["bmi"] is None
 
-    data = (await auth_client.get("/api/weight")).json()
+    data = (await onboarded_client.get("/api/weight")).json()
     got = data["entries"][0]
     assert got["lb"] == entry["lb"]
     assert got["stone"] == 11
@@ -516,20 +530,20 @@ async def test_weight_entries_include_display_units(auth_client):
 
 
 @pytest.mark.asyncio
-async def test_weight_entries_bmi_with_height(auth_client):
+async def test_weight_entries_bmi_with_height(onboarded_client):
     # Spec: BMI = kg / (height_cm/100)^2, using unrounded values.
-    await auth_client.put("/api/settings", json={"height_cm": 175})
-    res = await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 70.0})
+    await onboarded_client.put("/api/settings", json={"height_cm": 175})
+    res = await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 70.0})
     body = res.json()
     assert body["bmi"] == pytest.approx(70 / 1.75**2)
 
 
 @pytest.mark.asyncio
-async def test_weight_summary_has_display_units(auth_client):
-    await auth_client.put("/api/settings", json={"target_weight": 80.0, "height_cm": 175})
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 90.0})
-    summary = (await auth_client.get("/api/weight")).json()["summary"]
+async def test_weight_summary_has_display_units(onboarded_client):
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0, "height_cm": 175})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 90.0})
+    summary = (await onboarded_client.get("/api/weight")).json()["summary"]
 
     # Canonical kg keys stay; multi-unit siblings are raw derived values.
     assert summary["baseline_kg"] == 100.0
@@ -560,6 +574,11 @@ async def test_weight_summary_has_display_units(auth_client):
     assert summary["remaining_stone"] == 1
     assert summary["remaining_stone_lb"] == pytest.approx(10 * 2.2046226218 - 14 * 1)
 
+    # Phase 2 contract: healthy range + target status ride on the summary.
+    assert summary["healthy_min_kg"] == 56.7
+    assert summary["healthy_max_kg"] == 76.3
+    assert summary["target_status"] == "overweight"
+
 
 @pytest.mark.asyncio
 async def test_weight_summary_display_none_without_data(auth_client):
@@ -570,17 +589,21 @@ async def test_weight_summary_display_none_without_data(auth_client):
                 "target_lb", "target_stone", "target_stone_lb", "target_bmi",
                 "remaining_lb", "remaining_stone", "remaining_stone_lb"):
         assert summary[key] is None, key
+    # Phase 2: no height/target -> healthy range and status are null too.
+    assert summary["healthy_min_kg"] is None
+    assert summary["healthy_max_kg"] is None
+    assert summary["target_status"] is None
 
 
 @pytest.mark.asyncio
-async def test_rewards_checkpoints_include_threshold_units(auth_client):
-    await auth_client.put("/api/settings", json={"target_weight": 80.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
-    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+async def test_rewards_checkpoints_include_threshold_units(onboarded_client):
+    await onboarded_client.put("/api/settings", json={"target_weight": 80.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await onboarded_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
 
     # Setting height must not disturb reward state, only its serialization.
-    await auth_client.put("/api/settings", json={"height_cm": 175})
-    data = (await auth_client.get("/api/rewards")).json()
+    await onboarded_client.put("/api/settings", json={"height_cm": 175})
+    data = (await onboarded_client.get("/api/rewards")).json()
 
     first = data["active_checkpoints"][0]
     assert first["percent"] == 10
@@ -607,3 +630,134 @@ async def test_weight_in_rejects_unknown_keys(auth_client):
         json={"date": "2026-08-01", "weight_kg": 90.0, "units": "lb"},
     )
     assert res.status_code == 422
+
+# ---- 2.1: target_bmi settings + summary contract (bmi-goal-setting, weight-tracking) ----
+
+
+@pytest.mark.asyncio
+async def test_settings_target_bmi_roundtrip_clears_target_weight(auth_client):
+    # Spec (bmi-goal-setting): saving a BMI target MUST round-trip through GET
+    # /api/settings and clear target_weight.
+    await auth_client.put("/api/settings", json={"height_cm": 175, "target_weight": 80.0})
+    res = await auth_client.put("/api/settings", json={"target_bmi": 22.0})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["target_bmi"] == 22.0
+    assert body["target_weight"] is None
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["target_bmi"] == 22.0
+    assert got["target_weight"] is None
+
+
+@pytest.mark.asyncio
+async def test_settings_saving_target_weight_clears_target_bmi(auth_client):
+    # Design AD2: saving target_weight clears target_bmi (converse of the
+    # spec-mandated BMI->weight clearing) so the two targets cannot diverge.
+    res = await auth_client.put("/api/settings", json={"height_cm": 175, "target_bmi": 22.0})
+    assert res.status_code == 200, res.text
+    assert res.json()["target_bmi"] == 22.0
+    res = await auth_client.put("/api/settings", json={"target_weight": 80.0})
+    assert res.status_code == 200
+    assert res.json()["target_weight"] == 80.0
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["target_weight"] == 80.0
+    assert got["target_bmi"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_bmi", [5.0, 45.0])
+async def test_settings_target_bmi_out_of_range_rejected_no_persist(auth_client, bad_bmi):
+    # Spec: target_bmi outside (10, 40] MUST return 422 and persist no change.
+    await auth_client.put("/api/settings", json={"target_weight": 80.0})
+    res = await auth_client.put("/api/settings", json={"target_bmi": bad_bmi})
+    assert res.status_code == 422
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["target_bmi"] is None
+    assert got["target_weight"] == 80.0
+
+
+@pytest.mark.asyncio
+async def test_settings_target_bmi_without_height_persists_null_target(auth_client):
+    # Spec: storing target_bmi with height unset MUST persist, resolve to a
+    # null target, and NOT 422.
+    res = await auth_client.put("/api/settings", json={"target_bmi": 22.0})
+    assert res.status_code == 200
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["target_bmi"] == 22.0
+    summary = (await auth_client.get("/api/weight")).json()["summary"]
+    assert summary["target_kg"] is None
+    assert summary["target_bmi"] is None
+    assert summary["healthy_min_kg"] is None
+    assert summary["healthy_max_kg"] is None
+    assert summary["target_status"] is None
+
+
+@pytest.mark.asyncio
+async def test_settings_does_not_expose_summary_derived_keys(auth_client):
+    # Contract: GET /api/settings returns the persisted k/v surface only —
+    # derived summary keys (healthy range, target_status) live in the
+    # /api/weight summary, never in settings.
+    await auth_client.put("/api/settings", json={"height_cm": 175, "target_weight": 80.0})
+    got = (await auth_client.get("/api/settings")).json()
+    for key in ("healthy_min_kg", "healthy_max_kg", "target_status", "target_kg"):
+        assert key not in got, key
+    assert got["target_bmi"] is None
+    assert got["onboarding_complete"] is False
+
+
+@pytest.mark.asyncio
+async def test_summary_contract_height_unset_nulls_healthy_range(auth_client):
+    # Spec (weight-tracking): height unset -> healthy_min/max_kg null and
+    # target_status null even when a target is persisted.
+    await auth_client.put("/api/settings", json={"target_weight": 80.0})
+    summary = (await auth_client.get("/api/weight")).json()["summary"]
+    assert summary["target_kg"] == 80.0
+    assert summary["healthy_min_kg"] is None
+    assert summary["healthy_max_kg"] is None
+    assert summary["target_status"] is None
+
+
+@pytest.mark.asyncio
+async def test_summary_contract_target_unset_nulls_target_status(auth_client):
+    # Spec: height set + no target -> healthy range non-null, target_status null.
+    await auth_client.put("/api/settings", json={"height_cm": 175})
+    summary = (await auth_client.get("/api/weight")).json()["summary"]
+    assert summary["target_kg"] is None
+    assert summary["healthy_min_kg"] == 56.7
+    assert summary["healthy_max_kg"] == 76.3
+    assert summary["target_status"] is None
+
+
+@pytest.mark.asyncio
+async def test_summary_and_rewards_target_agree_in_bmi_mode(auth_client):
+    # Spec (weight-tracking): with target_bmi 22 + height 175, summary target_kg
+    # and rewards target_kg MUST be identical (both via resolve_target_kg).
+    await auth_client.put("/api/settings", json={"height_cm": 175, "target_bmi": 22.0})
+    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    summary = (await auth_client.get("/api/weight")).json()["summary"]
+    rewards = (await auth_client.get("/api/rewards")).json()
+    assert summary["target_kg"] == 67.4
+    assert rewards["target_kg"] == summary["target_kg"]
+    # 67.4 / 1.75^2 = 22.0 -> healthy band.
+    assert summary["target_status"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_settings_target_bmi_api_reconciles_rewards(auth_client):
+    # Spec (target-progress-rewards): persisting target_bmi via PUT /api/settings
+    # clears target_weight (AD2) and recomputes checkpoints before the response.
+    await auth_client.put("/api/settings", json={"height_cm": 175})
+    await auth_client.post("/api/weight", json={"date": "2026-08-01", "weight_kg": 100.0})
+    await auth_client.post("/api/weight", json={"date": "2026-08-02", "weight_kg": 95.0})
+    await auth_client.put("/api/settings", json={"target_weight": 80.0})
+    data = (await auth_client.get("/api/rewards")).json()
+    assert [cp["percent"] for cp in data["active_checkpoints"]] == [10, 25]
+
+    await auth_client.put("/api/settings", json={"target_bmi": 24.0})
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["target_bmi"] == 24.0
+    assert got["target_weight"] is None
+    data = (await auth_client.get("/api/rewards")).json()
+    assert [cp["percent"] for cp in data["active_checkpoints"]] == [10]
+    assert data["active_checkpoints"][0]["threshold_kg"] == 97.35
