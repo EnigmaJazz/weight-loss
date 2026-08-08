@@ -348,6 +348,12 @@ def _valid_weight_display(value: Optional[str]) -> Optional[str]:
     return value
 
 
+def _valid_theme(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in ("system", "light", "dark"):
+        raise ValueError('theme must be "system", "light", or "dark"')
+    return value
+
+
 class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -363,6 +369,7 @@ class SettingsIn(BaseModel):
     height_unit: Optional[str] = None  # "cm" | "ft-in"
     target_unit: Optional[str] = None  # "kg" | "st-lb"
     weight_display: Optional[str] = None  # "lb" | "st-lb"
+    theme: Optional[str] = None  # "system" | "light" | "dark"
 
     @field_validator("tip_time", "reminder_time", "exercise_time")
     @classmethod
@@ -383,6 +390,11 @@ class SettingsIn(BaseModel):
     @classmethod
     def validate_weight_display(cls, value: Optional[str]) -> Optional[str]:
         return _valid_weight_display(value)
+
+    @field_validator("theme")
+    @classmethod
+    def validate_theme(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_theme(value)
 
 
 class OnboardingIn(BaseModel):

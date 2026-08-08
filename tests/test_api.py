@@ -1,9 +1,10 @@
 """API tests: weight summary, settings roundtrip, push endpoints, rewards."""
 
 import pytest
+from fastapi import FastAPI
 
 import database as database_module
-from tests.conftest import ONBOARDED_USERNAME, auth_user_id, make_user
+from tests.conftest import ONBOARDED_USERNAME, auth_user_id, make_user, pair
 
 SUBSCRIBE_BODY = {
     "endpoint": "https://push.example.com/v1/abcd1234",
@@ -12,7 +13,7 @@ SUBSCRIBE_BODY = {
 }
 
 
-def _onboarded_user_id(app):
+def _onboarded_user_id(app: FastAPI) -> int:
     """The user id of the account the onboarded_client fixture registered."""
     user = app.state.db.get_user_by_username(ONBOARDED_USERNAME)
     assert user is not None
@@ -167,6 +168,67 @@ async def test_settings_weight_display_null_restores_default(auth_client):
     assert res.status_code == 200
     got = (await auth_client.get("/api/settings")).json()
     assert got["weight_display"] == "lb"
+
+
+# ---- theme preference (dark-mode) ----------------------------------------
+# Contract: theme persists per user and round-trips; exactly the three states
+# system|light|dark are accepted; invalid values are rejected with 422; null
+# removes the override and restores the "system" default; missing rows fall
+# back to the default.
+
+
+@pytest.mark.asyncio
+async def test_settings_theme_defaults_to_system(auth_client):
+    data = (await auth_client.get("/api/settings")).json()
+    assert data["theme"] == "system"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("theme", ["dark", "light", "system"])
+async def test_settings_theme_roundtrip(auth_client, theme):
+    res = await auth_client.put("/api/settings", json={"theme": theme})
+    assert res.status_code == 200
+    assert res.json()["theme"] == theme
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["theme"] == theme
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_theme", ["auto", "purple"])
+async def test_settings_invalid_theme_rejected_without_mutation(auth_client, bad_theme):
+    # Spec: invalid theme -> 422 and current settings remain unchanged.
+    await auth_client.put("/api/settings", json={"theme": "dark"})
+    res = await auth_client.put("/api/settings", json={"theme": bad_theme})
+    assert res.status_code == 422
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["theme"] == "dark"
+
+
+@pytest.mark.asyncio
+async def test_settings_theme_null_restores_default(auth_client):
+    # Contract: null removes the override and restores the "system" default,
+    # mirroring the notification-time null semantics.
+    await auth_client.put("/api/settings", json={"theme": "dark"})
+    res = await auth_client.put("/api/settings", json={"theme": None})
+    assert res.status_code == 200
+    assert res.json()["theme"] == "system"
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["theme"] == "system"
+
+
+@pytest.mark.asyncio
+async def test_settings_theme_isolated_between_users(pair):
+    # Spec: A persists dark, B stays system; neither observes the other's value.
+    alice, bob = pair
+    res = await alice.put("/api/settings", json={"theme": "dark"})
+    assert res.status_code == 200
+    assert res.json()["theme"] == "dark"
+
+    bob_settings = (await bob.get("/api/settings")).json()
+    assert bob_settings["theme"] == "system"
+
+    alice_settings = (await alice.get("/api/settings")).json()
+    assert alice_settings["theme"] == "dark"
 
 
 # ---- notification schedule disable (notification-schedule-disable) -----
@@ -404,7 +466,7 @@ async def test_settings_update_reconciles_rewards(onboarded_client):
 # must recompute the persisted checkpoint set per user on change.
 
 
-def _reward_rows(db, user_id):
+def _reward_rows(db: database_module.Database, user_id: int) -> list[tuple[int, float]]:
     """(percent, threshold_kg) pairs for a user's persisted checkpoints."""
     return [
         (r["checkpoint_percent"], r["threshold_kg"])
