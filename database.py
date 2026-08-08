@@ -543,6 +543,8 @@ class Database:
     REWARD_AFFECTING_KEYS: tuple[str, ...] = (
         "target_weight",
         "start_weight_override",
+        "target_bmi",  # moves the resolved target in BMI mode
+        "height_cm",  # moves the BMI-derived target in BMI mode
     )
 
     def reconcile_active_rewards(self) -> None:
@@ -839,6 +841,7 @@ class Database:
         stored = {row["key"]: row["value"] for row in rows}
         return AppSettings(
             target_weight=_optional_float(stored.get("target_weight")),
+            target_bmi=_optional_float(stored.get("target_bmi")),
             tip_time=str(stored.get("tip_time", DEFAULT_SETTINGS["tip_time"])),
             reminder_time=str(
                 stored.get("reminder_time", DEFAULT_SETTINGS["reminder_time"])
