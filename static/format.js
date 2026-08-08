@@ -124,7 +124,71 @@
       .map(([date, calories]) => ({ date, calories }));
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay };
+  /** Target kg for a BMI at a height — mirrors units.weight_kg_from_bmi:
+   * round(bmi*(h/100)**2, 1). None when either input is unset. Drives the
+   * wizard's BMI-mode derived-weight hint, so it must match the server. */
+  function weightKgFromBmi(bmi, heightCm) {
+    if (bmi == null || heightCm == null) return null;
+    const meters = heightCm / 100;
+    return Math.round(bmi * meters * meters * 10) / 10;
+  }
+
+  /** BMI = kg / (m)^2 — mirrors units.calculate_bmi; None when the weight is
+   * unset or the height is unset/non-positive. */
+  function bmiFromKg(weightKg, heightCm) {
+    if (weightKg == null || heightCm == null || heightCm <= 0) return null;
+    const meters = heightCm / 100;
+    return weightKg / (meters * meters);
+  }
+
+  /** Healthy BMI band (18.5-24.9) expressed in kg — mirrors
+   * units.healthy_weight_range. [minKg, maxKg]; null when height is unset. */
+  function healthyRange(heightCm) {
+    if (heightCm == null) return null;
+    const meters = heightCm / 100;
+    return [
+      Math.round(18.5 * meters * meters * 10) / 10,
+      Math.round(24.9 * meters * meters * 10) / 10,
+    ];
+  }
+
+  /** BMI bucket: underweight (<18.5), healthy (18.5-24.9), overweight (>=25)
+   * — mirrors units.classify_bmi. Null input -> null. */
+  function classifyBmi(bmi) {
+    if (bmi == null) return null;
+    if (bmi < 18.5) return "underweight";
+    if (bmi <= 24.9) return "healthy";
+    return "overweight";
+  }
+
+  /** Shared healthy-range hint used by the onboarding wizard AND the settings
+   * goal form. targetStatus is the classification ("healthy" |
+   * "underweight" | "overweight"): the API's summary.target_status when
+   * available, otherwise classifyBmi() of the entered target. Returns null
+   * when the healthy range is unknown (height unset); with a target it flags
+   * under/overweight targets, without one it still surfaces the range. */
+  function targetRangeHint(targetKg, healthyMinKg, healthyMaxKg, targetStatus) {
+    if (healthyMinKg == null || healthyMaxKg == null) return null;
+    const range = `${fmt1(healthyMinKg)}-${fmt1(healthyMaxKg)} kg`;
+    if (targetKg == null || targetStatus == null) {
+      return { outOfRange: false, status: null, message: `Healthy range: ${range}.` };
+    }
+    if (targetStatus === "underweight" || targetStatus === "overweight") {
+      const side = targetStatus === "overweight" ? "above" : "below";
+      return {
+        outOfRange: true,
+        status: targetStatus,
+        message: `Target is ${side} the healthy range (${range}).`,
+      };
+    }
+    return {
+      outOfRange: false,
+      status: "healthy",
+      message: `Target is within the healthy range (${range}).`,
+    };
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
