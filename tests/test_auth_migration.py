@@ -206,7 +206,7 @@ def test_users_table_gains_email_column_idempotently(tmp_path):
         )
         conn.execute(
             "INSERT INTO users (username, password_hash, salt)"
-            " VALUES ('james', 'hash', 'salt')"
+            " VALUES ('legacy_user', 'hash', 'salt')"
         )
     pre.close()
 
@@ -222,7 +222,7 @@ def test_users_table_gains_email_column_idempotently(tmp_path):
         }
         assert "email" in columns
         # the pre-existing account survives with a NULL email
-        user = db.get_user_by_username("james")
+        user = db.get_user_by_username("legacy_user")
         assert user is not None
         assert user.email is None
 

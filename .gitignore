@@ -23,6 +23,12 @@ vapid_keys.json
 # Gentle AI provider config
 .gga
 
+# Local machine overrides (see scripts/config.local.example.sh)
+scripts/config.local.sh
+
+# Gentle AI tooling metadata (machine-local; regenerated per session)
+.atl/
+
 # Playwright CLI local config
 .playwright/
 
@@ -33,5 +39,5 @@ vapid_keys.json
 smoke-ui.png
 
 # Tailscale TLS certs (served by tailscale serve, not git)
-*.tail840901.ts.net.crt
-*.tail840901.ts.net.key
+*.ts.net.crt
+*.ts.net.key
