@@ -40,13 +40,13 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: S3 — Milestone Track
 
-- [ ] 3.1 AUDIT (pre-rewrite): smoke+gate baseline; none pin .rewards-next/.checkpoint-list/.progress-track — audited: smoke "checkpoints section visible" + "streak tiles render flames"; gate test_app_js_ships_component_hooks, test_style_css_ships_confetti_and_flame_motion, test_style_css_ships_reduced_motion_block_without_starting_style
-- [ ] 3.2 RED gate: test_app_js_ships_milestone_grid (.milestone-grid/.milestone-card in served app.js) + test_style_css_gold_is_fill_only (`.is-100.is-earned` background gradient; no gold text)
-- [ ] 3.3 RED smoke: `.milestone-card` count == 5
-- [ ] 3.4 GREEN: rewrite `renderRewards` — keep `.rewards-count` + `.progress-track`; drop `.rewards-next` + `.checkpoint-list`; emit 5 `.milestone-card` (data-percent, emoji 🚶🏃🔥🏆🎯, pct, threshold via weightLabel(kgToImperial), when YYYY-MM-DD|pending): is-earned (∈ active set), is-next (next_checkpoint.percent else first pending), is-recently-earned (max earned_at, date-granular), is-100
-- [ ] 3.5 CSS: `.milestone-grid` grid + `.milestone-card` states (is-next ring, is-recently-earned highlight); `.is-100.is-earned` background linear-gradient(var(--gold),var(--gold-deep)), text var(--text)/var(--accent-dark)
-- [ ] 3.6 verify: pytest + node + smoke green
+- [x] 3.1 AUDIT (pre-rewrite): smoke+gate baseline; none pin .rewards-next/.checkpoint-list/.progress-track — audited: smoke "checkpoints section visible" + "streak tiles render flames"; gate test_app_js_ships_component_hooks, test_style_css_ships_confetti_and_flame_motion, test_style_css_ships_reduced_motion_block_without_starting_style
+- [x] 3.2 RED gate: test_app_js_ships_milestone_grid (.milestone-grid/.milestone-card in served app.js) + test_style_css_gold_is_fill_only (`.is-100.is-earned` background gradient; no gold text)
+- [x] 3.3 RED smoke: `.milestone-card` count == 5
+- [x] 3.4 GREEN: rewrite `renderRewards` — keep `.rewards-count` + `.progress-track`; drop `.rewards-next` + `.checkpoint-list`; emit 5 `.milestone-card` (data-percent, emoji 🚶🏃🔥🏆🎯, pct, threshold via weightLabel(kgToImperial), when YYYY-MM-DD|pending): is-earned (∈ active set), is-next (next_checkpoint.percent else first pending), is-recently-earned (max earned_at, date-granular), is-100
+- [x] 3.5 CSS: `.milestone-grid` grid + `.milestone-card` states (is-next ring, is-recently-earned highlight); `.is-100.is-earned` background linear-gradient(var(--gold),var(--gold-deep)), text var(--text)/var(--accent-dark)
+- [x] 3.6 verify: pytest 413 + node 110 + smoke 36 green
 
 ## Phase 4: Final Verification
 
-- [ ] 4.1 additions-only: no edits to routes.py/database.py/rewards.py/main.py (tuples stamped); pinned ids/strings unchanged; full pytest+node+smoke green
+- [x] 4.1 additions-only: no edits to routes.py/database.py/rewards.py/main.py (tuples stamped); pinned ids/strings unchanged; full pytest 413 + node 110 + smoke 36 green
