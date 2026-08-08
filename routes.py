@@ -52,7 +52,13 @@ from rewards import (
     reward_state,
 )
 from streaks import streak_state
-from units import weight_display
+from units import (
+    calculate_bmi,
+    classify_bmi,
+    healthy_weight_range,
+    resolve_target_kg,
+    weight_display,
+)
 
 router = APIRouter()
 logger = get_logger("routes")
@@ -328,6 +334,7 @@ class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_weight: Optional[float] = Field(default=None, gt=0)
+    target_bmi: Optional[float] = Field(default=None, gt=10, le=40)
     tip_time: Optional[str] = None
     reminder_time: Optional[str] = None
     reminder_weekday: Optional[int] = Field(default=None, ge=0, le=6)
@@ -426,10 +433,15 @@ def _summary_view(
 ) -> dict[str, Any]:
     """Summary dict: canonical *_kg keys plus raw multi-unit siblings.
     BMI rides along on real weights (baseline/current/target) but not on
-    deltas (lost/remaining), where it would be meaningless."""
+    deltas (lost/remaining), where it would be meaningless. The target is the
+    shared resolved kg (target_weight precedence over target_bmi), so summary
+    and rewards can never disagree. The healthy range and target status ride
+    along too, null when height (or target, for status) is unset."""
     baseline = compute_baseline(entries, settings.start_weight_override)
     current = compute_current(entries)
-    target = settings.target_weight
+    target = resolve_target_kg(
+        settings.target_weight, settings.target_bmi, settings.height_cm
+    )
     values = (
         ("baseline", baseline),
         ("current", current),
@@ -446,6 +458,13 @@ def _summary_view(
         summary[f"{name}_stone_lb"] = view["stone_lb"]
         if name in ("baseline", "current", "target"):
             summary[f"{name}_bmi"] = view["bmi"]
+    healthy = healthy_weight_range(height_cm)
+    summary["healthy_min_kg"] = healthy[0] if healthy is not None else None
+    summary["healthy_max_kg"] = healthy[1] if healthy is not None else None
+    status_bmi = calculate_bmi(target, height_cm) if target is not None else None
+    summary["target_status"] = (
+        classify_bmi(status_bmi) if status_bmi is not None else None
+    )
     return summary
 
 
@@ -905,6 +924,9 @@ async def get_rewards(
         "earned_count": state.earned_count,
         "next_checkpoint": next_checkpoint,
         "progress_to_next": state.progress_to_next,
+        # The resolved target that drives the thresholds — identical to the
+        # summary's target_kg by construction (same resolve_target_kg helper).
+        "target_kg": state.target_kg,
     }
 
 
@@ -926,6 +948,15 @@ async def put_settings(
     db: Database = Depends(get_db),
 ) -> dict[str, Any]:
     updates = payload.model_dump(exclude_unset=True)
+    # Design AD2 — bidirectional target clearing: saving one target form nulls
+    # the other, so the two persisted targets can never diverge. (A null save
+    # is a clear operation, not a switch, so it leaves the other target alone.)
+    # When both are supplied in one payload, target_weight wins — matching the
+    # shared resolver's documented precedence.
+    if updates.get("target_weight") is not None:
+        updates["target_bmi"] = None
+    if updates.get("target_bmi") is not None:
+        updates["target_weight"] = None
     if updates:
         await run_db(db.update_settings, user.id, updates)
     settings = await run_db(db.get_settings, user.id)
