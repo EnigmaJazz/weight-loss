@@ -47,11 +47,11 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Motion & Celebration (PR 3)
 
-- [ ] 3.1 RED: create `tests/frontend/confetti.test.mjs` — `shouldCelebrate`: null prev → suppress; cur > prev → fire; cur ≤ prev → suppress.
-- [ ] 3.2 GREEN: `static/format.js` — add pure `shouldCelebrate(prevEarned, curEarned)` to `api` export.
-- [ ] 3.3 GREEN: `static/app.js` — `fireConfetti()` (spans + animationend cleanup); `loadData` keeps `prevEarned`, fires only on increase, suppresses first render; skip under `matchMedia('(prefers-reduced-motion: reduce)')`.
-- [ ] 3.4 GREEN: `static/style.css` — flame pulse keyframes gated `[data-streak-active="true"] .flame`; `.confetti-piece` fall; both neutralized in reduced-motion block.
-- [ ] 3.5 GREEN: `tests/smoke-ui.sh` — add `.mascot` + `.flame` visual selector asserts only (no text pins).
+- [x] 3.1 RED: create `tests/frontend/confetti.test.mjs` — `shouldCelebrate`: null prev → suppress; cur > prev → fire; cur ≤ prev → suppress.
+- [x] 3.2 GREEN: `static/format.js` — add pure `shouldCelebrate(prevEarned, curEarned)` to `api` export.
+- [x] 3.3 GREEN: `static/app.js` — `fireConfetti()` (spans + animationend cleanup); `loadData` keeps `prevEarned`, fires only on increase, suppresses first render; skip under `matchMedia('(prefers-reduced-motion: reduce)')`.
+- [x] 3.4 GREEN: `static/style.css` — flame pulse keyframes gated `[data-streak-active="true"] .flame`; `.confetti-piece` fall; both neutralized in reduced-motion block.
+- [x] 3.5 GREEN: `tests/smoke-ui.sh` — add `.mascot` + `.flame` visual selector asserts only (no text pins).
 
 ## Phase 4: Verification (final)
 
