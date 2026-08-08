@@ -39,6 +39,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "height_unit": "cm",  # per-user input preference: "cm" | "ft-in"
     "target_unit": "kg",  # per-user target input preference: "kg" | "st-lb"
     "weight_display": "lb",  # display preference: "lb" | "st-lb"
+    "theme": "system",  # per-user theme: "system" | "light" | "dark"
     "onboarding_complete": False,  # wizard finished (flag lands Phase 3)
 }
 

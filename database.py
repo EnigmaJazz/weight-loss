@@ -884,6 +884,7 @@ class Database:
             weight_display=str(
                 stored.get("weight_display", DEFAULT_SETTINGS["weight_display"])
             ),
+            theme=str(stored.get("theme", DEFAULT_SETTINGS["theme"])),
             onboarding_complete=_optional_bool(stored.get("onboarding_complete")),
         )
 

@@ -40,6 +40,28 @@
   --gold-deep: #d4a017;
   --font-display: 'Baloo 2', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Baloo 2', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* toast tokens (dark-mode): .toast consumes these instead of hardcoded rgba */
+  --toast-bg: rgba(15, 23, 42, 0.92);
+  --toast-text: #f8fafc;
+}
+
+/* dark theme (design §CSS): [data-theme="dark"] redefines the semantic
+ * tokens; --accent stays #2f7d54 in both themes (palette lockstep). The
+ * bare-stripped selector never collides with the gate's `:root\s*\{` regex. */
+[data-theme="dark"] {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent-dark: #58a97e;   /* lightened from #266442 */
+  --border: #334155;
+  --danger: #f06a5d;        /* lightened from #c0392b */
+  --fox: #f5a850;
+  --gold: #fbd34a;
+  --gold-deep: #e0b020;
+  /* --accent UNCHANGED #2f7d54 (lockstep/mascot/manifest) */
+  --toast-bg: #1e293b;
+  --toast-text: #e2e8f0;
 }
 
 * { box-sizing: border-box; }
@@ -56,6 +78,8 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
+  /* theme transition, neutralized by the reduced-motion block below */
+  transition: background-color 0.15s, color 0.15s;
 }
 
 header {
@@ -156,7 +180,7 @@ main {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1.1rem 1.25rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-1);
 }
 
 .card h2 { margin: 0 0 0.75rem; font-size: 1.05rem; }
@@ -532,8 +556,8 @@ button.link:hover { color: var(--accent); background: none; }
   bottom: 1rem;
   left: 50%;
   transform: translateX(-50%) translateY(8px);
-  background: rgba(15, 23, 42, 0.92);
-  color: #f8fafc;
+  background: var(--toast-bg);
+  color: var(--toast-text);
   padding: 0.6rem 1rem;
   border-radius: var(--radius-sm);
   font-size: 0.9rem;

@@ -131,6 +131,7 @@ class AppSettings:
     height_unit: str = "cm"  # preferred input unit: "cm" | "ft-in"
     target_unit: str = "kg"  # preferred target input unit: "kg" | "st-lb"
     weight_display: str = "lb"  # display preference: "lb" | "st-lb"
+    theme: str = "system"  # per-user theme: "system" | "light" | "dark"
     onboarding_complete: bool = False  # wizard finished (flag lands Phase 3)
 
     def time_for(self, notif_type: str) -> str:
