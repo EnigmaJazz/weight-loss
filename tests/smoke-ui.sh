@@ -99,6 +99,14 @@ if [ "$TITLE" = "Weight Loss Tracker" ]; then
 else
   step_fail "page title is 'Weight Loss Tracker' (got '$TITLE')"
 fi
+# game-appearance: the fox mascot must render visibly in the header lockup
+# (visual selector only — no text pin).
+MASCOT_VIS="$(playwright-cli --raw eval "!!document.querySelector('.header-row .mascot') && document.querySelector('.header-row .mascot').offsetParent !== null" 2>&1 | tr -d '"')"
+if [ "$MASCOT_VIS" = "true" ]; then
+  step_ok "fox mascot visible in header"
+else
+  step_fail "fox mascot visible in header (got '$MASCOT_VIS')"
+fi
 assert_find "auth form visible" "Username"
 assert_find "password field visible" "Password"
 assert_visibility "tracker hidden on load" "#tracker" "hidden"
@@ -141,6 +149,14 @@ sleep 1
 
 assert_visibility "tracker visible after wizard" "#tracker" "visible"
 assert_visibility "wizard hidden after completion" "#onboarding-screen" "hidden"
+# game-appearance: once streaks render, every tile carries a flame (visual
+# selector only — no text pin).
+FLAME_COUNT="$(playwright-cli --raw eval "document.querySelectorAll('.flame').length" 2>&1 | tr -d '"')"
+if [ "$FLAME_COUNT" -gt 0 ] 2>/dev/null; then
+  step_ok "streak tiles render flames ($FLAME_COUNT)"
+else
+  step_fail "streak tiles render flames (count='$FLAME_COUNT')"
+fi
 assert_find "summary section visible" "Summary"
 assert_find "log-weight form visible" "Log weight"
 assert_find "logout button visible" "Log out"
