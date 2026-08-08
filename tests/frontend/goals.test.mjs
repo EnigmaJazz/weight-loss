@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import format from "../../static/format.js";
 
-const { goalProgress, checkpointThresholds, kgToImperial } = format;
+const { goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel } = format;
 
 test("goalProgress returns 0.5 for half-way progress", () => {
   assert.equal(goalProgress(100, 90, 80), 0.5);
@@ -85,4 +85,22 @@ test("kgToImperial snaps the 14-lb boundary carry like units.py", () => {
 test("kgToImperial is null for null input", () => {
   assert.equal(kgToImperial(null), null);
   assert.equal(kgToImperial(undefined), null);
+});
+
+test("milestoneNextLabel builds the st-lb next line from threshold kg", () => {
+  // Same weightLabel rendering path the milestone thresholds use (fmt1 1dp).
+  assert.equal(
+    milestoneNextLabel(50, 90, "st-lb"),
+    "Next: 50% at 90.0 kg (14 st 2.4 lb)"
+  );
+});
+
+test("milestoneNextLabel renders total lb in lb mode", () => {
+  assert.equal(milestoneNextLabel(10, 98, "lb"), "Next: 10% at 98.0 kg (216.1 lb)");
+});
+
+test("milestoneNextLabel is empty when percent or kg is missing", () => {
+  assert.equal(milestoneNextLabel(null, 90, "lb"), "");
+  assert.equal(milestoneNextLabel(undefined, 90, "lb"), "");
+  assert.equal(milestoneNextLabel(50, null, "lb"), "");
 });
