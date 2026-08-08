@@ -8,10 +8,11 @@ mid-transaction.
 """
 
 from datetime import date
-from typing import Any
+from typing import Any, NoReturn, Optional
 
 import httpx
 import pytest
+import sqlite3
 from fastapi import FastAPI
 
 import database as database_module
@@ -104,6 +105,19 @@ async def test_onboarding_rejects_unknown_key(auth_client, app):
     """Spec: unknown key (extra="forbid") -> 422, persists nothing."""
     resp = await auth_client.post(
         "/api/onboarding", json=_payload(favorite_color="red")
+    )
+    assert resp.status_code == 422
+    user_id = auth_user_id(app)
+    assert _settings_count(app, user_id) == 0
+    assert _weight_count(app, user_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_theme_key(auth_client, app):
+    """Spec (theme-preference): theme must NOT be an accepted onboarding key;
+    OnboardingIn stays untouched (extra="forbid")."""
+    resp = await auth_client.post(
+        "/api/onboarding", json=_payload(theme="dark")
     )
     assert resp.status_code == 422
     user_id = auth_user_id(app)
@@ -291,7 +305,14 @@ async def test_onboarding_mid_tx_failure_rolls_back(app, monkeypatch):
         )
         assert plant.status_code == 201, plant.text
 
-        def _boom(self, conn, user_id, date, weight_kg, time):
+        def _boom(
+            self,
+            conn: sqlite3.Connection,
+            user_id: int,
+            date: str,
+            weight_kg: float,
+            time: Optional[str],
+        ) -> NoReturn:
             raise RuntimeError("injected mid-transaction failure")
 
         monkeypatch.setattr(database_module.Database, "_upsert_entry_conn", _boom)
