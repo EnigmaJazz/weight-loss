@@ -382,3 +382,23 @@ button.link:hover { color: var(--accent); background: none; }
 }
 
 footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 0.5rem 1rem 1.5rem; }
+
+/* onboarding wizard: one card, one step visible at a time; the [hidden]
+ * attribute stays authoritative (see the rule at the top of this file). */
+
+#onboarding-screen { max-width: 28rem; margin: 0 auto; width: 100%; }
+
+.wizard-step h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+
+.wizard-step-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Out-of-range target warning (healthy-range flag) shared by the wizard and
+ * the settings goal form; applied by app.js via targetRangeHint(). */
+.target-out-of-range {
+  color: var(--danger);
+  font-weight: 600;
+}

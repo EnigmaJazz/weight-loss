@@ -14,7 +14,7 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -64,6 +64,7 @@ async function fetchJson(url, options) {
 
 const authScreen = $("auth-screen");
 const trackerEl = $("tracker");
+const onboardingScreen = $("onboarding-screen");
 const authForm = $("auth-form");
 let authMode = "login";
 let resetToken = null;
@@ -105,6 +106,7 @@ function showResetForm() {
 
 function showAuthScreen() {
   authScreen.hidden = false;
+  onboardingScreen.hidden = true;
   trackerEl.hidden = true;
   $("logout-btn").hidden = true;
   showAuthForm();
@@ -112,6 +114,7 @@ function showAuthScreen() {
 
 function showTracker() {
   authScreen.hidden = true;
+  onboardingScreen.hidden = true;
   trackerEl.hidden = false;
   $("logout-btn").hidden = false;
   // A fresh login always lands on the Today tab.
@@ -150,8 +153,10 @@ async function submitAuth(ev) {
       body: JSON.stringify(body),
     });
     $("auth-password").value = "";
-    showTracker();
-    await loadData();
+    // A fresh account (or a pre-existing one without an onboarding row) is
+    // flagged needs_onboarding and lands in the wizard, not the tracker.
+    const me = await fetchJson("/api/auth/me");
+    if (enterApp(me)) await loadData();
   } catch (err) {
     toast(`${authMode === "signup" ? "Signup" : "Login"} failed: ${err.message}`);
   }
@@ -219,6 +224,284 @@ async function logout() {
   $("auth-username").value = "";
   $("auth-password").value = "";
   showAuthScreen();
+}
+
+/* ---- onboarding wizard --------------------------------------------------- */
+
+const WIZARD_STEPS = ["height", "weight", "target", "units", "notifications"];
+
+function showOnboarding() {
+  authScreen.hidden = true;
+  trackerEl.hidden = true;
+  onboardingScreen.hidden = false;
+  $("logout-btn").hidden = true;
+  showWizardStep("height");
+}
+
+function showWizardStep(step) {
+  for (const el of document.querySelectorAll(".wizard-step")) {
+    el.hidden = el.dataset.step !== step;
+  }
+  if (step === "target") updateWizardRangeHint();
+}
+
+function currentWizardStep() {
+  for (const el of document.querySelectorAll(".wizard-step")) {
+    if (!el.hidden) return el.dataset.step;
+  }
+  return null;
+}
+
+/* Shared gate for init() and submitAuth: a flagged user gets the wizard and
+ * the tracker stays hidden (spec: tracker data MUST stay hidden until
+ * completion); everyone else lands on the tracker. Returns true when the
+ * tracker was shown. */
+function enterApp(me) {
+  if (me?.needs_onboarding) {
+    showOnboarding();
+    return false;
+  }
+  showTracker();
+  return true;
+}
+
+/* DOM readers for the wizard payload — the same conversions saveGoal/addEntry
+ * use, so the submitted height/weight/target match what the API expects. */
+function wizardHeightCm() {
+  if (checkedRadio("ob-height-unit") === "ft-in") {
+    const ft = $("ob-height-ft").value.trim();
+    const inches = $("ob-height-in").value.trim();
+    if (ft === "" || inches === "") return null;
+    return ftInToCm(Number(ft), Number(inches));
+  }
+  const raw = $("ob-height-cm").value.trim();
+  return raw === "" ? null : Number(raw);
+}
+
+function wizardWeightKg() {
+  if (checkedRadio("ob-weight-unit") === "st-lb") {
+    const stone = $("ob-weight-stone").value.trim();
+    const lb = $("ob-weight-lb").value.trim();
+    if (stone === "" || lb === "") return null;
+    return stoneLbToKg(Number(stone), Number(lb));
+  }
+  const raw = $("ob-weight-kg").value.trim();
+  return raw === "" ? null : Number(raw);
+}
+
+function wizardTargetKg() {
+  if (checkedRadio("ob-target-mode") === "bmi") return null;
+  if (checkedRadio("ob-target-unit") === "st-lb") {
+    const stone = $("ob-target-stone").value.trim();
+    const lb = $("ob-target-lb").value.trim();
+    if (stone === "" || lb === "") return null;
+    return stoneLbToKg(Number(stone), Number(lb));
+  }
+  const raw = $("ob-target-weight").value.trim();
+  return raw === "" ? null : Number(raw);
+}
+
+/* One step at a time: validation runs on advance, so the Finish path (or the
+ * form's Enter-to-advance submit) can trust every earlier step passed. */
+function validateWizardStep(step) {
+  if (step === "height") {
+    if (checkedRadio("ob-height-unit") === "ft-in") {
+      const ftRaw = $("ob-height-ft").value.trim();
+      const inRaw = $("ob-height-in").value.trim();
+      if (ftRaw === "" || inRaw === "") return "Enter both feet and inches for your height";
+      const ft = Number(ftRaw);
+      const inches = Number(inRaw);
+      if (!(ft >= 0)) return "Feet must be 0 or more";
+      if (!(inches >= 0) || inches >= 12) return "Inches must be at least 0 and less than 12";
+    } else if (!(Number($("ob-height-cm").value) > 0)) {
+      return "Enter your height in cm";
+    }
+    return null;
+  }
+  if (step === "weight") {
+    if (checkedRadio("ob-weight-unit") === "st-lb") {
+      const stoneRaw = $("ob-weight-stone").value.trim();
+      const lbRaw = $("ob-weight-lb").value.trim();
+      if (stoneRaw === "" || lbRaw === "") return "Enter both stone and pounds for your current weight";
+      const stone = Number(stoneRaw);
+      const lb = Number(lbRaw);
+      if (!Number.isInteger(stone) || stone < 0) return "Stone must be a whole number, 0 or more";
+      if (!(lb >= 0) || lb >= 14) return "Pounds must be at least 0 and less than 14";
+      if (stone === 0 && lb === 0) return "Weight must be greater than 0";
+    } else if (!(Number($("ob-weight-kg").value) > 0)) {
+      return "Enter your current weight in kg";
+    }
+    return null;
+  }
+  if (step === "target") {
+    if (checkedRadio("ob-target-mode") === "bmi") {
+      const bmi = Number($("ob-target-bmi").value);
+      if (!(bmi > 10 && bmi <= 40)) return "Target BMI must be greater than 10 and at most 40";
+    } else if (checkedRadio("ob-target-unit") === "st-lb") {
+      const stoneRaw = $("ob-target-stone").value.trim();
+      const lbRaw = $("ob-target-lb").value.trim();
+      if (stoneRaw === "" || lbRaw === "") return "Enter both stone and pounds for the target";
+      const stone = Number(stoneRaw);
+      const lb = Number(lbRaw);
+      if (!Number.isInteger(stone) || stone < 0) return "Target stone must be a whole number, 0 or more";
+      if (!(lb >= 0) || lb >= 14) return "Target pounds must be at least 0 and less than 14";
+      if (stone === 0 && lb === 0) return "Target weight must be greater than 0";
+    } else if (!(Number($("ob-target-weight").value) > 0)) {
+      return "Enter your target weight in kg";
+    }
+    return null;
+  }
+  // units and notifications have no required fields
+  return null;
+}
+
+function wizardNext() {
+  const current = currentWizardStep();
+  const idx = WIZARD_STEPS.indexOf(current);
+  if (idx === -1 || idx === WIZARD_STEPS.length - 1) return;
+  const err = validateWizardStep(current);
+  if (err) {
+    toast(err);
+    return;
+  }
+  showWizardStep(WIZARD_STEPS[idx + 1]);
+}
+
+function wizardBack() {
+  const current = currentWizardStep();
+  const idx = WIZARD_STEPS.indexOf(current);
+  if (idx > 0) showWizardStep(WIZARD_STEPS[idx - 1]);
+}
+
+function onWizardFinish() {
+  const current = currentWizardStep();
+  if (current !== "notifications") return;
+  const err = validateWizardStep(current);
+  if (err) {
+    toast(err);
+    return;
+  }
+  submitOnboarding();
+}
+
+function onWizardSubmit(ev) {
+  ev.preventDefault();
+  // Enter in a step field advances to the next step; on the last step it
+  // finishes (mirrors the Continue/Finish buttons).
+  if (currentWizardStep() === "notifications") {
+    onWizardFinish();
+    return;
+  }
+  wizardNext();
+}
+
+/* Unit-mode toggles for the wizard inputs. The hidden-required toggle mirrors
+ * the settings forms: a hidden required input makes the browser refuse a
+ * submit with a cryptic "not focusable" error. */
+function syncWizardHeightUnitUi() {
+  const ftIn = checkedRadio("ob-height-unit") === "ft-in";
+  $("ob-height-cm").hidden = ftIn;
+  $("ob-height-ft-in").hidden = !ftIn;
+  $("ob-height-cm").required = !ftIn;
+  $("ob-height-ft").required = ftIn;
+  $("ob-height-in").required = ftIn;
+}
+
+function syncWizardWeightUnitUi() {
+  const stLb = checkedRadio("ob-weight-unit") === "st-lb";
+  $("ob-weight-kg").hidden = stLb;
+  $("ob-weight-st-lb").hidden = !stLb;
+  $("ob-weight-kg").required = !stLb;
+  $("ob-weight-stone").required = stLb;
+  $("ob-weight-lb").required = stLb;
+}
+
+function syncWizardTargetUnitUi() {
+  const stLb = checkedRadio("ob-target-unit") === "st-lb";
+  $("ob-target-weight").hidden = stLb;
+  $("ob-target-st-lb").hidden = !stLb;
+  $("ob-target-weight").required = !stLb;
+  $("ob-target-stone").required = stLb;
+  $("ob-target-lb").required = stLb;
+}
+
+function syncWizardTargetModeUi() {
+  const bmiMode = checkedRadio("ob-target-mode") === "bmi";
+  $("ob-target-weight-fields").hidden = bmiMode;
+  $("ob-target-bmi-fields").hidden = !bmiMode;
+}
+
+/* Live hint on the target step: the derived kg in BMI mode and the
+ * under/overweight flag use the SAME arithmetic as the server (format.js
+ * mirrors units.py), so what the wizard shows matches the summary's
+ * healthy_min_kg/healthy_max_kg/target_status after completion. */
+function updateWizardRangeHint() {
+  const heightCm = wizardHeightCm();
+  const range = healthyRange(heightCm);
+  const hintEl = $("ob-range-hint");
+  const derivedEl = $("ob-bmi-derived");
+  if (range == null) {
+    hintEl.hidden = true;
+    derivedEl.textContent = "";
+    return;
+  }
+  let targetKg = null;
+  let status = null;
+  if (checkedRadio("ob-target-mode") === "bmi") {
+    const bmiRaw = $("ob-target-bmi").value.trim();
+    if (bmiRaw !== "") {
+      const bmi = Number(bmiRaw);
+      targetKg = weightKgFromBmi(bmi, heightCm);
+      status = classifyBmi(bmi);
+      derivedEl.textContent = `≈ ${fmt1(targetKg)} kg`;
+    } else {
+      derivedEl.textContent = "";
+    }
+  } else {
+    targetKg = wizardTargetKg();
+    status = targetKg != null ? classifyBmi(bmiFromKg(targetKg, heightCm)) : null;
+  }
+  const hint = targetRangeHint(targetKg, range[0], range[1], status);
+  if (hint) {
+    hintEl.textContent = hint.message;
+    hintEl.classList.toggle("target-out-of-range", hint.outOfRange);
+    hintEl.hidden = false;
+  } else {
+    hintEl.hidden = true;
+  }
+}
+
+async function submitOnboarding() {
+  const payload = {
+    height_cm: wizardHeightCm(),
+    weight_kg: wizardWeightKg(),
+    weight_unit: unitPref(checkedRadio("ob-weight-unit"), "kg"),
+    height_unit: unitPref(checkedRadio("ob-height-unit"), "cm"),
+    target_unit: unitPref(checkedRadio("ob-target-unit"), "kg"),
+    weight_display: unitPref(checkedRadio("ob-weight-display"), "lb"),
+    tip_time: $("ob-tip-time").value.trim(),
+    reminder_time: $("ob-reminder-time").value.trim(),
+    reminder_weekday: Number($("ob-reminder-weekday").value),
+    exercise_time: $("ob-exercise-time").value.trim(),
+  };
+  if (checkedRadio("ob-target-mode") === "bmi") {
+    payload.target_bmi = Number($("ob-target-bmi").value);
+  } else {
+    payload.target_weight = wizardTargetKg();
+  }
+  try {
+    await fetchJson("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    toast("Welcome! Your tracker is set up");
+    onboardingScreen.hidden = true;
+    showTracker();
+    await loadData();
+  } catch (err) {
+    toast(`Setup failed: ${err.message}`);
+  }
 }
 
 /* ---- data -------------------------------------------------------------- */
@@ -1031,6 +1314,28 @@ function renderSettings(s, me) {
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
+  renderGoalRangeHint();
+}
+
+/* Healthy-range flag under the Goal & body form: reuses the summary's
+ * healthy_min_kg/healthy_max_kg/target_status (weight-tracking spec keys) via
+ * the same targetRangeHint helper the wizard uses. */
+function renderGoalRangeHint() {
+  const summary = chartData.weightSummary;
+  const hint = targetRangeHint(
+    summary?.target_kg ?? null,
+    summary?.healthy_min_kg ?? null,
+    summary?.healthy_max_kg ?? null,
+    summary?.target_status ?? null
+  );
+  const el = $("goal-range-hint");
+  if (!hint) {
+    el.hidden = true;
+    return;
+  }
+  el.textContent = hint.message;
+  el.classList.toggle("target-out-of-range", hint.outOfRange);
+  el.hidden = false;
 }
 
 const num = (id) => {
@@ -1423,6 +1728,42 @@ async function init() {
       saveUnitPreference();
     });
   }
+  $("onboarding-form").addEventListener("submit", onWizardSubmit);
+  for (const btn of document.querySelectorAll(".wizard-step [data-action]")) {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.action === "next") wizardNext();
+      else if (btn.dataset.action === "back") wizardBack();
+      else if (btn.dataset.action === "finish") onWizardFinish();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="ob-height-unit"]')) {
+    r.addEventListener("change", () => {
+      syncWizardHeightUnitUi();
+      updateWizardRangeHint();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="ob-weight-unit"]')) {
+    r.addEventListener("change", syncWizardWeightUnitUi);
+  }
+  for (const r of document.querySelectorAll('input[name="ob-target-unit"]')) {
+    r.addEventListener("change", () => {
+      syncWizardTargetUnitUi();
+      updateWizardRangeHint();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="ob-target-mode"]')) {
+    r.addEventListener("change", () => {
+      syncWizardTargetModeUi();
+      updateWizardRangeHint();
+    });
+  }
+  for (const id of ["ob-target-weight", "ob-target-stone", "ob-target-lb", "ob-target-bmi"]) {
+    $(id).addEventListener("input", updateWizardRangeHint);
+  }
+  syncWizardHeightUnitUi();
+  syncWizardWeightUnitUi();
+  syncWizardTargetUnitUi();
+  syncWizardTargetModeUi();
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
@@ -1443,21 +1784,25 @@ async function init() {
   }
 
   let authenticated = false;
+  let me = null;
   try {
-    await fetchJson("/api/auth/me");
+    me = await fetchJson("/api/auth/me");
     authenticated = true;
   } catch (_) {
     /* 401 (or a network error) leaves the gate visible. No scary toast on a
        fresh visit — the auth form surfaces errors when the user submits. */
   }
   if (authenticated) {
-    showTracker();
-    try {
-      await loadData();
-    } catch (err) {
-      toast(`Could not load data: ${err.message}`);
+    if (enterApp(me)) {
+      try {
+        await loadData();
+      } catch (err) {
+        toast(`Could not load data: ${err.message}`);
+      }
+      await restorePushUi();
     }
-    await restorePushUi();
+    // else: needs_onboarding — the wizard is showing and tracker data stays
+    // hidden until the user completes it (submitOnboarding handles the rest).
   } else if (resetToken) {
     showResetForm();
   }
