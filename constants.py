@@ -28,6 +28,7 @@ VAPID_SUBJECT = "mailto:weight-tracker@localhost"
 
 DEFAULT_SETTINGS: dict[str, object] = {
     "target_weight": None,
+    "target_bmi": None,  # BMI goal; resolved to kg on read
     "tip_time": "09:00",
     "reminder_time": "20:00",
     "reminder_weekday": 0,  # Monday=0 ... Sunday=6 (datetime.weekday())
@@ -38,6 +39,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "height_unit": "cm",  # per-user input preference: "cm" | "ft-in"
     "target_unit": "kg",  # per-user target input preference: "kg" | "st-lb"
     "weight_display": "lb",  # display preference: "lb" | "st-lb"
+    "onboarding_complete": False,  # wizard finished (flag lands Phase 3)
 }
 
 # Notification types and whether each fires daily or weekly (fixed weekday).
