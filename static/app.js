@@ -1046,6 +1046,22 @@ function renderStreaks(s) {
 
 /* ---- chart ------------------------------------------------------------- */
 
+/* Token-driven chart palette: read ONCE from the computed styles so the
+ * canvases follow the design tokens instead of hardcoded hex (design
+ * §Component Styling Plan). The computed body font keeps the system-ui
+ * fallback while Baloo 2 loads. */
+const chartStyle = getComputedStyle(document.documentElement);
+const chartFontFamily = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";
+const CHART_COLORS = {
+  line: chartStyle.getPropertyValue("--accent").trim(),
+  grid: chartStyle.getPropertyValue("--border").trim(),
+  muted: chartStyle.getPropertyValue("--muted").trim(),
+  tooltip: chartStyle.getPropertyValue("--text").trim(),
+  tooltipText: chartStyle.getPropertyValue("--card").trim(),
+};
+const CHART_FONT = `11px ${chartFontFamily}`;
+const CHART_FONT_LARGE = `14px ${chartFontFamily}`;
+
 function drawChart(entries, summary) {
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
@@ -1054,8 +1070,8 @@ function drawChart(entries, summary) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (!entries.length) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "14px system-ui, sans-serif";
+    ctx.fillStyle = CHART_COLORS.muted;
+    ctx.font = CHART_FONT_LARGE;
     ctx.textAlign = "center";
     ctx.fillText("Log entries to see your progress chart", canvas.width / 2, canvas.height / 2);
     return;
@@ -1076,9 +1092,9 @@ function drawChart(entries, summary) {
   const yAt = (v) => pad.top + h - ((v - min) / (max - min)) * h;
 
   // grid lines
-  ctx.strokeStyle = "#e2e8f0";
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "11px system-ui, sans-serif";
+  ctx.strokeStyle = CHART_COLORS.grid;
+  ctx.fillStyle = CHART_COLORS.muted;
+  ctx.font = CHART_FONT;
   ctx.textAlign = "right";
   for (let g = 0; g <= 4; g++) {
     const v = min + ((max - min) / 4) * g;
@@ -1091,13 +1107,13 @@ function drawChart(entries, summary) {
   }
 
   // line + points
-  ctx.strokeStyle = "#2f7d54";
+  ctx.strokeStyle = CHART_COLORS.line;
   ctx.lineWidth = 2;
   ctx.beginPath();
   points.forEach((e, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(e.weight_kg)) : ctx.lineTo(xAt(i), yAt(e.weight_kg))));
   ctx.stroke();
 
-  ctx.fillStyle = "#2f7d54";
+  ctx.fillStyle = CHART_COLORS.line;
   for (const [i, e] of points.entries()) {
     ctx.beginPath();
     ctx.arc(xAt(i), yAt(e.weight_kg), 3.5, 0, Math.PI * 2);
@@ -1141,16 +1157,16 @@ function drawChart(entries, summary) {
     const e = points[nearest];
     const label = `${formatDate(e.date)}\n${weightLabel(e.weight_kg, e.lb, e.stone, e.stone_lb, displayUnit)}\nBMI ${bmiLabel(e.bmi)}`;
     const box = { x: xAt(nearest) + 10, y: Math.max(pad.top, yAt(e.weight_kg) - 30), w: 0, h: 0 };
-    ctx.font = "11px system-ui, sans-serif";
+    ctx.font = CHART_FONT;
     const lines = label.split("\n");
     ctx.textAlign = "left";
     const lineH = 14;
     box.w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 12;
     box.h = lines.length * lineH + 10;
     if (box.x + box.w > canvas.width - 4) box.x = xAt(nearest) - box.w - 10;
-    ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+    ctx.fillStyle = CHART_COLORS.tooltip;
     ctx.fillRect(box.x, box.y, box.w, box.h);
-    ctx.fillStyle = "#f8fafc";
+    ctx.fillStyle = CHART_COLORS.tooltipText;
     lines.forEach((l, i) => ctx.fillText(l, box.x + 6, box.y + 14 + i * lineH));
   };
   canvas.onmouseleave = () => drawChart(entries, summary);
@@ -1187,8 +1203,8 @@ function drawExerciseChart(entries) {
 
   const weeks = exerciseMinutesPerWeek(entries);
   if (!weeks.length) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "14px system-ui, sans-serif";
+    ctx.fillStyle = CHART_COLORS.muted;
+    ctx.font = CHART_FONT_LARGE;
     ctx.textAlign = "center";
     ctx.fillText("Log exercise to see your weekly chart", canvas.width / 2, canvas.height / 2);
     return;
@@ -1205,8 +1221,8 @@ function drawMealChart(entries) {
 
   const days = caloriesPerDay(entries);
   if (!days.length) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "14px system-ui, sans-serif";
+    ctx.fillStyle = CHART_COLORS.muted;
+    ctx.font = CHART_FONT_LARGE;
     ctx.textAlign = "center";
     ctx.fillText("Log meals to see your daily chart", canvas.width / 2, canvas.height / 2);
     return;
@@ -1224,9 +1240,9 @@ function drawBars(canvas, ctx, values, labels) {
   const yAt = (v) => pad.top + h - (v / max) * h;
 
   // grid lines + y labels
-  ctx.strokeStyle = "#e2e8f0";
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "11px system-ui, sans-serif";
+  ctx.strokeStyle = CHART_COLORS.grid;
+  ctx.fillStyle = CHART_COLORS.muted;
+  ctx.font = CHART_FONT;
   ctx.textAlign = "right";
   for (let g = 0; g <= 4; g++) {
     const v = (max / 4) * g;
@@ -1239,7 +1255,7 @@ function drawBars(canvas, ctx, values, labels) {
   }
 
   // bars
-  ctx.fillStyle = "#2f7d54";
+  ctx.fillStyle = CHART_COLORS.line;
   values.forEach((value, i) => {
     const x = pad.left + i * slot + (slot - barW) / 2;
     ctx.fillRect(x, yAt(value), barW, pad.top + h - yAt(value));
