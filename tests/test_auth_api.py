@@ -7,6 +7,7 @@ login, identity, revocation, and cookie attributes.
 
 import re
 
+import httpx
 import pytest
 
 import routes as routes_module
@@ -15,14 +16,18 @@ from constants import SESSION_COOKIE_NAME, SESSION_EXPIRY_SECONDS
 from database import run_db
 
 
-def _session_token(resp) -> str:
+def _session_token(resp: httpx.Response) -> str:
     """Extract the raw session secret from a Set-Cookie header."""
     match = re.search(rf"{SESSION_COOKIE_NAME}=([^;]+)", resp.headers["set-cookie"])
     assert match is not None, "expected a session cookie in the response"
     return match.group(1)
 
 
-async def _register(client, username="alice", password="password123"):
+async def _register(
+    client: httpx.AsyncClient,
+    username: str = "alice",
+    password: str = "password123",
+) -> httpx.Response:
     return await client.post(
         "/api/auth/register",
         json={
@@ -53,6 +58,7 @@ async def test_register_creates_lowercased_user_and_session(client):
     assert me.status_code == 200
     assert me.json()["username"] == "alice"
     assert me.json()["email"] == "alice@example.com"
+    assert me.json()["needs_onboarding"] is True  # fresh account, no flag row
 
 
 @pytest.mark.asyncio
@@ -159,6 +165,7 @@ async def test_login_then_me_round_trip(client):
     me = await client.get("/api/auth/me")
     assert me.status_code == 200
     assert me.json()["username"] == "alice"
+    assert me.json()["needs_onboarding"] is True  # fresh account, no flag row
 
 
 @pytest.mark.asyncio
@@ -253,3 +260,47 @@ async def test_register_establishes_distinct_session_per_user(client):
     assert me_first.status_code == 200
     assert me_first.json()["username"] == "bob"  # latest cookie wins
     assert first.json()["id"] != second.json()["id"]
+
+# ---- needs_onboarding flag -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_me_needs_onboarding_true_for_bare_user(client):
+    """Spec: a new account with no onboarding_complete row reports true."""
+    await _register(client)
+    me = await client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["needs_onboarding"] is True
+
+
+@pytest.mark.asyncio
+async def test_me_needs_onboarding_false_after_completion(client):
+    """Spec: completing onboarding flips the flag to false."""
+    await _register(client)
+    resp = await client.post(
+        "/api/onboarding",
+        json={"height_cm": 175.0, "weight_kg": 80.0, "target_weight": 70.0},
+    )
+    assert resp.status_code == 200, resp.text
+    me = await client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["needs_onboarding"] is False
+
+
+@pytest.mark.asyncio
+async def test_me_needs_onboarding_true_for_preexisting_account(client, app):
+    """Spec: accounts created before this change have no onboarding_complete
+    row, so their next /me surfaces the wizard once."""
+    user = await run_db(app.state.db.create_user, "legacy", "hash", "salt")
+    token = generate_session_token()
+    await run_db(
+        app.state.db.create_session,
+        user.id,
+        hash_session_token(token),
+        "2099-01-01 00:00:00",
+    )
+    client.cookies.set(SESSION_COOKIE_NAME, token, path="/")
+    me = await client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["username"] == "legacy"
+    assert me.json()["needs_onboarding"] is True
