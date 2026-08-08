@@ -274,6 +274,44 @@ async def test_manifest_theme_color_stays_brand_accent(client):
 # class-swap, token-driven chart palette).
 
 
+# Phase 3 gate additions (game-appearance PR 3): the confetti wiring in app.js
+# (fireConfetti + earned-count diff via shouldCelebrate + the reduced-motion
+# matchMedia gate) and the motion CSS (flame pulse gated by the active-streak
+# data attribute; confetti pieces; both neutralized in the reduced-motion
+# block).
+
+
+@pytest.mark.asyncio
+async def test_style_css_ships_confetti_and_flame_motion(client):
+    """The served stylesheet must ship the streak-flame pulse gated by the
+    active-streak data attribute and the confetti-piece fall animation, and
+    must neutralize both inside the prefers-reduced-motion block (spec
+    'Motion system' + 'Reduced motion')."""
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    css = resp.text
+    # Flame pulse: keyframes exist and are gated to the active-streak tile.
+    assert "@keyframes flame-pulse" in css
+    assert re.search(r'\[data-streak-active="true"\]\s+\.flame', css) is not None, (
+        "flame pulse must be gated by the active-streak data attribute"
+    )
+    # Confetti pieces: fall keyframes + a rule binding the inline --color var.
+    assert "@keyframes confetti-fall" in css
+    assert ".confetti-piece" in css
+    assert re.search(r"background\s*:\s*var\(--color\)", css) is not None, (
+        "confetti pieces must fill from the inline token var"
+    )
+    # Both neutralized inside the reduced-motion block.
+    media_at = css.index("@media (prefers-reduced-motion: reduce)")
+    block = css[media_at:]
+    assert re.search(
+        r"\.confetti-piece\s*\{[^}]*display\s*:\s*none", block
+    ) is not None, "reduced-motion must hide confetti pieces"
+    assert re.search(
+        r"flame[^}]*animation\s*:\s*none", block
+    ) is not None, "reduced-motion must kill the flame pulse"
+
+
 @pytest.mark.asyncio
 async def test_style_css_ships_reduced_motion_block_without_starting_style(client):
     """The served stylesheet must ship a prefers-reduced-motion block that
@@ -358,3 +396,25 @@ async def test_app_js_drives_chart_colors_from_tokens(client):
         assert hardcoded not in body, (
             f"chart code must not hardcode {hardcoded}"
         )
+
+
+# Phase 3 gate additions (game-appearance PR 3): the confetti wiring in app.js
+# (fireConfetti + earned-count diff via shouldCelebrate + the reduced-motion
+# matchMedia gate) and the motion CSS (flame pulse gated by the active-streak
+# data attribute; confetti pieces; both neutralized in the reduced-motion
+# block).
+
+
+@pytest.mark.asyncio
+async def test_app_js_ships_confetti_wiring(client):
+    """app.js must wire confetti to the earned-count diff: fireConfetti()
+    defined, shouldCelebrate() consulted inside loadData, module prevEarned
+    state, and the prefers-reduced-motion matchMedia gate (design §Confetti,
+    spec 'Confetti eligibility' + 'Reduced motion')."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "function fireConfetti" in body
+    assert "shouldCelebrate(" in body
+    assert "let prevEarned = null" in body
+    assert 'matchMedia("(prefers-reduced-motion: reduce)")' in body
