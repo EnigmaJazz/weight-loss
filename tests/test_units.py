@@ -41,6 +41,22 @@ def test_kg_to_stone_is_consistent_with_kg_to_lb():
         assert whole * 14 + remaining == pytest.approx(kg_to_lb(weight_kg))
 
 
+def test_kg_to_stone_snaps_float_epsilon_at_stone_boundary():
+    # Regression: 10 st 0 lb entered via the SPA is sent as
+    # 140 * 0.45359237 = 63.502931800000006 kg, which round-trips to
+    # 139.9999999969026 lb — an epsilon below 140. Before the snap this
+    # displayed as "9 st 14 lb".
+    assert kg_to_stone(63.502931800000006) == (10, 0.0)
+    # Exact 140 lb equivalent through the spec factor.
+    assert kg_to_stone(140.0 / 2.2046226218) == (10, 0.0)
+    # Any drift within 1e-6 lb of the boundary carries into the next stone.
+    assert kg_to_stone((14 * 10 - 5e-7) / 2.2046226218) == (10, 0.0)
+    # A genuine remainder 1e-3 lb below the boundary is NOT snapped.
+    whole, remaining = kg_to_stone((14 * 9 + 13.999) / 2.2046226218)
+    assert whole == 9
+    assert remaining == pytest.approx(13.999)
+
+
 def test_bmi_with_configured_height():
     # Spec: 70 kg, 175 cm -> 70 / (1.75)^2 = 22.857142... before rounding.
     assert calculate_bmi(70.0, 175.0) == pytest.approx(22.857142857142858)
