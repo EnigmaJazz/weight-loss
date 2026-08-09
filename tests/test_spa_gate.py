@@ -1017,6 +1017,80 @@ async def test_format_js_ships_milestone_next_builder(client):
     )
 
 
+# Today quests + XP chip (r1-quests-xp S4a): the quests card markup, the
+# format.js XP mirrors, the app.js renderer/mutation hooks, and the
+# token-only quest/chip CSS with reduced-motion neutralization. Behavior
+# (complete/skip/replace flows, replace-cap 409, chip progress) is exercised
+# by tests/smoke-ui.sh; these gate the delivered artifacts.
+
+
+@pytest.mark.asyncio
+async def test_today_quest_surface(client):
+    """The Today tab must ship #quests-card (with an open-row action surface
+    and an accessible error region) and #xp-summary-chip (with a content
+    container) inside #tab-today; format.js must expose the XP curve mirrors;
+    app.js must wire the quest renderer, the mutation flow (disable-while-
+    pending, error feedback that never removes the card), and the XP chip
+    renderer, loading both via Promise.allSettled so one failed fetch never
+    blanks the Today view; style.css must style the surfaces token-only and
+    neutralize their transitions under prefers-reduced-motion."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    today = html[html.index('id="tab-today"') : html.index('id="tab-journey"')]
+    # Quests card: container + row list + accessible error region, all inside
+    # the Today panel.
+    assert 'id="quests-card"' in today
+    assert 'id="quests-list"' in today
+    assert 'id="quests-error"' in today
+    assert 'role="alert"' in today
+    # XP summary chip: card + content container, inside the Today panel.
+    assert 'id="xp-summary-chip"' in today
+    assert 'id="xp-chip-content"' in today
+
+    fmt = await client.get("/static/format.js")
+    assert fmt.status_code == 200
+    for mirror in ("thresholdForLevel", "levelFromXp", "xpIntoNext"):
+        assert mirror in fmt.text, f"format.js must expose {mirror}"
+
+    app = await client.get("/static/app.js")
+    assert app.status_code == 200
+    body = app.text
+    for hook in ("renderQuests", "mutateQuest", "renderXpChip"):
+        assert hook in body, f"app.js must define {hook}"
+    # R1 loading must be failure-scoped: quests + XP via Promise.allSettled.
+    assert "Promise.allSettled" in body
+    assert re.search(r"fetchJson\(\"/api/quests\"\)", body) is not None
+    assert re.search(r"fetchJson\(\"/api/xp\"\)", body) is not None
+    # The quest action surface: delegated open-row controls driven by
+    # data-action attributes (complete/skip/replace).
+    assert '"complete"' in body
+    assert '"skip"' in body
+    assert '"replace"' in body
+    assert 'classList.add("quest-action")' in body or 'className = "quest-action"' in body
+    assert re.search(r'"quests-list".*addEventListener', body) is not None
+
+    css = await client.get("/static/style.css")
+    assert css.status_code == 200
+    sheet = css.text
+    for selector in (".quest-row", ".quest-action", ".xp-chip"):
+        assert selector in sheet, f"style.css must declare {selector}"
+    # Token-only: the new surface rules must not introduce palette hex.
+    for rule in re.finditer(r"\.quest-[a-z-]+\s*\{[^}]*}|\.[a-z-]*xp-chip[a-z-]*\s*\{[^}]*}", sheet):
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
+            "quest/chip CSS must be token-only (no hex literals)"
+        )
+    # Reduced motion: the new surfaces' transitions are neutralized.
+    media_at = sheet.index("@media (prefers-reduced-motion: reduce)")
+    block = sheet[media_at:]
+    assert re.search(r"\.quest-row[^}]*transition\s*:\s*none", block) is not None, (
+        "reduced-motion must neutralize quest row transitions"
+    )
+    assert re.search(r"\.quest-action[^}]*transition\s*:\s*none", block) is not None, (
+        "reduced-motion must neutralize quest action transitions"
+    )
+
+
 @pytest.mark.asyncio
 async def test_style_css_gold_is_fill_only(client):
     """Gold must style the last-achieved dot as a ring/fill only: border-color

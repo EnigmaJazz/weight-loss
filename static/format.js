@@ -269,7 +269,47 @@
     return systemPref === "dark" ? "dark" : "light";
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme };
+  /* ---- XP level curve mirrors (r1-quests-xp S4a) ----
+   * Pure mirrors of xp.py + constants.py (LEVEL_XP_PER_LEVEL/LEVEL_XP_STEP),
+   * pinned by tests/frontend/xp.test.mjs against tests/test_xp.py so the XP
+   * chip's level/progress can never drift from the backend (spec 'XP Summary
+   * Chip and Mirrors'). The chip renders the backend's title directly — only
+   * the numeric curve needs mirroring client-side. */
+  const LEVEL_XP_PER_LEVEL = 100; // mirrors constants.LEVEL_XP_PER_LEVEL
+  const LEVEL_XP_STEP = 50; // mirrors constants.LEVEL_XP_STEP
+
+  /** Cumulative XP at which ``level`` starts — mirrors xp.threshold_for_level:
+   * T(1) = 0 and T(L) = sum_{k=1}^{L-1} (100 + (k-1)*50), i.e. 25*(L-1)*(L+2).
+   * The (L-1)*(L-2) product is always even, so the /2 division is exact. */
+  function thresholdForLevel(level) {
+    return (
+      LEVEL_XP_PER_LEVEL * (level - 1) +
+      (LEVEL_XP_STEP * (level - 1) * (level - 2)) / 2
+    );
+  }
+
+  /** Greatest level L >= 1 whose start threshold is not above ``totalXp`` —
+   * mirrors xp.level_from_xp: L = floor((isqrt(225 + 4*X) - 5) / 10), clamped
+   * to at least 1. Math.sqrt of a perfect square is exact in IEEE 754, so
+   * Math.floor(Math.sqrt(n)) equals Python's integer isqrt for every XP total
+   * the app can reach (n < 2^52), keeping the 100/250/450 boundaries exact. */
+  function levelFromXp(totalXp) {
+    const root = Math.floor(Math.sqrt(225 + 4 * totalXp));
+    return Math.max(1, Math.floor((root - 5) / 10));
+  }
+
+  /** (xpIntoNext, nextLevelAt) for ``totalXp`` — mirrors xp.level_progress:
+   * XP earned into the current level and the absolute XP the next level
+   * starts at (both derived from the threshold mirror above). */
+  function xpIntoNext(totalXp) {
+    const level = levelFromXp(totalXp);
+    return {
+      xpIntoNext: totalXp - thresholdForLevel(level),
+      nextLevelAt: thresholdForLevel(level + 1),
+    };
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
