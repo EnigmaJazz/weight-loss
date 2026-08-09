@@ -67,6 +67,32 @@ class MealEntry:
 
 
 @dataclass
+class MoodEntry:
+    """One logged mood check-in row; multiple rows per user per date are
+    allowed. ``mood`` is an integer from 1 through 5 and ``note`` an optional
+    free-text field of at most 500 characters (both validated in routes.py)."""
+
+    id: int
+    date: str
+    mood: int
+    created_at: str
+    note: Optional[str] = None
+    time: Optional[str] = None
+
+
+@dataclass
+class HabitEntry:
+    """One logged habit check-in row from the fixed v1 catalogue; multiple
+    rows per user per date are allowed."""
+
+    id: int
+    date: str
+    habit_type: str
+    created_at: str
+    time: Optional[str] = None
+
+
+@dataclass
 class PushSubscription:
     id: int
     endpoint: str

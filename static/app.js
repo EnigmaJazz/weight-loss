@@ -11,6 +11,12 @@ const toastEl = $("toast");
  * in the log form; the server validates against the same allowlist. */
 const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
 
+/* Habit-type allowlist mirroring constants.HABIT_TYPES (the drift guard test
+ * pins this literal to the server constant, same as EXERCISE_TYPES). The habit
+ * check-in UI that consumes it ships with the Today surface (S4a); until then
+ * the literal only pins the catalogue so UI and server cannot drift. */
+const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
+
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */

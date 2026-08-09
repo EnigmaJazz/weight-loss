@@ -73,12 +73,12 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 5 · S3a (~390) — mood & habit CRUD
 
-- [ ] 5.1 `database.py`: `mood_entries` + `habit_entries` DDL (multi-row/day), `_mood_from_row`/`_habit_from_row`, CRUD methods (list newest-first, insert, delete ownership-scoped).
-- [ ] 5.2 `models.py`: `MoodEntry`, `HabitEntry` dataclasses.
-- [ ] 5.3 `constants.py`: `HABIT_TYPES` = exactly `water, fruit_veg, home_cooked, sleep_routine`.
-- [ ] 5.4 `routes.py`: `MoodIn` (mood 1–5, note ≤500 chars), `HabitIn` (`habit_type` allowlist); `POST/GET/DELETE /api/mood`, `/api/habits` — 422 validation, 404 on foreign/missing, newest-first.
-- [ ] 5.5 `static/app.js`: `HABIT_TYPES` mirror of the constant.
-- [ ] 5.6 Tests: `tests/test_mood_api.py` + `tests/test_habit_api.py` (`test_create_list_delete`, `test_multiple_daily`, `test_validation`, `test_404_isolation`, `test_401`); drift guard `test_spa_gate.py::test_habit_types_literal_matches_server_constant`.
+- [x] 5.1 `database.py`: `mood_entries` + `habit_entries` DDL (multi-row/day), `_mood_from_row`/`_habit_from_row`, CRUD methods (list newest-first, insert, delete ownership-scoped).
+- [x] 5.2 `models.py`: `MoodEntry`, `HabitEntry` dataclasses.
+- [x] 5.3 `constants.py`: `HABIT_TYPES` = exactly `water, fruit_veg, home_cooked, sleep_routine`.
+- [x] 5.4 `routes.py`: `MoodIn` (mood 1–5, note ≤500 chars), `HabitIn` (`habit_type` allowlist); `POST/GET/DELETE /api/mood`, `/api/habits` — 422 validation, 404 on foreign/missing, newest-first.
+- [x] 5.5 `static/app.js`: `HABIT_TYPES` mirror of the constant.
+- [x] 5.6 Tests: `tests/test_mood_api.py` + `tests/test_habit_api.py` (`test_create_list_delete`, `test_multiple_daily`, `test_validation`, `test_404_isolation`, `test_401`); drift guard `test_spa_gate.py::test_habit_types_literal_matches_server_constant`.
 - Commit plan (work unit): `feat(logging): add mood and habits` — tasks 5.1–5.6. Acceptance: `python -m pytest tests/test_mood_api.py tests/test_habit_api.py tests/test_spa_gate.py -q` green; `pyright` clean.
 
 ## PR 6 · S3b (~320) — wellbeing detection
