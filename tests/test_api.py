@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 from fastapi import FastAPI
 
+from constants import QUEST_POOL
 import database as database_module
 import quests
 from models import AppSettings
@@ -1028,3 +1029,168 @@ async def test_quest_requires_auth(client):
     assert (await client.post("/api/quests/1/complete")).status_code == 401
     assert (await client.post("/api/quests/1/skip")).status_code == 401
     assert (await client.post("/api/quests/1/replace")).status_code == 401
+
+
+# ---- XP API (r1-quests-xp · S2a) ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_xp_api_boundaries(auth_client, app):
+    """GET /api/xp derives level/title/progress from done quests only; the
+    always-assigned 20-XP mood check-in crossing the 100-XP line moves the
+    user from level 1 to level 2 (spec: completion crosses a boundary)."""
+    zero = (await auth_client.get("/api/xp")).json()
+    assert zero == {
+        "level": 1,
+        "title": "Sprout",
+        "total_xp": 0,
+        "xp_into_next": 0,
+        "next_level_at": 100,
+        "recent_completions": [],
+    }
+    # The API only completes today's rows, so seed 80 XP from past done quests.
+    db = app.state.db
+    user_id = auth_user_id(app)
+    past = date(2026, 7, 27)
+    seeded = db.insert_quests(
+        user_id,
+        past.isoformat(),
+        [
+            quests.draft_for_key(key, past)
+            for key in ("log_meal", "streak_alive", "mood_checkin", "log_weight")
+        ],
+    )
+    for row in seeded:
+        db.update_quest_status(user_id, row.id, "done")
+    at_80 = (await auth_client.get("/api/xp")).json()
+    assert at_80["total_xp"] == 80
+    assert at_80["level"] == 1
+    assert at_80["title"] == "Sprout"
+    assert at_80["xp_into_next"] == 80
+    assert at_80["next_level_at"] == 100
+    # Completing today's mood check-in (20 XP) crosses into level 2.
+    today = (await auth_client.get("/api/quests")).json()["quests"]
+    mood = next(q for q in today if q["key"] == "mood_checkin")
+    done_resp = await auth_client.post(f"/api/quests/{mood['id']}/complete")
+    assert done_resp.status_code == 200
+    assert done_resp.json()["level_up"] == {"from": 1, "to": 2}
+    crossed = (await auth_client.get("/api/xp")).json()
+    assert crossed["total_xp"] == 100
+    assert crossed["level"] == 2
+    assert crossed["xp_into_next"] == 0
+    assert crossed["next_level_at"] == 250
+
+
+@pytest.mark.asyncio
+async def test_level_up_diff_quiet_on_repeat(auth_client, app):
+    """Completing an open quest reports the before/after level diff; the
+    idempotent repeat is quiet — level_up null and XP unchanged; a completion
+    that does not cross a boundary reports null too (spec: quiet on repeat)."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    past = date(2026, 7, 27)
+    seeded = db.insert_quests(
+        user_id,
+        past.isoformat(),
+        [
+            quests.draft_for_key(key, past)
+            for key in ("log_meal", "streak_alive", "mood_checkin", "log_weight")
+        ],
+    )
+    for row in seeded:
+        db.update_quest_status(user_id, row.id, "done")
+    today = (await auth_client.get("/api/quests")).json()["quests"]
+    mood = next(q for q in today if q["key"] == "mood_checkin")
+    first = (await auth_client.post(f"/api/quests/{mood['id']}/complete")).json()
+    assert first["status"] == "done"
+    assert first["level_up"] == {"from": 1, "to": 2}
+    # Repeat: 200 no-op, no new level-up, XP unchanged.
+    again = (await auth_client.post(f"/api/quests/{mood['id']}/complete")).json()
+    assert again["level_up"] is None
+    assert again["completed_at"] == first["completed_at"]
+    assert (await auth_client.get("/api/xp")).json()["total_xp"] == 100
+    # A completion that stays inside the level reports null too.
+    second_target = next(q for q in today if q["key"] != "mood_checkin")
+    no_cross = (
+        await auth_client.post(f"/api/quests/{second_target['id']}/complete")
+    ).json()
+    assert no_cross["level_up"] is None
+
+
+@pytest.mark.asyncio
+async def test_xp_recent_completions_bounded_and_ordered(auth_client, app):
+    """recent_completions lists the newest 10 done quests (bounded), newest
+    date first, with the entry shape {id, quest_key, title, xp_value,
+    completed_at} and real catalogue values."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    settings = AppSettings(reminder_weekday=0)
+    for day in (
+        date(2026, 7, 6),
+        date(2026, 7, 13),
+        date(2026, 7, 20),
+        date(2026, 7, 27),
+    ):
+        rows = db.insert_quests(
+            user_id, day.isoformat(), quests.generate_quests(user_id, day, settings)
+        )
+        for row in rows:
+            db.update_quest_status(user_id, row.id, "done")
+    data = (await auth_client.get("/api/xp")).json()
+    recent = data["recent_completions"]
+    assert len(recent) == 10  # 12 done quests bounded to 10
+    # Newest date first — generation is deterministic, so the expected key
+    # set per date is computable here. The three newest days fit whole; the
+    # 10-row bound cuts the oldest day (2026-07-06) to its newest row only —
+    # the rotating pick, inserted last and so the highest id on that day.
+    for expected_day, slice_ in (
+        (date(2026, 7, 27), recent[:3]),
+        (date(2026, 7, 20), recent[3:6]),
+        (date(2026, 7, 13), recent[6:9]),
+    ):
+        expected_keys = {
+            q.quest_key for q in quests.generate_quests(user_id, expected_day, settings)
+        }
+        assert {r["quest_key"] for r in slice_} == expected_keys
+    oldest_keys = {
+        q.quest_key for q in quests.generate_quests(user_id, date(2026, 7, 6), settings)
+    }
+    assert {r["quest_key"] for r in recent[9:]} == oldest_keys - {
+        "mood_checkin",
+        "log_weight",
+    }
+    # Entry shape + real catalogue values, completion timestamp stamped.
+    first = recent[0]
+    assert set(first) == {"id", "quest_key", "title", "xp_value", "completed_at"}
+    assert first["completed_at"] is not None
+    by_key = {entry[0]: entry for entry in QUEST_POOL}
+    assert first["title"] == by_key[first["quest_key"]][2]
+    assert first["xp_value"] == by_key[first["quest_key"]][4]
+
+
+@pytest.mark.asyncio
+async def test_xp_api_isolation(app, pair):
+    """Spec: keep users isolated — user A's done quests never surface in user
+    B's total or recent completions."""
+    alice, bob = pair
+    alice_user = app.state.db.get_user_by_username("alice")
+    bob_user = app.state.db.get_user_by_username("bob")
+    assert alice_user is not None and bob_user is not None
+    past = date(2026, 7, 27)
+    seeded = app.state.db.insert_quests(
+        alice_user.id, past.isoformat(), [quests.draft_for_key("exercise_10", past)]
+    )
+    app.state.db.update_quest_status(alice_user.id, seeded[0].id, "done")
+    alice_xp = (await alice.get("/api/xp")).json()
+    bob_xp = (await bob.get("/api/xp")).json()
+    assert alice_xp["total_xp"] == 40
+    assert len(alice_xp["recent_completions"]) == 1
+    assert alice_xp["recent_completions"][0]["quest_key"] == "exercise_10"
+    assert bob_xp["total_xp"] == 0
+    assert bob_xp["recent_completions"] == []
+
+
+@pytest.mark.asyncio
+async def test_xp_requires_auth(client):
+    """GET /api/xp is authenticated; unauthenticated calls are 401."""
+    assert (await client.get("/api/xp")).status_code == 401

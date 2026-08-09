@@ -44,9 +44,18 @@ from database import (
     DuplicateUsernameError,
     run_db,
 )
-from models import AppSettings, ExerciseEntry, MealEntry, Quest, User, WeightEntry
+from models import (
+    AppSettings,
+    ExerciseEntry,
+    MealEntry,
+    Quest,
+    User,
+    WeightEntry,
+    XpState,
+)
 import notifications
 import quests
+import xp
 from rewards import (
     compute_baseline,
     compute_current,
@@ -1033,6 +1042,19 @@ def _quest_dict(quest: Quest) -> dict[str, Any]:
     }
 
 
+def _recent_completion_dict(quest: Quest) -> dict[str, Any]:
+    """One recent-completion entry on GET /api/xp: identity + catalogue fields
+    plus the XP awarded and when it was completed (owner id omitted,
+    entry-style)."""
+    return {
+        "id": quest.id,
+        "quest_key": quest.quest_key,
+        "title": quest.title,
+        "xp_value": quest.xp_value,
+        "completed_at": quest.completed_at,
+    }
+
+
 async def _ensure_today_quests(
     db: Database, user: User
 ) -> tuple[list[Quest], str, AppSettings]:
@@ -1112,19 +1134,34 @@ async def complete_quest(
     db: Database = Depends(get_db),
 ) -> dict[str, Any]:
     """Mark a quest done. Idempotent: completing a done quest is a 200 no-op;
-    skipped/replaced quests are 409; foreign/missing 404; non-today 409."""
+    skipped/replaced quests are 409; foreign/missing 404; non-today 409.
+    Reports a level-up by diffing the level from XP immediately before and
+    after the idempotent transition (level_up:{from,to}|null, quiet on
+    repeat)."""
     quest_row = await _owned_today_quest(db, user, quest_id)
     if not quests.completion_allowed(quest_row):
         raise HTTPException(status_code=409, detail="quest cannot be completed")
+    level_before = xp.level_from_xp(
+        await run_db(db.total_xp_for_user, user.id)
+    )
     if quest_row.status == "done":
-        return _quest_dict(quest_row)  # idempotent 200 no-op
+        # Idempotent repeat: XP is unchanged, so no level-up is reported.
+        return {**_quest_dict(quest_row), "level_up": None}
     updated = await run_db(
         db.update_quest_status, user.id, quest_id, "done", source="manual"
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="quest not found")
+    level_after = xp.level_from_xp(
+        await run_db(db.total_xp_for_user, user.id)
+    )
+    level_up = (
+        {"from": level_before, "to": level_after}
+        if level_after > level_before
+        else None
+    )
     logger.info("completed quest %s for user %s", quest_id, user.username)
-    return _quest_dict(updated)
+    return {**_quest_dict(updated), "level_up": level_up}
 
 
 @router.post("/api/quests/{quest_id}/skip")
@@ -1178,6 +1215,30 @@ async def replace_quest(
         "replaced quest %s with %s for user %s", quest_id, new_key, user.username
     )
     return _quest_dict(fresh)
+
+
+@router.get("/api/xp")
+async def get_xp(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Derived XP state: the SUM of the user's done quests mapped through the
+    level curve, plus the newest 10 completed quests. No ledger — every value
+    derives from the quests table on read."""
+    total = await run_db(db.total_xp_for_user, user.id)
+    level = xp.level_from_xp(total)
+    xp_into_next, next_level_at = xp.level_progress(total)
+    state = XpState(
+        level=level,
+        title=xp.title_for_level(level),
+        total_xp=total,
+        xp_into_next=xp_into_next,
+        next_level_at=next_level_at,
+    )
+    recent = await run_db(db.list_recent_done_quests, user.id, 10)
+    return {
+        **asdict(state),
+        "recent_completions": [_recent_completion_dict(q) for q in recent],
+    }
 
 
 # ---- streaks -------------------------------------------------------------
