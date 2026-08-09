@@ -5,7 +5,7 @@ import contextlib
 import sqlite3
 import threading
 from datetime import datetime, timezone
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional, Sequence
 
 from constants import DEFAULT_SETTINGS, get_logger
 from models import (
@@ -13,6 +13,8 @@ from models import (
     ExerciseEntry,
     MealEntry,
     PushSubscription,
+    Quest,
+    QuestDetectionFacts,
     ResetToken,
     Session,
     User,
@@ -104,6 +106,27 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     );
     """,
     "DELETE FROM settings WHERE key = 'milestone_step_kg';",
+    # Daily quests (r1-quests-xp): per-user rows with NO per-date uniqueness —
+    # a replacement adds a row, and another user MAY hold the same key+date.
+    # Status transitions are validated in quests.py, not by the schema.
+    """
+    CREATE TABLE IF NOT EXISTS quests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        quest_key TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        xp_value INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open'
+            CHECK (status IN ('open', 'done', 'skipped', 'replaced')),
+        difficulty TEXT NOT NULL,
+        source TEXT NOT NULL,
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
     # ---- identity tables (user-accounts-auth) ----
     """
     CREATE TABLE IF NOT EXISTS users (
@@ -1013,6 +1036,144 @@ class Database:
             )
 
 
+    # ---- daily quests (r1-quests-xp) ----
+
+    def insert_quests(
+        self, user_id: int, date_str: str, drafts: Sequence[Quest]
+    ) -> list[Quest]:
+        """Persist any of ``drafts`` not already assigned to the user+date
+        (idempotent — regenerating the same day adds nothing) and return every
+        row for the day in insertion order. Replacement passes the single
+        eligible draft; already-assigned keys are skipped."""
+        with self._tx() as conn:
+            existing = {
+                row["quest_key"]
+                for row in conn.execute(
+                    "SELECT quest_key FROM quests WHERE user_id = ? AND date = ?",
+                    (user_id, date_str),
+                ).fetchall()
+            }
+            for draft in drafts:
+                if draft.quest_key in existing:
+                    continue
+                conn.execute(
+                    "INSERT INTO quests"
+                    " (user_id, date, quest_key, domain, title, description,"
+                    "  xp_value, status, difficulty, source, created_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        user_id,
+                        date_str,
+                        draft.quest_key,
+                        draft.domain,
+                        draft.title,
+                        draft.description,
+                        draft.xp_value,
+                        draft.status,
+                        draft.difficulty,
+                        draft.source,
+                        _local_now(),
+                    ),
+                )
+                existing.add(draft.quest_key)
+            rows = conn.execute(
+                "SELECT id, date, quest_key, domain, title, description, xp_value,"
+                " status, difficulty, source, completed_at, created_at"
+                " FROM quests WHERE user_id = ? AND date = ? ORDER BY id",
+                (user_id, date_str),
+            ).fetchall()
+        return [_quest_from_row(row) for row in rows]
+
+    def list_quests_for_date(self, user_id: int, date_str: str) -> list[Quest]:
+        """All quest rows for one user+date, oldest first (insertion order)."""
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, quest_key, domain, title, description, xp_value,"
+                " status, difficulty, source, completed_at, created_at"
+                " FROM quests WHERE user_id = ? AND date = ? ORDER BY id",
+                (user_id, date_str),
+            ).fetchall()
+        return [_quest_from_row(row) for row in rows]
+
+    def update_quest_status(
+        self,
+        user_id: int,
+        quest_id: int,
+        status: str,
+        source: str = "manual",
+    ) -> Optional[Quest]:
+        """Ownership-scoped status write; returns the updated quest, or None
+        for a foreign/missing id (404 at the API). completed_at is stamped
+        with the local wall clock when the quest becomes done and cleared
+        otherwise. Transition rules live in quests.py — this method persists a
+        decided transition."""
+        completed_at = _local_now() if status == "done" else None
+        with self._tx() as conn:
+            conn.execute(
+                "UPDATE quests SET status = ?, source = ?, completed_at = ?"
+                " WHERE id = ? AND user_id = ?",
+                (status, source, completed_at, quest_id, user_id),
+            )
+            row = conn.execute(
+                "SELECT id, date, quest_key, domain, title, description, xp_value,"
+                " status, difficulty, source, completed_at, created_at"
+                " FROM quests WHERE id = ? AND user_id = ?",
+                (quest_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return _quest_from_row(row)
+
+    def list_assigned_keys_today(self, user_id: int, date_str: str) -> set[str]:
+        """Distinct quest keys with any row for the user+date (assigned or
+        replaced) — the replacement-exclusion set."""
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT quest_key FROM quests"
+                " WHERE user_id = ? AND date = ?",
+                (user_id, date_str),
+            ).fetchall()
+        return {row["quest_key"] for row in rows}
+
+    def count_replaced_today(self, user_id: int, date_str: str) -> int:
+        """Replacement rows for the user+date; the one-per-day cap checks
+        this before allowing another replace."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM quests"
+                " WHERE user_id = ? AND date = ? AND status = 'replaced'",
+                (user_id, date_str),
+            ).fetchone()
+        return int(row["n"])
+
+    def quest_detection_facts(self, user_id: int, date_str: str) -> QuestDetectionFacts:
+        """Detection facts for one user+date gathered from the weight, exercise,
+        and meal tables. S3 extends this with mood/habit rows."""
+        with self._tx() as conn:
+            weight = conn.execute(
+                "SELECT 1 FROM weight_entries WHERE user_id = ? AND date = ? LIMIT 1",
+                (user_id, date_str),
+            ).fetchone()
+            exercise = conn.execute(
+                "SELECT COALESCE(SUM(duration_min), 0) AS total, COUNT(*) AS n"
+                " FROM exercise_entries WHERE user_id = ? AND date = ?",
+                (user_id, date_str),
+            ).fetchone()
+            meal = conn.execute(
+                "SELECT 1 FROM meal_entries WHERE user_id = ? AND date = ? LIMIT 1",
+                (user_id, date_str),
+            ).fetchone()
+        return QuestDetectionFacts(
+            date=date_str,
+            has_weight=weight is not None,
+            exercise_min=int(exercise["total"]),
+            has_meal=meal is not None,
+            has_any_entry=(
+                weight is not None or int(exercise["n"]) > 0 or meal is not None
+            ),
+        )
+
+
 async def run_db(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """Run a synchronous Database method on a thread so callers stay async."""
     return await asyncio.to_thread(func, *args, **kwargs)
@@ -1087,6 +1248,23 @@ def _subscription_from_row(row: sqlite3.Row) -> PushSubscription:
         p256dh=row["p256dh"],
         auth=row["auth"],
         created_at=row["created_at"],
+    )
+
+
+def _quest_from_row(row: sqlite3.Row) -> Quest:
+    return Quest(
+        id=row["id"],
+        date=row["date"],
+        quest_key=row["quest_key"],
+        domain=row["domain"],
+        title=row["title"],
+        description=row["description"],
+        xp_value=row["xp_value"],
+        status=row["status"],
+        difficulty=row["difficulty"],
+        source=row["source"],
+        created_at=row["created_at"],
+        completed_at=row["completed_at"],
     )
 
 

@@ -171,6 +171,64 @@ CELEBRATION_MESSAGES: tuple[tuple[str, str], ...] = (
     ),
 )
 
+# ---- daily quests (r1-quests-xp) ----
+
+# Quest catalogue as (key, domain, title, description, xp_value, size) tuples.
+# Order is normative: the four rotating keys first (catalogue order doubles
+# as the rotation tie-break), then the mandatory daily mood check-in and the
+# weekly weigh-in quest. ``size`` maps to the quests.difficulty column.
+# Values are pinned by tests/test_quests.py.
+QUEST_POOL: tuple[tuple[str, str, str, str, int, str], ...] = (
+    (
+        "exercise_10",
+        "exercise",
+        "Move for 10 minutes",
+        "Log exercise totalling at least 10 minutes today.",
+        40,
+        "normal",
+    ),
+    (
+        "log_meal",
+        "nutrition",
+        "Log a meal",
+        "Record a meal and its calories today.",
+        20,
+        "small",
+    ),
+    (
+        "streak_alive",
+        "movement",
+        "Keep the streak alive",
+        "Log any weight, exercise, or meal entry today.",
+        20,
+        "small",
+    ),
+    (
+        "habit_checkin",
+        "routine",
+        "Check in a habit",
+        "Record a healthy habit for today.",
+        20,
+        "small",
+    ),
+    (
+        "mood_checkin",
+        "wellbeing",
+        "Mood check-in",
+        "Tell us how you're feeling today.",
+        20,
+        "small",
+    ),
+    (
+        "log_weight",
+        "weight",
+        "Weigh in",
+        "Log today's weight.",
+        20,
+        "small",
+    ),
+)
+
 SCHEDULER_INTERVAL_SECONDS = 60
 
 # ---- authentication (user-accounts-auth) ----

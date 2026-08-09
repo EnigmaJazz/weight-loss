@@ -148,3 +148,33 @@ class AppSettings:
         if notif_type == "reminder":
             return self.reminder_weekday
         return None
+
+
+@dataclass
+class Quest:
+    """One persisted daily quest row (owner id omitted, entry-style)."""
+
+    id: int
+    date: str
+    quest_key: str
+    domain: str
+    title: str
+    description: str
+    xp_value: int
+    status: str
+    difficulty: str
+    source: str
+    created_at: str
+    completed_at: Optional[str] = None
+
+
+@dataclass
+class QuestDetectionFacts:
+    """Detection-relevant facts for one user+date gathered from the log
+    tables. S3 adds mood/habit row facts; until then those quests stay open."""
+
+    date: str
+    has_weight: bool = False
+    exercise_min: int = 0
+    has_meal: bool = False
+    has_any_entry: bool = False
