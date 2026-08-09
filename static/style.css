@@ -658,6 +658,65 @@ button.link:hover { color: var(--accent); background: none; }
 .xp-chip-total { font-size: 1.05rem; font-weight: 600; margin-top: var(--space-1); }
 .xp-chip-progress { margin-top: var(--space-2); }
 
+/* journey progress cards (r1-quests-xp S4b): the XP, momentum, and quest
+ * history cards on the Journey tab. Token-only (no palette hex), existing
+ * card layout with mobile stacking; transitions are neutralized by the
+ * reduced-motion block (spec 'Journey Progress Cards' + 'Journey UI
+ * Regression Contract'). */
+.xp-card { transition: background-color 0.15s ease; }
+.momentum-card { transition: background-color 0.15s ease; }
+.quest-history-card { transition: background-color 0.15s ease; }
+
+.journey-xp-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--fox);
+  margin: 0;
+}
+.journey-xp-level { font-size: 0.9rem; color: var(--muted); margin-top: var(--space-1); }
+.journey-xp-progress { margin-top: var(--space-2); }
+
+.journey-recent {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.journey-recent-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.journey-recent-row:last-child { border-bottom: none; }
+.journey-recent-xp { color: var(--accent-dark); font-weight: 600; }
+
+.momentum-tier {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--fox);
+  margin: 0;
+}
+.momentum-count { font-size: 0.9rem; color: var(--muted); margin-top: var(--space-1); }
+
+.quest-history-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.quest-history-row:last-child { border-bottom: none; }
+.quest-history-date { color: var(--muted); }
+.quest-history-name { font-weight: 600; }
+.quest-history-status { color: var(--muted); }
+.quest-history-xp { margin-left: auto; color: var(--accent-dark); font-weight: 600; }
+
 /* achieved-milestone strip (UI refinement of the five-card grid): compact
  * round dots, one per earned checkpoint, on ONE line; the last achieved dot
  * is scaled up with a gold ring; pending milestones are not rendered; the
@@ -823,7 +882,10 @@ a:focus-visible,
   .wizard-indicator li,
   .goal-ring-progress,
   .quest-row,
-  .quest-action {
+  .quest-action,
+  .xp-card,
+  .momentum-card,
+  .quest-history-card {
     transition: none !important;
   }
   /* motion-gate additions (Phase 3): confetti never spawns visibly and the

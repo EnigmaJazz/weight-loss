@@ -596,7 +596,10 @@ async function loadData() {
   renderExerciseHistory(exercise.entries);
   renderMealHistory(meals.entries);
   renderStreaks(streaks);
-  await loadQuestsAndXp();
+  // S4a payloads feed both Today (quests card + chip) and the Journey cards;
+  // the journey momentum fetch is separate and failure-scoped (S4b).
+  const r1 = await loadQuestsAndXp();
+  await loadJourneyCards(r1.quests, r1.xp);
   // Any reload lands back on Today.
   switchTab("today");
 }
@@ -1557,6 +1560,129 @@ async function loadQuestsAndXp() {
     err.textContent = "Could not load XP";
     el.append(err);
   }
+  return { quests: questsRes.value, xp: xpRes.value };
+}
+
+/* ---- journey progress cards (r1-quests-xp S4b) ------------------------- */
+
+/* Journey renders three progression cards from the S4a payloads (quests,
+ * XP) plus momentum, all failure-scoped: loadJourneyCards renders XP and
+ * quest history from the already-fetched quests/XP responses and fetches
+ * /api/momentum separately so one failed Journey request never blanks the
+ * others (spec 'Journey Data Loading'). */
+async function loadJourneyCards(questsPayload, xpPayload) {
+  const [momRes] = await Promise.allSettled([fetchJson("/api/momentum")]);
+  renderJourneyXp(xpPayload);
+  renderQuestHistory(questsPayload);
+  if (momRes.status === "fulfilled") {
+    renderMomentum(momRes.value);
+  } else {
+    const el = $("momentum-card-content");
+    el.innerHTML = "";
+    const err = document.createElement("p");
+    err.className = "hint error";
+    err.textContent = "Could not load momentum";
+    el.append(err);
+  }
+}
+
+function renderJourneyXp(xp) {
+  const el = $("xp-card-content");
+  el.innerHTML = "";
+  if (!xp) {
+    const err = document.createElement("p");
+    err.className = "hint error";
+    err.textContent = "Could not load XP";
+    el.append(err);
+    return;
+  }
+  const title = document.createElement("div");
+  title.className = "journey-xp-title";
+  title.textContent = xp.title;
+  const level = document.createElement("div");
+  level.className = "journey-xp-level";
+  level.textContent = `Level ${xp.level} · ${xp.total_xp} XP`;
+  el.append(title, level);
+  // Progress toward the next level (same exact-span math as the chip).
+  const span = xp.next_level_at - thresholdForLevel(xp.level);
+  const pct =
+    span > 0 ? Math.min(100, Math.round((xp.xp_into_next / span) * 100)) : 100;
+  const progress = document.createElement("div");
+  progress.className = "journey-xp-progress";
+  const track = document.createElement("div");
+  track.className = "progress-track";
+  const fill = document.createElement("div");
+  fill.className = "progress-fill";
+  fill.style.width = `${pct}%`;
+  track.append(fill);
+  const label = document.createElement("div");
+  label.className = "progress-label";
+  label.textContent = `${xp.xp_into_next} / ${span} XP to level ${xp.level + 1}`;
+  progress.append(track, label);
+  el.append(progress);
+  // Recent completions: newest first (the API returns them that way).
+  const recent = document.createElement("ul");
+  recent.className = "journey-recent";
+  for (const c of xp.recent_completions ?? []) {
+    const li = document.createElement("li");
+    li.className = "journey-recent-row";
+    const name = document.createElement("span");
+    name.textContent = c.title;
+    const awarded = document.createElement("span");
+    awarded.className = "journey-recent-xp";
+    awarded.textContent = `+${c.xp_value} XP`;
+    li.append(name, awarded);
+    recent.append(li);
+  }
+  el.append(recent);
+}
+
+function renderMomentum(m) {
+  const el = $("momentum-card-content");
+  el.innerHTML = "";
+  if (!m) return;
+  const tier = document.createElement("div");
+  tier.className = "momentum-tier";
+  tier.textContent = m.today_tier === "none" ? "No momentum yet" : m.today_tier;
+  const count = document.createElement("div");
+  count.className = "momentum-count";
+  count.textContent = `${m.successful_days} successful day${m.successful_days === 1 ? "" : "s"} in the last ${m.window_days}`;
+  el.append(tier, count);
+}
+
+function renderQuestHistory(questsPayload) {
+  const el = $("quest-history-content");
+  el.innerHTML = "";
+  const history = questsPayload?.history ?? [];
+  if (history.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No quests logged yet — your journey starts today.";
+    el.append(empty);
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "entry-list";
+  for (const q of history) {
+    const li = document.createElement("li");
+    li.className = "quest-history-row";
+    const date = document.createElement("span");
+    date.className = "quest-history-date";
+    date.textContent = formatDate(q.date);
+    const name = document.createElement("span");
+    name.className = "quest-history-name";
+    name.textContent = q.title;
+    const status = document.createElement("span");
+    status.className = "quest-history-status";
+    status.textContent = questStatusLabel(q);
+    const awarded = document.createElement("span");
+    awarded.className = "quest-history-xp";
+    // Non-done statuses award zero XP (spec 'Journey Progress Cards').
+    awarded.textContent = q.status === "done" ? `+${q.xp_value} XP` : "0 XP";
+    li.append(date, name, status, awarded);
+    list.append(li);
+  }
+  el.append(list);
 }
 
 function showQuestsError(err) {
@@ -1641,7 +1767,8 @@ async function mutateQuest(questId, action) {
   errorEl.hidden = true;
   try {
     await fetchJson(`/api/quests/${questId}/${action}`, { method: "POST" });
-    await loadQuestsAndXp();
+    const r1 = await loadQuestsAndXp();
+    await loadJourneyCards(r1.quests, r1.xp);
   } catch (err) {
     errorEl.textContent = `Could not ${action} quest: ${err.message}`;
     errorEl.hidden = false;

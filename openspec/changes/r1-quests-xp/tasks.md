@@ -100,10 +100,10 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 8 · S4b (~350) — Journey XP/momentum/quest-history cards
 
-- [ ] 8.1 `static/index.html`: `#xp-card` (level, title, total, progress, recent completions), `#momentum-card` (today tier, successful/21), `#quest-history-card` (date, label, status, awarded XP; non-done = 0; explicit empty state).
-- [ ] 8.2 `static/app.js`: `renderJourneyXp`, `renderMomentum`, `renderQuestHistory`; `loadData` scoped failure preserves other cards; accessible loading/error announcements.
-- [ ] 8.3 `static/style.css`: Journey card styling (existing tokens, mobile stacking).
-- [ ] 8.4 Tests: `test_spa_gate.py::test_journey_progress_surfaces`; Journey smoke; `test_index_html_journey_panel_absorbs_charts_and_history` must stay unchanged.
+- [x] 8.1 `static/index.html`: `#xp-card` (level, title, total, progress, recent completions), `#momentum-card` (today tier, successful/21), `#quest-history-card` (date, label, status, awarded XP; non-done = 0; explicit empty state).
+- [x] 8.2 `static/app.js`: `renderJourneyXp`, `renderMomentum`, `renderQuestHistory`; `loadData` scoped failure preserves other cards; accessible loading/error announcements.
+- [x] 8.3 `static/style.css`: Journey card styling (existing tokens, mobile stacking).
+- [x] 8.4 Tests: `test_spa_gate.py::test_journey_progress_surfaces`; Journey smoke; `test_index_html_journey_panel_absorbs_charts_and_history` must stay unchanged.
 - Commit plan (work unit): `feat(journey): show progression` — tasks 8.1–8.4. Acceptance: `python -m pytest tests/test_spa_gate.py -q && bash tests/smoke-ui.sh` green.
 
 ## PR 9 · S5a (~300) — onboarding backend (goals/lifestyle)
