@@ -236,6 +236,47 @@ class TestMomentumFactsPersistence:
         finally:
             db.close()
 
+    def test_mood_and_habit_rows_count_as_actions(self, tmp_path) -> None:
+        """Spec: actions include mood and habit rows. One mood + two habit
+        rows with one open quest → log_rows 3 → Good Day."""
+        db = Database(str(tmp_path / "momentum.db"))
+        db.init_schema()
+        try:
+            alice = make_user(db, "alice-wb")
+            db.insert_quests(
+                alice.id,
+                TODAY.isoformat(),
+                [quests.draft_for_key("exercise_10", TODAY)],
+            )
+            db.insert_mood_entry(alice.id, TODAY.isoformat(), 4, None)
+            db.insert_habit_entry(alice.id, TODAY.isoformat(), "water")
+            db.insert_habit_entry(alice.id, TODAY.isoformat(), "sleep_routine")
+            facts = db.momentum_facts(alice.id, START, TODAY.isoformat())
+            today = next(f for f in facts if f.date == TODAY.isoformat())
+            assert today.log_rows == 3  # 1 mood row + 2 habit rows
+            assert momentum.action_count(today) == 3
+            assert momentum.classify_day(today) == "Good Day"
+        finally:
+            db.close()
+
+    def test_done_quest_with_mood_row_is_great_day(self, tmp_path) -> None:
+        """A mood row is the action that completes a fully-done day → Great Day
+        (mixed sources: done quest + mood row both count)."""
+        db = Database(str(tmp_path / "momentum.db"))
+        db.init_schema()
+        try:
+            alice = make_user(db, "alice-mood-great")
+            _seed_done(db, alice.id, TODAY, ["log_meal"])
+            db.insert_mood_entry(alice.id, TODAY.isoformat(), 3, "steady")
+            facts = db.momentum_facts(alice.id, START, TODAY.isoformat())
+            today = next(f for f in facts if f.date == TODAY.isoformat())
+            assert today.done_quests == 1
+            assert today.log_rows == 1
+            assert momentum.action_count(today) == 2
+            assert momentum.classify_day(today) == "Great Day"
+        finally:
+            db.close()
+
     def test_per_user_isolation(self, tmp_path) -> None:
         """Spec: another user's actions never affect this user's facts."""
         db = Database(str(tmp_path / "momentum.db"))

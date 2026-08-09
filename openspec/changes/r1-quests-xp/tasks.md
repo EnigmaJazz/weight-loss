@@ -83,10 +83,10 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 6 · S3b (~320) — wellbeing detection
 
-- [ ] 6.1 `quests.py`: extend `QuestDetectionFacts` + `detect` — mood row → `mood_checkin` done/source `detected`; habit row → `habit_checkin`; `streak_alive` any qualifying row; `exercise_10` sum ≥10 stays.
-- [ ] 6.2 `database.py`: detection-facts query now includes mood/habit rows; keep routes free of quest writes.
-- [ ] 6.3 `momentum.py`: actions now include mood/habit row counts.
-- [ ] 6.4 Tests: extend `test_quests.py::test_detection_matrix` (mood/habit keys) and momentum tier test with mood/habit rows.
+- [x] 6.1 `quests.py`: extend `QuestDetectionFacts` + `detect` — mood row → `mood_checkin` done/source `detected`; habit row → `habit_checkin`; `streak_alive` any qualifying row; `exercise_10` sum ≥10 stays.
+- [x] 6.2 `database.py`: detection-facts query now includes mood/habit rows; keep routes free of quest writes.
+- [x] 6.3 `momentum.py`: actions now include mood/habit row counts.
+- [x] 6.4 Tests: extend `test_quests.py::test_detection_matrix` (mood/habit keys) and momentum tier test with mood/habit rows.
 - Commit plan (work unit): `feat(quests): detect wellbeing actions` — tasks 6.1–6.4. Acceptance: `python -m pytest tests/test_quests.py tests/test_momentum.py -q` green; `pyright` clean.
 
 ## PR 7 · S4a (~380) — Today quests card + XP chip

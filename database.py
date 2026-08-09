@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterator, Optional, Sequence
 
-from constants import DEFAULT_SETTINGS, get_logger
+from constants import DEFAULT_SETTINGS, HABIT_TYPES, get_logger
 from models import (
     AppSettings,
     ExerciseEntry,
@@ -1292,8 +1292,12 @@ class Database:
         return int(row["n"])
 
     def quest_detection_facts(self, user_id: int, date_str: str) -> QuestDetectionFacts:
-        """Detection facts for one user+date gathered from the weight, exercise,
-        and meal tables. S3 extends this with mood/habit rows."""
+        """Detection facts for one user+date gathered from the weight,
+        exercise, meal, mood, and habit tables. The habit presence is
+        HABIT_TYPES-driven: only rows whose habit_type is in the catalogue
+        qualify, so a catalogue change propagates here without touching
+        quests.py. has_any_entry covers every qualifying row source."""
+        habit_placeholders = ",".join("?" for _ in HABIT_TYPES)
         with self._tx() as conn:
             weight = conn.execute(
                 "SELECT 1 FROM weight_entries WHERE user_id = ? AND date = ? LIMIT 1",
@@ -1308,13 +1312,28 @@ class Database:
                 "SELECT 1 FROM meal_entries WHERE user_id = ? AND date = ? LIMIT 1",
                 (user_id, date_str),
             ).fetchone()
+            mood = conn.execute(
+                "SELECT 1 FROM mood_entries WHERE user_id = ? AND date = ? LIMIT 1",
+                (user_id, date_str),
+            ).fetchone()
+            habit = conn.execute(
+                f"SELECT 1 FROM habit_entries WHERE user_id = ? AND date = ?"
+                f" AND habit_type IN ({habit_placeholders}) LIMIT 1",
+                (user_id, date_str, *HABIT_TYPES),
+            ).fetchone()
         return QuestDetectionFacts(
             date=date_str,
             has_weight=weight is not None,
             exercise_min=int(exercise["total"]),
             has_meal=meal is not None,
+            has_mood=mood is not None,
+            has_habit=habit is not None,
             has_any_entry=(
-                weight is not None or int(exercise["n"]) > 0 or meal is not None
+                weight is not None
+                or int(exercise["n"]) > 0
+                or meal is not None
+                or mood is not None
+                or habit is not None
             ),
         )
 
@@ -1352,8 +1371,8 @@ class Database:
     ) -> list[MomentumDayFacts]:
         """Per-date momentum facts for one user across [start, end] inclusive:
         current assigned quests (replaced rows are not assignments), done
-        quests, and log-row counts from the weight/exercise/meal tables. S3
-        extends the log-row count with mood/habit rows."""
+        quests, and log-row counts from the weight/exercise/meal/mood/habit
+        tables."""
         with self._tx() as conn:
             quest_rows = conn.execute(
                 "SELECT date,"
@@ -1365,7 +1384,13 @@ class Database:
                 (user_id, start, end),
             ).fetchall()
             log_rows: list[sqlite3.Row] = []
-            for table in ("weight_entries", "exercise_entries", "meal_entries"):
+            for table in (
+                "weight_entries",
+                "exercise_entries",
+                "meal_entries",
+                "mood_entries",
+                "habit_entries",
+            ):
                 log_rows.extend(
                     conn.execute(
                         f"SELECT date, COUNT(*) AS n FROM {table}"
