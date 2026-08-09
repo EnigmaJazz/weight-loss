@@ -4,9 +4,9 @@
 # Drives the real browser UI via playwright-cli (installed globally, skill at
 # ~/.claude/skills/playwright-cli). Verifies the full user loop:
 #   gate shown unauthenticated -> register a fresh account -> tracker loads
-#   -> kg entry + st/lb (unit-toggle) entry -> settings/BMI -> rewards ->
-#   logout returns to the gate. The tracker is tabbed, so History/Settings/
-#   Progress assertions click their tab first.
+#   -> kg entry + st/lb (unit-toggle) entry -> me/BMI -> rewards ->
+#   logout returns to the gate. The tracker is tabbed, so Journey/World/Me
+#   assertions click their tab first.
 #
 # NOTE: this registers a fresh account and writes test weight entries into the
 # target app's database. Point it at a scratch instance (WEIGHT_LOSS_DB tmp)
@@ -179,10 +179,10 @@ playwright-cli fill "#entry-weight" "$TEST_WEIGHT" >/dev/null 2>&1
 playwright-cli click "#entry-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
-# The weight history list lives on the History tab; switch to it before
-# asserting, then back to Today for the summary assertion.
-playwright-cli click "[data-tab=history]" >/dev/null 2>&1
-assert_find "history shows the new entry" "$TEST_WEIGHT"
+# The weight history list lives on the Journey tab (the longitudinal view);
+# switch to it before asserting, then back to Today for the summary assertion.
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
+assert_find "journey shows the new weight entry" "$TEST_WEIGHT"
 playwright-cli click "[data-tab=today]" >/dev/null 2>&1
 assert_find "summary shows a current value (not —)" "Current"
 
@@ -196,16 +196,17 @@ playwright-cli fill "#entry-lb" "4" >/dev/null 2>&1
 playwright-cli click "#entry-form button[type=submit]" >/dev/null 2>&1
 sleep 1
 
-playwright-cli click "[data-tab=history]" >/dev/null 2>&1
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
 # The st+lb entry (12 st 4 lb = 172 lb) renders as total pounds in the
 # default weight-display mode (lb); "12 st" no longer appears anywhere.
-assert_find "history shows the st+lb entry" "172.0 lb"
+assert_find "journey shows the st+lb entry" "172.0 lb"
 
 # ---- 5. settings + BMI -----------------------------------------------------
 
-echo "-- settings"
-# The Goal & body form lives on the Settings tab; switch to it before filling.
-playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
+echo "-- me (settings)"
+# The Goal & body form lives on the Me tab (the old Settings panel); switch to
+# it before filling.
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
 playwright-cli fill "#height-cm" "175" >/dev/null 2>&1
 playwright-cli fill "#target-weight" "70" >/dev/null 2>&1
 playwright-cli click "#goal-form button[type=submit]" >/dev/null 2>&1
@@ -219,46 +220,52 @@ assert_find "BMI renders after height saved" "BMI 2"
 
 echo "-- weight-display radio toggle"
 # The display preference is a radio group that saves itself on change — no
-# "Save settings" click. Toggling to st-lb must re-render the History list
-# immediately (and persist via the debounced settings PUT).
-playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
+# "Save settings" click. Toggling to st-lb must re-render the Journey history
+# list immediately (and persist via the debounced settings PUT).
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
 playwright-cli click 'input[name="weight-display"][value="st-lb"]' >/dev/null 2>&1
 sleep 1
-playwright-cli click "[data-tab=history]" >/dev/null 2>&1
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
 # The 12 st 4 lb entry (172 lb) renders as stones+pounds once st-lb is chosen;
 # "12 st" only appears in this mode, so this proves the toggle took effect
 # without any Save click.
 assert_find "st-lb display after radio toggle (no Save)" "12 st 4"
 
-# ---- 5.5 progress tab: charts draw on visibility ---------------------------
+# ---- 5.5 journey tab: charts draw on visibility ---------------------------
 
-echo "-- progress tab (charts)"
-playwright-cli click "[data-tab=progress]" >/dev/null 2>&1
-assert_visibility "progress panel visible" "#tab-progress" "visible"
-assert_visibility "today panel hidden on progress tab" "#tab-today" "hidden"
+echo "-- journey tab (charts)"
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
+assert_visibility "journey panel visible" "#tab-journey" "visible"
+assert_visibility "today panel hidden on journey tab" "#tab-today" "hidden"
 
 # The canvases have zero width while their panel is hidden; a non-zero
-# clientWidth proves each chart was redrawn when Progress became visible.
+# clientWidth proves each chart was redrawn when Journey became visible.
 CHART_W="$(playwright-cli --raw eval "!!document.querySelector('#chart').clientWidth" 2>&1 | tr -d '"')"
 if [ "$CHART_W" = "true" ]; then
-  step_ok "weight chart draws on progress tab"
+  step_ok "weight chart draws on journey tab"
 else
-  step_fail "weight chart draws on progress tab (clientWidth=$CHART_W)"
+  step_fail "weight chart draws on journey tab (clientWidth=$CHART_W)"
 fi
 
 EXERCISE_CHART_W="$(playwright-cli --raw eval "!!document.querySelector('#chart-exercise').clientWidth" 2>&1 | tr -d '"')"
 if [ "$EXERCISE_CHART_W" = "true" ]; then
-  step_ok "exercise chart draws on progress tab"
+  step_ok "exercise chart draws on journey tab"
 else
-  step_fail "exercise chart draws on progress tab (clientWidth=$EXERCISE_CHART_W)"
+  step_fail "exercise chart draws on journey tab (clientWidth=$EXERCISE_CHART_W)"
 fi
 
 MEALS_CHART_W="$(playwright-cli --raw eval "!!document.querySelector('#chart-meals').clientWidth" 2>&1 | tr -d '"')"
 if [ "$MEALS_CHART_W" = "true" ]; then
-  step_ok "meals chart draws on progress tab"
+  step_ok "meals chart draws on journey tab"
 else
-  step_fail "meals chart draws on progress tab (clientWidth=$MEALS_CHART_W)"
+  step_fail "meals chart draws on journey tab (clientWidth=$MEALS_CHART_W)"
 fi
+
+# ---- 5.6 world tab: placeholder copy ----------------------------------------
+
+echo "-- world tab (placeholder)"
+playwright-cli click "[data-tab=world]" >/dev/null 2>&1
+assert_find "world placeholder copy visible" "Your adventure map is coming soon."
 
 # ---- 5.75 theme toggle + Appearance radio (selector-only, no text pins) ----
 
@@ -268,7 +275,7 @@ echo "-- theme toggle"
 # pref to Light via the Settings Appearance radio (deterministic), then the
 # toggle cycle system->light->dark->system gives exactly: dark, then back to
 # the system-resolved theme. All assertions are selector-only.
-playwright-cli click "[data-tab=settings]" >/dev/null 2>&1
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
 playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
 sleep 1
 RADIO_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"

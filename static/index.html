@@ -214,9 +214,9 @@
       <div id="tracker" hidden>
         <nav class="tabs" role="tablist">
           <button type="button" class="tab-btn active" data-tab="today" role="tab" aria-selected="true">Today</button>
-          <button type="button" class="tab-btn" data-tab="progress" role="tab" aria-selected="false">Progress</button>
-          <button type="button" class="tab-btn" data-tab="history" role="tab" aria-selected="false">History</button>
-          <button type="button" class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
+          <button type="button" class="tab-btn" data-tab="journey" role="tab" aria-selected="false">Journey</button>
+          <button type="button" class="tab-btn" data-tab="world" role="tab" aria-selected="false">World</button>
+          <button type="button" class="tab-btn" data-tab="me" role="tab" aria-selected="false">Me</button>
         </nav>
 
         <div class="tab-panel" id="tab-today">
@@ -289,9 +289,9 @@
           </section>
         </div>
 
-        <div class="tab-panel" id="tab-progress" hidden>
+        <div class="tab-panel" id="tab-journey" hidden>
           <section class="card">
-            <h2>Progress</h2>
+            <h2>Weight trend</h2>
             <canvas id="chart" height="260"></canvas>
           </section>
 
@@ -304,9 +304,7 @@
             <h2>Meals (calories/day)</h2>
             <canvas id="chart-meals" height="260"></canvas>
           </section>
-        </div>
 
-        <div class="tab-panel" id="tab-history" hidden>
           <section class="card" id="history-card">
             <h2>History</h2>
             <ul class="entry-list" id="entry-list"></ul>
@@ -323,7 +321,15 @@
           </section>
         </div>
 
-        <div class="tab-panel" id="tab-settings" hidden>
+        <div class="tab-panel" id="tab-world" hidden>
+          <section class="card world-placeholder">
+            <span class="mascot" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#2f7d54"/><path d="M14.75 3.25 20 20.625 31.25 20.625 Z" fill="#eb892c"/><path d="M49.25 3.25 32.75 20.625 44 20.625 Z" fill="#eb892c"/><path d="M20.5 17.5 43.5 17.5 41.5 37.5 35.5 50.25 32 53 28.5 50.25 22.5 37.5 Z" fill="#eb892c"/><path d="M17.5 7.25 16.5 13.5 23.25 11.75 Z" fill="#b45c16"/><path d="M46.5 7.25 47.5 13.5 40.75 11.75 Z" fill="#b45c16"/><path d="M21.5 16.5 20 10.75 25.75 13.25 Z" fill="#b45c16"/><path d="M42.5 16.5 44 10.75 38.25 13.25 Z" fill="#b45c16"/><path d="M21.25 16.25 20.375 13.5 24.5 14.75 Z" fill="#fcf8f0"/><path d="M42.75 16.25 43.625 13.5 39.5 14.75 Z" fill="#fcf8f0"/><path d="M26.5 31.875 37.5 31.875 32 51.75 Z" fill="#fcf8f0"/><circle cx="26.5" cy="24.5" r="1.375" fill="#26201e"/><circle cx="37.5" cy="24.5" r="1.375" fill="#26201e"/><ellipse cx="32" cy="44.5" rx="1.625" ry="1.125" fill="#26201e"/></svg></span>
+            <h2>World</h2>
+            <p class="hint">Your adventure map is coming soon.</p>
+          </section>
+        </div>
+
+        <div class="tab-panel" id="tab-me" hidden>
           <section class="card">
             <h2>Account</h2>
             <form id="account-form" autocomplete="off">
@@ -429,7 +435,7 @@
     </main>
 
     <footer>
-      <p>Weights shown in kg with the imperial form chosen in Settings.</p>
+      <p>Weights shown in kg with the imperial form chosen in Me.</p>
     </footer>
   </div>
 
