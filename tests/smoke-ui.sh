@@ -134,15 +134,22 @@ assert_find "wizard heading visible" "set up your tracker"
 
 echo "-- onboarding wizard"
 # step 1: height (cm default) -> step 2: current weight -> step 3: target
-# (weight mode default) -> step 4: units (defaults) -> step 5: notifications
-# (defaults) -> finish. The wizard's weight entry is today's first entry, so
-# section 3's identical kg entry becomes an idempotent upsert.
+# (weight mode default) -> step 4: goals & lifestyle (all optional, defaults
+# pass through untouched) -> step 5: units (defaults) -> step 6:
+# notifications (defaults) -> finish. The wizard's weight entry is today's
+# first entry, so section 3's identical kg entry becomes an idempotent upsert.
 playwright-cli fill "#ob-height-cm" "175" >/dev/null 2>&1
 playwright-cli click "#wizard-step-height [data-action=next]" >/dev/null 2>&1
 playwright-cli fill "#ob-weight-kg" "$TEST_WEIGHT" >/dev/null 2>&1
 playwright-cli click "#wizard-step-weight [data-action=next]" >/dev/null 2>&1
 playwright-cli fill "#ob-target-weight" "70" >/dev/null 2>&1
 playwright-cli click "#wizard-step-target [data-action=next]" >/dev/null 2>&1
+# The goals & lifestyle step must actually be the NEXT step (spec: between
+# target and units) — assert its visibility in the real browser, then click
+# through and confirm units follows.
+assert_visibility "goals-lifestyle step shown after target" "#wizard-step-goals-lifestyle" "visible"
+playwright-cli click "#wizard-step-goals-lifestyle [data-action=next]" >/dev/null 2>&1
+assert_visibility "units step shown after goals-lifestyle" "#wizard-step-units" "visible"
 playwright-cli click "#wizard-step-units [data-action=next]" >/dev/null 2>&1
 playwright-cli click "#wizard-step-notifications [data-action=finish]" >/dev/null 2>&1
 sleep 1
@@ -215,6 +222,32 @@ sleep 1
 # Saving settings reloads data and lands back on the Today tab, where the
 # summary card renders the BMI.
 assert_find "BMI renders after height saved" "BMI 2"
+
+# ---- 5.1 goals & lifestyle settings card (S5b) ----------------------------
+# The wizard completed with all four goals/lifestyle fields untouched, so the
+# Me card must prefill the empty state; then a select save round-trips through
+# PUT /api/settings and back into the re-rendered card (loadData re-renders
+# settings, and any reload lands on Today — the values are read from the DOM
+# regardless of the active tab).
+echo "-- goals & lifestyle settings card"
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+GOAL_EMPTY="$(playwright-cli --raw eval "document.querySelector('#primary-goal').value" 2>&1 | tr -d '"')"
+if [ "$GOAL_EMPTY" = "" ]; then
+  step_ok "goals card prefills empty primary goal after wizard"
+else
+  step_fail "goals card prefills empty primary goal after wizard (got '$GOAL_EMPTY')"
+fi
+playwright-cli --raw eval "document.querySelector('#primary-goal').value = 'weight_loss'" >/dev/null 2>&1
+playwright-cli --raw eval "document.querySelector('#activity-level').value = 'moderate'" >/dev/null 2>&1
+playwright-cli click "#goals-lifestyle-settings-form button[type=submit]" >/dev/null 2>&1
+sleep 1
+GOAL_AFTER="$(playwright-cli --raw eval "document.querySelector('#primary-goal').value" 2>&1 | tr -d '"')"
+LEVEL_AFTER="$(playwright-cli --raw eval "document.querySelector('#activity-level').value" 2>&1 | tr -d '"')"
+if [ "$GOAL_AFTER" = "weight_loss" ] && [ "$LEVEL_AFTER" = "moderate" ]; then
+  step_ok "goals card save round-trips primary_goal + activity_level"
+else
+  step_fail "goals card save round-trips primary_goal + activity_level (goal='$GOAL_AFTER', level='$LEVEL_AFTER')"
+fi
 
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
 

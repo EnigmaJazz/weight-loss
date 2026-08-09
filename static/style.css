@@ -695,7 +695,7 @@ footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 0.
   margin-top: 1rem;
 }
 
-/* wizard step indicator: 5 dots, no visible text (design D3) */
+/* wizard step indicator: 6 dots, no visible text (design D3) */
 .wizard-indicator {
   display: flex;
   justify-content: center;

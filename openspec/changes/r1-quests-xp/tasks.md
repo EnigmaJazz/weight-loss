@@ -116,10 +116,10 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 10 · S5b (~390) — wizard step + Me card UI
 
-- [ ] 10.1 `static/app.js`: `WIZARD_STEPS` → six steps (height, weight, target, goals-lifestyle, units, notifications); `#wizard-step-goals-lifestyle` between target and units; six step dots; wizard payload includes 4 optional fields; branch on `needs_onboarding` before tracker load.
-- [ ] 10.2 `static/index.html`: `#goals-lifestyle-form` — primary_goal select, secondary_goals + health_domains lists, activity_level select (ALL optional).
-- [ ] 10.3 `static/app.js`: render/save handlers for the step + Me tab goals/lifestyle settings card.
-- [ ] 10.4 Tests: update `test_index_html_ships_onboarding_wizard_between_auth_and_tracker` (six steps), `test_index_html_ships_mascot_and_wizard_indicator` (six dots), `tests/smoke-ui.sh` goals step.
+- [x] 10.1 `static/app.js`: `WIZARD_STEPS` → six steps (height, weight, target, goals-lifestyle, units, notifications); `#wizard-step-goals-lifestyle` between target and units; six step dots; wizard payload includes 4 optional fields; branch on `needs_onboarding` before tracker load.
+- [x] 10.2 `static/index.html`: `#goals-lifestyle-form` — primary_goal select, secondary_goals + health_domains lists, activity_level select (ALL optional).
+- [x] 10.3 `static/app.js`: render/save handlers for the step + Me tab goals/lifestyle settings card.
+- [x] 10.4 Tests: update `test_index_html_ships_onboarding_wizard_between_auth_and_tracker` (six steps), `test_index_html_ships_mascot_and_wizard_indicator` (six dots), `tests/smoke-ui.sh` goals step.
 - Commit plan (work unit): `feat(spa): collect and edit goals` — tasks 10.1–10.4. Acceptance: `python -m pytest tests/test_index_html.py tests/test_spa_gate.py -q && bash tests/smoke-ui.sh` green.
 
 ## Final · Verify Checklist (per spec coverage)

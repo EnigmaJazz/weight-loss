@@ -82,6 +82,7 @@
           <li data-step="height"></li>
           <li data-step="weight"></li>
           <li data-step="target"></li>
+          <li data-step="goals-lifestyle"></li>
           <li data-step="units"></li>
           <li data-step="notifications"></li>
         </ol>
@@ -164,9 +165,53 @@
             </div>
           </div>
 
-          <!-- step 4: units & display -->
+          <!-- step 4: goals & lifestyle (all optional) -->
+          <div class="wizard-step" id="wizard-step-goals-lifestyle" data-step="goals-lifestyle" hidden>
+            <h3>4. Goals &amp; lifestyle</h3>
+            <div id="goals-lifestyle-form">
+              <label for="ob-primary-goal">Primary goal</label>
+              <select id="ob-primary-goal">
+                <option value="">No preference</option>
+                <option value="weight_loss">Lose weight</option>
+                <option value="general_health">General health</option>
+                <option value="fitness">Fitness</option>
+                <option value="wellbeing">Wellbeing</option>
+              </select>
+              <fieldset class="unit-group">
+                <legend>Secondary goals</legend>
+                <label class="radio-option"><input type="checkbox" name="ob-secondary-goals" value="lose_weight"> Lose weight</label>
+                <label class="radio-option"><input type="checkbox" name="ob-secondary-goals" value="build_muscle"> Build muscle</label>
+                <label class="radio-option"><input type="checkbox" name="ob-secondary-goals" value="improve_energy"> Improve energy</label>
+                <label class="radio-option"><input type="checkbox" name="ob-secondary-goals" value="better_sleep"> Sleep better</label>
+                <label class="radio-option"><input type="checkbox" name="ob-secondary-goals" value="reduce_stress"> Reduce stress</label>
+              </fieldset>
+              <fieldset class="unit-group">
+                <legend>Health domains</legend>
+                <label class="radio-option"><input type="checkbox" name="ob-health-domains" value="nutrition"> Nutrition</label>
+                <label class="radio-option"><input type="checkbox" name="ob-health-domains" value="exercise"> Exercise</label>
+                <label class="radio-option"><input type="checkbox" name="ob-health-domains" value="sleep"> Sleep</label>
+                <label class="radio-option"><input type="checkbox" name="ob-health-domains" value="mental_health"> Mental health</label>
+                <label class="radio-option"><input type="checkbox" name="ob-health-domains" value="hydration"> Hydration</label>
+              </fieldset>
+              <label for="ob-activity-level">Activity level</label>
+              <select id="ob-activity-level">
+                <option value="">No preference</option>
+                <option value="sedentary">Sedentary</option>
+                <option value="light">Lightly active</option>
+                <option value="moderate">Moderately active</option>
+                <option value="active">Very active</option>
+              </select>
+              <p class="hint">All optional — you can change them anytime in Me.</p>
+            </div>
+            <div class="wizard-step-buttons">
+              <button type="button" data-action="back" data-step="goals-lifestyle" class="secondary">Back</button>
+              <button type="button" data-action="next" data-step="goals-lifestyle">Continue</button>
+            </div>
+          </div>
+
+          <!-- step 5: units & display -->
           <div class="wizard-step" id="wizard-step-units" data-step="units" hidden>
-            <h3>4. Units &amp; display</h3>
+            <h3>5. Units &amp; display</h3>
             <fieldset class="unit-group" id="ob-weight-display-group">
               <legend>Weight display — follow kg with</legend>
               <label class="radio-option"><input type="radio" name="ob-weight-display" value="lb" checked> Total pounds (lb)</label>
@@ -184,9 +229,9 @@
             </div>
           </div>
 
-          <!-- step 5: notifications (mandatory v1 — no skip button) -->
+          <!-- step 6: notifications (mandatory v1 — no skip button) -->
           <div class="wizard-step" id="wizard-step-notifications" data-step="notifications" hidden>
-            <h3>5. Reminders</h3>
+            <h3>6. Reminders</h3>
             <label for="ob-tip-time">Daily tip time (HH:MM) — leave blank to disable</label>
             <input type="time" id="ob-tip-time">
             <label for="ob-reminder-time">Weigh-in reminder time (HH:MM) — leave blank to disable</label>
@@ -372,6 +417,45 @@
               <input type="number" id="start-override" step="any" min="1" max="700" placeholder="e.g. 90.0">
               <p class="hint" id="goal-range-hint" hidden></p>
               <button type="submit">Save goal</button>
+            </form>
+          </section>
+
+          <section class="card">
+            <h2>Goals &amp; lifestyle</h2>
+            <form id="goals-lifestyle-settings-form" autocomplete="off">
+              <label for="primary-goal">Primary goal</label>
+              <select id="primary-goal">
+                <option value="">No preference</option>
+                <option value="weight_loss">Lose weight</option>
+                <option value="general_health">General health</option>
+                <option value="fitness">Fitness</option>
+                <option value="wellbeing">Wellbeing</option>
+              </select>
+              <fieldset class="unit-group">
+                <legend>Secondary goals</legend>
+                <label class="radio-option"><input type="checkbox" name="secondary-goals" value="lose_weight"> Lose weight</label>
+                <label class="radio-option"><input type="checkbox" name="secondary-goals" value="build_muscle"> Build muscle</label>
+                <label class="radio-option"><input type="checkbox" name="secondary-goals" value="improve_energy"> Improve energy</label>
+                <label class="radio-option"><input type="checkbox" name="secondary-goals" value="better_sleep"> Sleep better</label>
+                <label class="radio-option"><input type="checkbox" name="secondary-goals" value="reduce_stress"> Reduce stress</label>
+              </fieldset>
+              <fieldset class="unit-group">
+                <legend>Health domains</legend>
+                <label class="radio-option"><input type="checkbox" name="health-domains" value="nutrition"> Nutrition</label>
+                <label class="radio-option"><input type="checkbox" name="health-domains" value="exercise"> Exercise</label>
+                <label class="radio-option"><input type="checkbox" name="health-domains" value="sleep"> Sleep</label>
+                <label class="radio-option"><input type="checkbox" name="health-domains" value="mental_health"> Mental health</label>
+                <label class="radio-option"><input type="checkbox" name="health-domains" value="hydration"> Hydration</label>
+              </fieldset>
+              <label for="activity-level">Activity level</label>
+              <select id="activity-level">
+                <option value="">No preference</option>
+                <option value="sedentary">Sedentary</option>
+                <option value="light">Lightly active</option>
+                <option value="moderate">Moderately active</option>
+                <option value="active">Very active</option>
+              </select>
+              <button type="submit">Save goals</button>
             </form>
           </section>
 

@@ -240,7 +240,7 @@ async function logout() {
 
 /* ---- onboarding wizard --------------------------------------------------- */
 
-const WIZARD_STEPS = ["height", "weight", "target", "units", "notifications"];
+const WIZARD_STEPS = ["height", "weight", "target", "goals-lifestyle", "units", "notifications"];
 
 function showOnboarding() {
   authScreen.hidden = true;
@@ -319,6 +319,24 @@ function wizardTargetKg() {
   }
   const raw = $("ob-target-weight").value.trim();
   return raw === "" ? null : Number(raw);
+}
+
+/* Optional goals/lifestyle readers (spec user-onboarding): empty values are
+ * sent as null / [] so the backend's defaults apply and a re-POST clears. */
+function wizardPrimaryGoal() {
+  return $("ob-primary-goal").value.trim() || null;
+}
+
+function wizardActivityLevel() {
+  return $("ob-activity-level").value.trim() || null;
+}
+
+/* Values of every checked box in a named group, in DOM order (the backend
+ * round-trips JSON lists with order preserved). */
+function checkedValues(name) {
+  return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(
+    (el) => el.value
+  );
 }
 
 /* One step at a time: validation runs on advance, so the Finish path (or the
@@ -503,6 +521,10 @@ async function submitOnboarding() {
     reminder_time: $("ob-reminder-time").value.trim(),
     reminder_weekday: Number($("ob-reminder-weekday").value),
     exercise_time: $("ob-exercise-time").value.trim(),
+    primary_goal: wizardPrimaryGoal(),
+    secondary_goals: checkedValues("ob-secondary-goals"),
+    health_domains: checkedValues("ob-health-domains"),
+    activity_level: wizardActivityLevel(),
   };
   if (checkedRadio("ob-target-mode") === "bmi") {
     payload.target_bmi = Number($("ob-target-bmi").value);
@@ -1531,10 +1553,28 @@ function renderSettings(s, me) {
   // Appearance radio mirrors the same theme preference as the header toggle
   // (design §JS Theming Lifecycle): system/light/dark, default "system".
   setRadio("appearance", unitPref(s.theme, "system"));
+  renderGoalsLifestyle(s);
   syncWeightUnitUi();
   syncHeightUnitUi();
   syncTargetUnitUi();
   renderGoalRangeHint();
+}
+
+/* Goals & lifestyle settings card (spec user-onboarding): prefill the Me
+ * selects and check the persisted list values. The lists are free-form on
+ * the backend, so a saved value outside the preset options is simply left
+ * unchecked rather than dropped on the next save. */
+function renderGoalsLifestyle(s) {
+  $("primary-goal").value = s.primary_goal ?? "";
+  $("activity-level").value = s.activity_level ?? "";
+  const secondary = new Set(s.secondary_goals ?? []);
+  for (const el of document.querySelectorAll('input[name="secondary-goals"]')) {
+    el.checked = secondary.has(el.value);
+  }
+  const domains = new Set(s.health_domains ?? []);
+  for (const el of document.querySelectorAll('input[name="health-domains"]')) {
+    el.checked = domains.has(el.value);
+  }
 }
 
 /* Healthy-range flag under the Goal & body form: reuses the summary's
@@ -1649,6 +1689,26 @@ async function saveGoal(ev) {
       }),
     });
     toast("Goal saved");
+    await loadData();
+  } catch (err) {
+    toast(`Save failed: ${err.message}`);
+  }
+}
+
+async function saveGoalsLifestyle(ev) {
+  ev.preventDefault();
+  try {
+    await fetchJson("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        primary_goal: $("primary-goal").value.trim() || null,
+        secondary_goals: checkedValues("secondary-goals"),
+        health_domains: checkedValues("health-domains"),
+        activity_level: $("activity-level").value.trim() || null,
+      }),
+    });
+    toast("Goals saved");
     await loadData();
   } catch (err) {
     toast(`Save failed: ${err.message}`);
@@ -1952,6 +2012,7 @@ async function init() {
   $("meal-form").addEventListener("submit", addMeal);
   $("account-form").addEventListener("submit", saveAccount);
   $("goal-form").addEventListener("submit", saveGoal);
+  $("goals-lifestyle-settings-form").addEventListener("submit", saveGoalsLifestyle);
   $("reminders-form").addEventListener("submit", saveReminders);
   $("enable-push").addEventListener("click", enablePush);
   $("disable-push").addEventListener("click", disablePush);
