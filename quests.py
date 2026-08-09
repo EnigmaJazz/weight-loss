@@ -83,25 +83,28 @@ def selected_keys(user_id: int, day: date, settings: AppSettings) -> list[str]:
 def generate_quests(user_id: int, day: date, settings: AppSettings) -> list[Quest]:
     """The day's three quest drafts (status open, source rules) with catalogue
     metadata, in assignment order. Persistence is database.py's job."""
-    drafts: list[Quest] = []
-    for key in selected_keys(user_id, day, settings):
-        entry = _POOL_BY_KEY[key]
-        drafts.append(
-            Quest(
-                id=0,
-                date=day.isoformat(),
-                quest_key=key,
-                domain=entry[1],
-                title=entry[2],
-                description=entry[3],
-                xp_value=entry[4],
-                status="open",
-                difficulty=entry[5],
-                source="rules",
-                created_at="",
-            )
-        )
-    return drafts
+    return [draft_for_key(key, day) for key in selected_keys(user_id, day, settings)]
+
+
+def draft_for_key(key: str, day: date) -> Quest:
+    """A single open quest draft for one catalogue key (id 0; the persistence
+    layer stamps the real id/created_at). Replacement rows can be any rotating
+    key not represented by a row that day — not necessarily one of the day's
+    originally selected keys — so the route builds them from this."""
+    entry = _POOL_BY_KEY[key]
+    return Quest(
+        id=0,
+        date=day.isoformat(),
+        quest_key=key,
+        domain=entry[1],
+        title=entry[2],
+        description=entry[3],
+        xp_value=entry[4],
+        status="open",
+        difficulty=entry[5],
+        source="rules",
+        created_at="",
+    )
 
 
 def can_replace(

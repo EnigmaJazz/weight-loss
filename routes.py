@@ -44,8 +44,9 @@ from database import (
     DuplicateUsernameError,
     run_db,
 )
-from models import ExerciseEntry, MealEntry, User, WeightEntry
+from models import AppSettings, ExerciseEntry, MealEntry, Quest, User, WeightEntry
 import notifications
+import quests
 from rewards import (
     compute_baseline,
     compute_current,
@@ -1007,6 +1008,176 @@ async def delete_meal(
     if not deleted:
         raise HTTPException(status_code=404, detail="entry not found")
     return {"deleted": True}
+
+
+# ---- daily quests (r1-quests-xp) ----------------------------------------
+
+
+def _quest_dict(quest: Quest) -> dict[str, Any]:
+    """Quest row serialization (entry-style: owner id omitted). The response
+    field is ``key`` per the daily-quests API contract; the row column is
+    ``quest_key``."""
+    return {
+        "id": quest.id,
+        "date": quest.date,
+        "key": quest.quest_key,
+        "domain": quest.domain,
+        "title": quest.title,
+        "description": quest.description,
+        "xp_value": quest.xp_value,
+        "status": quest.status,
+        "difficulty": quest.difficulty,
+        "source": quest.source,
+        "completed_at": quest.completed_at,
+        "created_at": quest.created_at,
+    }
+
+
+async def _ensure_today_quests(
+    db: Database, user: User
+) -> tuple[list[Quest], str, AppSettings]:
+    """Generate today's quests when absent, then reconcile open quests against
+    the log tables and persist any read-detected completions (source
+    'detected'). Returns (today's rows, today's date string, the user's
+    settings) with the persisted state visible to the caller."""
+    today = date.today()
+    today_str = today.isoformat()
+    settings = await run_db(db.get_settings, user.id)
+    rows = await run_db(db.list_quests_for_date, user.id, today_str)
+    if not rows:
+        rows = await run_db(
+            db.insert_quests,
+            user.id,
+            today_str,
+            quests.generate_quests(user.id, today, settings),
+        )
+    facts = await run_db(db.quest_detection_facts, user.id, today_str)
+    reconciled = quests.reconcile(rows, facts)
+    stored_by_id = {q.id: q for q in rows}
+    for candidate in reconciled:
+        if (
+            candidate.status == "done"
+            and candidate.source == "detected"
+            and stored_by_id[candidate.id].status != "done"
+        ):
+            await run_db(
+                db.update_quest_status,
+                user.id,
+                candidate.id,
+                "done",
+                source="detected",
+            )
+    rows = await run_db(db.list_quests_for_date, user.id, today_str)
+    return rows, today_str, settings
+
+
+@router.get("/api/quests")
+async def get_quests(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Today's quests: generate-if-missing, reconcile (read-detected
+    completions persist), and return the current rows, weigh-in flag,
+    replacement availability, and the newest 10 history rows."""
+    rows, today_str, settings = await _ensure_today_quests(db, user)
+    current = [q for q in rows if q.status != "replaced"]
+    assigned = await run_db(db.list_assigned_keys_today, user.id, today_str)
+    replaced_count = await run_db(db.count_replaced_today, user.id, today_str)
+    can_replace, _ = quests.can_replace(
+        user.id, date.today(), assigned, replaced_count
+    )
+    history = await run_db(db.list_quest_history, user.id, today_str, 10)
+    return {
+        "quests": [_quest_dict(q) for q in current],
+        "is_today_weigh_in": quests.is_weigh_in_day(date.today(), settings),
+        "can_replace": can_replace,
+        "history": [_quest_dict(q) for q in history],
+    }
+
+
+async def _owned_today_quest(db: Database, user: User, quest_id: int) -> Quest:
+    """Resolve a mutation target: foreign/missing ids are 404 and quests from
+    another day are 409, per the lifecycle contract."""
+    quest_row = await run_db(db.get_quest, user.id, quest_id)
+    if quest_row is None:
+        raise HTTPException(status_code=404, detail="quest not found")
+    if quest_row.date != date.today().isoformat():
+        raise HTTPException(status_code=409, detail="quest is not for today")
+    return quest_row
+
+
+@router.post("/api/quests/{quest_id}/complete")
+async def complete_quest(
+    quest_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    """Mark a quest done. Idempotent: completing a done quest is a 200 no-op;
+    skipped/replaced quests are 409; foreign/missing 404; non-today 409."""
+    quest_row = await _owned_today_quest(db, user, quest_id)
+    if not quests.completion_allowed(quest_row):
+        raise HTTPException(status_code=409, detail="quest cannot be completed")
+    if quest_row.status == "done":
+        return _quest_dict(quest_row)  # idempotent 200 no-op
+    updated = await run_db(
+        db.update_quest_status, user.id, quest_id, "done", source="manual"
+    )
+    if updated is None:
+        raise HTTPException(status_code=404, detail="quest not found")
+    logger.info("completed quest %s for user %s", quest_id, user.username)
+    return _quest_dict(updated)
+
+
+@router.post("/api/quests/{quest_id}/skip")
+async def skip_quest(
+    quest_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    """Terminal skip with zero XP. Idempotent only for skipped quests; done and
+    replaced quests are 409; foreign/missing 404; non-today 409."""
+    quest_row = await _owned_today_quest(db, user, quest_id)
+    if not quests.skip_allowed(quest_row):
+        raise HTTPException(status_code=409, detail="quest cannot be skipped")
+    if quest_row.status == "skipped":
+        return _quest_dict(quest_row)  # idempotent 200 no-op
+    updated = await run_db(db.update_quest_status, user.id, quest_id, "skipped")
+    if updated is None:
+        raise HTTPException(status_code=404, detail="quest not found")
+    logger.info("skipped quest %s for user %s", quest_id, user.username)
+    return _quest_dict(updated)
+
+
+@router.post("/api/quests/{quest_id}/replace")
+async def replace_quest(
+    quest_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    """Replace an open quest with one eligible fresh key. Requires an open,
+    today quest and an available key (one replacement per day, excluding every
+    key already assigned or used as a replacement); otherwise 409."""
+    quest_row = await _owned_today_quest(db, user, quest_id)
+    if quest_row.status != "open":
+        raise HTTPException(status_code=409, detail="quest cannot be replaced")
+    today = date.today()
+    today_str = today.isoformat()
+    assigned = await run_db(db.list_assigned_keys_today, user.id, today_str)
+    replaced_count = await run_db(db.count_replaced_today, user.id, today_str)
+    allowed, new_key = quests.can_replace(
+        user.id, today, assigned, replaced_count
+    )
+    if not allowed or new_key is None:
+        raise HTTPException(
+            status_code=409, detail="replacement limit reached for today"
+        )
+    await run_db(db.update_quest_status, user.id, quest_id, "replaced")
+    replacement = [quests.draft_for_key(new_key, today)]
+    inserted = await run_db(db.insert_quests, user.id, today_str, replacement)
+    fresh = next(q for q in inserted if q.quest_key == new_key)
+    logger.info(
+        "replaced quest %s with %s for user %s", quest_id, new_key, user.username
+    )
+    return _quest_dict(fresh)
 
 
 # ---- streaks -------------------------------------------------------------

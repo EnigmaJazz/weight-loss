@@ -1,9 +1,13 @@
 """API tests: weight summary, settings roundtrip, push endpoints, rewards."""
 
+from datetime import date
+
 import pytest
 from fastapi import FastAPI
 
 import database as database_module
+import quests
+from models import AppSettings
 from tests.conftest import ONBOARDED_USERNAME, auth_user_id, make_user, pair
 
 SUBSCRIBE_BODY = {
@@ -838,3 +842,189 @@ async def test_settings_target_bmi_api_reconciles_rewards(auth_client):
     data = (await auth_client.get("/api/rewards")).json()
     assert [cp["percent"] for cp in data["active_checkpoints"]] == [10]
     assert data["active_checkpoints"][0]["threshold_kg"] == 97.35
+
+
+# ---- daily quests API (r1-quests-xp · S1b) -------------------------------
+
+
+def _today_str() -> str:
+    return date.today().isoformat()
+
+
+@pytest.mark.asyncio
+async def test_quest_crud_and_idempotency(auth_client):
+    """GET generates three quests and repeats idempotently; complete is a 200
+    no-op on done; skip is terminal; terminal quests refuse completion (409)."""
+    first = (await auth_client.get("/api/quests")).json()
+    assert len(first["quests"]) == 3
+    keys = {q["key"] for q in first["quests"]}
+    assert len(keys) == 3  # never duplicate keys within a day
+    assert "mood_checkin" in keys  # always assigned
+    for q in first["quests"]:
+        assert q["date"] == _today_str()
+        assert q["status"] == "open"
+        assert q["completed_at"] is None
+        assert q["source"] == "rules"
+        assert q["xp_value"] in (20, 40)
+        assert q["difficulty"] in ("small", "normal")
+        assert "title" in q and "description" in q and "domain" in q
+    assert first["is_today_weigh_in"] in (True, False)
+    assert first["can_replace"] is True  # fresh day: cap not reached
+    assert first["history"] == []  # no past days yet
+
+    # Idempotent generation: a second GET returns the same rows (same ids).
+    second = (await auth_client.get("/api/quests")).json()
+    assert [q["id"] for q in second["quests"]] == [q["id"] for q in first["quests"]]
+
+    # Complete an open quest -> done; repeating is a 200 no-op with the same
+    # completion timestamp.
+    target = first["quests"][0]
+    done_resp = await auth_client.post(f"/api/quests/{target['id']}/complete")
+    assert done_resp.status_code == 200
+    done = done_resp.json()
+    assert done["status"] == "done"
+    assert done["source"] == "manual"
+    assert done["completed_at"] is not None
+    again = await auth_client.post(f"/api/quests/{target['id']}/complete")
+    assert again.status_code == 200
+    assert again.json()["completed_at"] == done["completed_at"]
+
+    # Skip another quest -> terminal, zero XP, no completion timestamp;
+    # skipping it again is an idempotent 200.
+    skip_target = first["quests"][1]
+    skipped = (await auth_client.post(f"/api/quests/{skip_target['id']}/skip")).json()
+    assert skipped["status"] == "skipped"
+    assert skipped["completed_at"] is None
+    assert (await auth_client.post(f"/api/quests/{skip_target['id']}/skip")).status_code == 200
+
+    # Terminal quests refuse completion (409); done quests refuse skip (409).
+    assert (
+        await auth_client.post(f"/api/quests/{skip_target['id']}/complete")
+    ).status_code == 409
+    assert (await auth_client.post(f"/api/quests/{target['id']}/skip")).status_code == 409
+
+    # A non-integer quest id fails FastAPI path validation (422).
+    assert (await auth_client.post("/api/quests/not-an-int/complete")).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_quest_replace_flow_and_cap(auth_client):
+    """Replace swaps the row for one eligible fresh key (never an assigned or
+    previously-used key); the one-per-day cap makes the second replace a 409
+    without mutation; the replaced row is terminal."""
+    first = (await auth_client.get("/api/quests")).json()
+    original_keys = {q["key"] for q in first["quests"]}
+    target = first["quests"][0]
+
+    resp = await auth_client.post(f"/api/quests/{target['id']}/replace")
+    assert resp.status_code == 200
+    replacement = resp.json()
+    assert replacement["status"] == "open"
+    assert replacement["date"] == _today_str()
+    assert replacement["key"] not in original_keys  # excludes assigned keys
+
+    # The replaced row is no longer current; the fresh row takes its place and
+    # the day's replacement budget is spent.
+    after = (await auth_client.get("/api/quests")).json()
+    assert len(after["quests"]) == 3
+    assert target["id"] not in {q["id"] for q in after["quests"]}
+    assert replacement["id"] in {q["id"] for q in after["quests"]}
+    assert after["can_replace"] is False
+
+    # The replaced quest is terminal: completing it is a 409.
+    assert (await auth_client.post(f"/api/quests/{target['id']}/complete")).status_code == 409
+    # A second replacement attempt the same day is a 409 and mutates nothing.
+    another = after["quests"][0]
+    second_resp = await auth_client.post(f"/api/quests/{another['id']}/replace")
+    assert second_resp.status_code == 409
+    still = (await auth_client.get("/api/quests")).json()
+    assert len(still["quests"]) == 3
+    assert [q["id"] for q in still["quests"]] == [q["id"] for q in after["quests"]]
+
+
+@pytest.mark.asyncio
+async def test_quest_wrong_day_409(app, auth_client):
+    """Mutations on a quest that is not today's are 409 (spec: non-today), and
+    the past quest surfaces only in the bounded history, never as current."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    past = date(2026, 8, 1)
+    rows = db.insert_quests(
+        user_id,
+        past.isoformat(),
+        quests.generate_quests(
+            user_id, past, AppSettings(reminder_weekday=0)
+        ),
+    )
+    target = rows[0]
+    assert (
+        await auth_client.post(f"/api/quests/{target.id}/complete")
+    ).status_code == 409
+    assert (
+        await auth_client.post(f"/api/quests/{target.id}/skip")
+    ).status_code == 409
+    assert (
+        await auth_client.post(f"/api/quests/{target.id}/replace")
+    ).status_code == 409
+    # The past quest is not current, but the bounded history surfaces it.
+    today = (await auth_client.get("/api/quests")).json()
+    assert target.id not in {q["id"] for q in today["quests"]}
+    assert target.id in {q["id"] for q in today["history"]}
+
+
+@pytest.mark.asyncio
+async def test_quest_404_isolation(pair):
+    """Foreign and missing quest ids are hidden as 404 on every mutation and
+    the owner's quest is preserved untouched (spec: foreign quest is hidden)."""
+    alice, bob = pair
+    alice_quests = (await alice.get("/api/quests")).json()["quests"]
+    target = alice_quests[0]
+    for action in ("complete", "skip", "replace"):
+        resp = await bob.post(f"/api/quests/{target['id']}/{action}")
+        assert resp.status_code == 404, action
+    assert (await alice.post("/api/quests/999999/complete")).status_code == 404
+    # Alice's quest is untouched: same ids, all still open.
+    current = (await alice.get("/api/quests")).json()["quests"]
+    assert [q["id"] for q in current] == [q["id"] for q in alice_quests]
+    assert all(q["status"] == "open" for q in current)
+
+
+@pytest.mark.asyncio
+async def test_quest_auto_detection(auth_client):
+    """A same-date weight entry marks its mapped quest done with source
+    'detected' on read, and stays done on later reads (spec: entry predates
+    quest render)."""
+    today = date.today()
+    # Make today a weigh-in day so log_weight is assigned.
+    await auth_client.put(
+        "/api/settings", json={"reminder_weekday": today.weekday()}
+    )
+    await auth_client.post(
+        "/api/weight", json={"date": today.isoformat(), "weight_kg": 80.0}
+    )
+    data = (await auth_client.get("/api/quests")).json()
+    by_key = {q["key"]: q for q in data["quests"]}
+    assert data["is_today_weigh_in"] is True
+    assert "log_weight" in by_key
+    assert by_key["log_weight"]["status"] == "done"
+    assert by_key["log_weight"]["source"] == "detected"
+    assert by_key["log_weight"]["completed_at"] is not None
+    # mood_checkin has no detection until S3a — it stays open.
+    assert by_key["mood_checkin"]["status"] == "open"
+    # A second GET stays done with the same stamp (reconcile is idempotent).
+    again = (await auth_client.get("/api/quests")).json()
+    again_by_key = {q["key"]: q for q in again["quests"]}
+    assert again_by_key["log_weight"]["status"] == "done"
+    assert (
+        again_by_key["log_weight"]["completed_at"]
+        == by_key["log_weight"]["completed_at"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_quest_requires_auth(client):
+    """Every quest endpoint is authenticated; unauthenticated calls are 401."""
+    assert (await client.get("/api/quests")).status_code == 401
+    assert (await client.post("/api/quests/1/complete")).status_code == 401
+    assert (await client.post("/api/quests/1/skip")).status_code == 401
+    assert (await client.post("/api/quests/1/replace")).status_code == 401
