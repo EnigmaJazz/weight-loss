@@ -38,12 +38,12 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 1 · S1a (~360) — quest domain + engine
 
-- [ ] 1.1 `database.py`: append `CREATE TABLE IF NOT EXISTS quests(...)` (status CHECK open|done|skipped|replaced, no date uniqueness) to `SCHEMA_STATEMENTS`; add `_quest_from_row` mapper.
-- [ ] 1.2 `database.py`: ownership-scoped (WHERE user_id) methods — `insert_quests`, `list_quests_for_date`, `update_quest_status`, `list_assigned_keys_today`, `count_replaced_today` (status='replaced', user+date).
-- [ ] 1.3 `models.py`: add `Quest` + `QuestDetectionFacts` dataclasses (entry-style, omit owner ids).
-- [ ] 1.4 `constants.py`: add `QUEST_POOL` — order `exercise_10, log_meal, streak_alive, habit_checkin` + mandatory `mood_checkin` + weekly `log_weight`; entries `(key, domain, title, description, xp_value, size)`.
-- [ ] 1.5 create `quests.py` (pure, no I/O): `generate_quests(user_id, date, settings)` — weigh-in day = log_weight+mood+1 rotating, else mood+2; rotation = `sha256(f"{user_id}:{date}:{key}")` ranked, excludes assigned-today only; `reconcile`; transition rules (done idempotent, skip terminal, replace excludes assigned+replaced keys, cap 1/day); `detect` from `QuestDetectionFacts` (weight/exercise/meal; mood/habit inactive until PR 6).
-- [ ] 1.6 Tests `tests/test_quests.py`: `test_generation_matrix`, `test_seed_stability`, `test_replace_exclusions_and_cap`, `test_transition_matrix`, `test_detection_matrix`.
+- [x] 1.1 `database.py`: append `CREATE TABLE IF NOT EXISTS quests(...)` (status CHECK open|done|skipped|replaced, no date uniqueness) to `SCHEMA_STATEMENTS`; add `_quest_from_row` mapper.
+- [x] 1.2 `database.py`: ownership-scoped (WHERE user_id) methods — `insert_quests`, `list_quests_for_date`, `update_quest_status`, `list_assigned_keys_today`, `count_replaced_today` (status='replaced', user+date).
+- [x] 1.3 `models.py`: add `Quest` + `QuestDetectionFacts` dataclasses (entry-style, omit owner ids).
+- [x] 1.4 `constants.py`: add `QUEST_POOL` — order `exercise_10, log_meal, streak_alive, habit_checkin` + mandatory `mood_checkin` + weekly `log_weight`; entries `(key, domain, title, description, xp_value, size)`.
+- [x] 1.5 create `quests.py` (pure, no I/O): `generate_quests(user_id, date, settings)` — weigh-in day = log_weight+mood+1 rotating, else mood+2; rotation = `sha256(f"{user_id}:{date}:{key}")` ranked, excludes assigned-today only; `reconcile`; transition rules (done idempotent, skip terminal, replace excludes assigned+replaced keys, cap 1/day); `detect` from `QuestDetectionFacts` (weight/exercise/meal; mood/habit inactive until PR 6).
+- [x] 1.6 Tests `tests/test_quests.py`: `test_generation_matrix`, `test_seed_stability`, `test_replace_exclusions_and_cap`, `test_transition_matrix`, `test_detection_matrix`.
 - Commit plan (work unit): `feat(quests): add deterministic quest domain` — tasks 1.1–1.6 in one commit (tests with code). Acceptance: `python -m pytest tests/test_quests.py -q` all green; `pyright` clean.
 
 ## PR 2 · S1b (~390) — quest lifecycle API
