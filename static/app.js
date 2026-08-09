@@ -520,7 +520,7 @@ async function submitOnboarding() {
 
 /* ---- data -------------------------------------------------------------- */
 
-// Cached API payloads the charts redraw from when the Progress tab becomes
+// Cached API payloads the charts redraw from when the Journey tab becomes
 // visible (the canvases have zero width while their panel is hidden, so the
 // charts are drawn on visibility, not just at load time).
 let chartData = { weightEntries: [], weightSummary: null, exerciseEntries: [], mealEntries: [], rewards: null };
@@ -1151,7 +1151,7 @@ function applyTheme(theme) {
   refreshChartColors();
   // Redraw only what is visible: hidden panels re-render on switchTab (design
   // 'Redraw only when visible').
-  if (!$("tab-progress").hidden) {
+  if (!$("tab-journey").hidden) {
     drawChart(chartData.weightEntries, chartData.weightSummary);
     drawExerciseChart(chartData.exerciseEntries);
     drawMealChart(chartData.mealEntries);
@@ -1298,7 +1298,7 @@ function switchTab(name) {
   }
   // The canvases have zero width while their panel is hidden, so the charts
   // are drawn here, on visibility, from the cached data — not only at load.
-  if (name === "progress") {
+  if (name === "journey") {
     drawChart(chartData.weightEntries, chartData.weightSummary);
     drawExerciseChart(chartData.exerciseEntries);
     drawMealChart(chartData.mealEntries);
