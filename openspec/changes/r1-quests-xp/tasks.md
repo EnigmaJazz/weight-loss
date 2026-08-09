@@ -124,10 +124,10 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## Final · Verify Checklist (per spec coverage)
 
-- [ ] V.1 `daily-quests` — `python -m pytest tests/test_quests.py tests/test_api.py -q` (generation/seed/replace/transition/detection; 404 isolation; 409 wrong day).
-- [ ] V.2 `xp-progression` — `python -m pytest tests/test_xp.py tests/test_api.py -q` (99/100/250; titles 4/5/29/30; level-up diff quiet on repeat).
-- [ ] V.3 `momentum` — `python -m pytest tests/test_momentum.py tests/test_api.py -q` (tiers, 21-day inclusive, day 22 excluded, isolation).
-- [ ] V.4 `mood-logging` + `habit-logging` — `python -m pytest tests/test_mood_api.py tests/test_habit_api.py -q` + drift guard (four-value pin across backend/UI/detection).
-- [ ] V.5 `today-quests-ui` + `journey-progress-ui` + `game-appearance` — `node --test tests/frontend/ && python -m pytest tests/test_spa_gate.py -q && bash tests/smoke-ui.sh` (selectors, reduced motion, existing pins unchanged).
-- [ ] V.6 `user-onboarding` — `python -m pytest tests/test_onboarding.py tests/test_index_html.py tests/test_spa_gate.py -q` (allowlists, XOR, atomic, wizard gates).
-- [ ] V.7 Full gate — `python -m pytest -q && node --test tests/frontend/ && pyright && bash tests/smoke-ui.sh`; all green on the final merged main.
+- [x] V.1 `daily-quests` — `python -m pytest tests/test_quests.py tests/test_api.py -q` (generation/seed/replace/transition/detection; 404 isolation; 409 wrong day).
+- [x] V.2 `xp-progression` — `python -m pytest tests/test_xp.py tests/test_api.py -q` (99/100/250; titles 4/5/29/30; level-up diff quiet on repeat).
+- [x] V.3 `momentum` — `python -m pytest tests/test_momentum.py tests/test_api.py -q` (tiers, 21-day inclusive, day 22 excluded, isolation).
+- [x] V.4 `mood-logging` + `habit-logging` — `python -m pytest tests/test_mood_api.py tests/test_habit_api.py -q` + drift guard (four-value pin across backend/UI/detection).
+- [x] V.5 `today-quests-ui` + `journey-progress-ui` + `game-appearance` — `node --test tests/frontend/ && python -m pytest tests/test_spa_gate.py -q && bash tests/smoke-ui.sh` (selectors, reduced motion, existing pins unchanged).
+- [x] V.6 `user-onboarding` — `python -m pytest tests/test_onboarding.py tests/test_index_html.py tests/test_spa_gate.py -q` (allowlists, XOR, atomic, wizard gates).
+- [x] V.7 Full gate — `python -m pytest -q && node --test tests/frontend/ && pyright && bash tests/smoke-ui.sh`; all green on the final merged main.
