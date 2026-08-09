@@ -53,6 +53,7 @@ from models import (
     WeightEntry,
     XpState,
 )
+import momentum
 import notifications
 import quests
 import xp
@@ -1239,6 +1240,22 @@ async def get_xp(
         **asdict(state),
         "recent_completions": [_recent_completion_dict(q) for q in recent],
     }
+
+
+# ---- momentum (r1-quests-xp · S2b) ----------------------------------------
+
+
+@router.get("/api/momentum")
+async def get_momentum(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Derived 21-day engagement state for this user: today's tier plus the
+    trailing window's successful-day count (Good/Great). Never persisted —
+    every value derives from the quest and log tables on read."""
+    today = date.today()
+    start = momentum.window_dates(today)[0].isoformat()
+    facts = await run_db(db.momentum_facts, user.id, start, today.isoformat())
+    return asdict(momentum.momentum_state(facts, today))
 
 
 # ---- streaks -------------------------------------------------------------

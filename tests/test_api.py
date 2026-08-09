@@ -1194,3 +1194,58 @@ async def test_xp_api_isolation(app, pair):
 async def test_xp_requires_auth(client):
     """GET /api/xp is authenticated; unauthenticated calls are 401."""
     assert (await client.get("/api/xp")).status_code == 401
+
+
+# ---- momentum API (r1-quests-xp · S2b) ------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_momentum_api_shape_and_auth(client, auth_client):
+    """GET /api/momentum is authenticated (401 without a session) and returns
+    the exact spec surface: today_tier, successful_days, window_days,
+    is_successful_today. A fresh user has no quests today → none, window 21."""
+    assert (await client.get("/api/momentum")).status_code == 401
+    data = (await auth_client.get("/api/momentum")).json()
+    assert data == {
+        "today_tier": "none",
+        "successful_days": 0,
+        "window_days": 21,
+        "is_successful_today": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_momentum_api_isolation(app, pair):
+    """Spec: keep users isolated — alice's done quests move her today_tier to
+    Great Day; bob's assigned-but-open quests resolve to none (zero actions)."""
+    alice, bob = pair
+    db = app.state.db
+    alice_user = db.get_user_by_username("alice")
+    bob_user = db.get_user_by_username("bob")
+    assert alice_user is not None and bob_user is not None
+    today = date.today()
+    # Alice completes every assigned quest (Great Day) and logs a meal.
+    seeded = db.insert_quests(
+        alice_user.id,
+        today.isoformat(),
+        quests.generate_quests(alice_user.id, today, AppSettings(reminder_weekday=0)),
+    )
+    for row in seeded:
+        db.update_quest_status(alice_user.id, row.id, "done")
+    db.insert_meal(alice_user.id, today.isoformat(), 600.0)
+    # Bob has quests assigned today but nothing done.
+    db.insert_quests(
+        bob_user.id,
+        today.isoformat(),
+        quests.generate_quests(bob_user.id, today, AppSettings(reminder_weekday=0)),
+    )
+    alice_data = (await alice.get("/api/momentum")).json()
+    bob_data = (await bob.get("/api/momentum")).json()
+    assert alice_data["today_tier"] == "Great Day"
+    assert alice_data["is_successful_today"] is True
+    assert alice_data["successful_days"] == 1
+    assert alice_data["window_days"] == 21
+    assert bob_data["today_tier"] == "none"
+    assert bob_data["is_successful_today"] is False
+    assert bob_data["successful_days"] == 0
+    assert bob_data["window_days"] == 21
