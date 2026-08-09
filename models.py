@@ -159,6 +159,13 @@ class AppSettings:
     weight_display: str = "lb"  # display preference: "lb" | "st-lb"
     theme: str = "system"  # per-user theme: "system" | "light" | "dark"
     onboarding_complete: bool = False  # wizard finished (flag lands Phase 3)
+    # Goals & lifestyle (user-onboarding): all optional. Lists round-trip as
+    # JSON (order preserved); primary_goal and activity_level are allowlisted
+    # in constants.py and validated in routes.py.
+    primary_goal: Optional[str] = None
+    secondary_goals: list[str] = field(default_factory=list)
+    health_domains: list[str] = field(default_factory=list)
+    activity_level: Optional[str] = None
 
     def time_for(self, notif_type: str) -> str:
         """Scheduled "HH:MM" for a notification type ("" disables it)."""

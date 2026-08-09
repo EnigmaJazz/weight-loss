@@ -20,7 +20,12 @@ from tests.conftest import auth_user_id
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:
-    """A fully valid onboarding payload; overrides replace fields."""
+    """A fully valid onboarding payload; overrides replace fields.
+
+    The four goals/lifestyle fields are optional per spec, so a fully valid
+    payload carries them; the allowlist-rejection tests override them with
+    out-of-allowlist values.
+    """
     body = {
         "height_cm": 175.0,
         "weight_kg": 80.0,
@@ -33,6 +38,10 @@ def _payload(**overrides: Any) -> dict[str, Any]:
         "reminder_time": "20:30",
         "reminder_weekday": 2,
         "exercise_time": "17:30",
+        "primary_goal": "fitness",
+        "secondary_goals": ["strength", "stamina"],
+        "health_domains": ["nutrition", "sleep"],
+        "activity_level": "moderate",
     }
     body.update(overrides)
     return body
@@ -222,6 +231,12 @@ async def test_onboarding_happy_path_atomic(auth_client, app):
     assert settings["reminder_time"] == "20:30"
     assert settings["reminder_weekday"] == 2
     assert settings["exercise_time"] == "17:30"
+    # Spec (user-onboarding): the four optional goals/lifestyle fields persist
+    # with their exact values and list order.
+    assert settings["primary_goal"] == "fitness"
+    assert settings["secondary_goals"] == ["strength", "stamina"]
+    assert settings["health_domains"] == ["nutrition", "sleep"]
+    assert settings["activity_level"] == "moderate"
 
     today = date.today().isoformat()
     dates = sorted(
@@ -265,12 +280,18 @@ async def test_onboarding_idempotent_repost(auth_client, app):
     rows_before = _settings_count(app, user_id)
     assert rows_before > 0
     third = await auth_client.post(
-        "/api/onboarding", json=_payload(weight_unit="st-lb")
+        "/api/onboarding",
+        json=_payload(weight_unit="st-lb", primary_goal="wellbeing",
+                      secondary_goals=["flexibility", "mobility"]),
     )
     assert third.status_code == 200
     assert _settings_count(app, user_id) == rows_before
     settings = (await auth_client.get("/api/settings")).json()
     assert settings["weight_unit"] == "st-lb"
+    # Goals/lifestyle are overwritten by a re-POST, never appended.
+    assert settings["primary_goal"] == "wellbeing"
+    assert settings["secondary_goals"] == ["flexibility", "mobility"]
+    assert settings["health_domains"] == ["nutrition", "sleep"]
     today_count = app.state.db.conn.execute(
         "SELECT COUNT(*) FROM weight_entries WHERE user_id = ? AND date = ?",
         (user_id, today),
@@ -338,3 +359,157 @@ async def test_onboarding_mid_tx_failure_rolls_back(app, monkeypatch):
         assert dates == ["2026-07-01"]
         # Rewards untouched (never reconciled after the failure).
         assert app.state.db.list_active_rewards(user_id) == []
+
+
+# ---- goals & lifestyle (user-onboarding) ---------------------------------
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_invalid_primary_goal(auth_client, app):
+    """Spec: out-of-allowlist primary_goal -> 422 and nothing persists."""
+    resp = await auth_client.post(
+        "/api/onboarding", json=_payload(primary_goal="kettlebells")
+    )
+    assert resp.status_code == 422
+    msgs = " ".join(str(e["msg"]) for e in resp.json()["detail"])
+    assert "primary_goal" in msgs
+    user_id = auth_user_id(app)
+    assert _settings_count(app, user_id) == 0
+    assert _weight_count(app, user_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_invalid_activity_level(auth_client, app):
+    """Spec: out-of-allowlist activity_level -> 422 and nothing persists."""
+    resp = await auth_client.post(
+        "/api/onboarding", json=_payload(activity_level="extreme")
+    )
+    assert resp.status_code == 422
+    msgs = " ".join(str(e["msg"]) for e in resp.json()["detail"])
+    assert "activity_level" in msgs
+    user_id = auth_user_id(app)
+    assert _settings_count(app, user_id) == 0
+    assert _weight_count(app, user_id) == 0
+
+
+@pytest.mark.asyncio
+async def test_settings_rejects_invalid_goals_preserves_current(auth_client, app):
+    """Spec: an out-of-allowlist value via PUT /api/settings returns 422 and
+    leaves the stored goals/lifestyle untouched."""
+    user_id = auth_user_id(app)
+    resp = await auth_client.post("/api/onboarding", json=_payload())
+    assert resp.status_code == 200, resp.text
+    rows_before = _settings_count(app, user_id)
+
+    bad_goal = await auth_client.put(
+        "/api/settings", json={"primary_goal": "crash_diet"}
+    )
+    assert bad_goal.status_code == 422
+    bad_level = await auth_client.put(
+        "/api/settings", json={"activity_level": "competitive"}
+    )
+    assert bad_level.status_code == 422
+
+    # The rejected PUTs added/removed no settings rows.
+    assert _settings_count(app, user_id) == rows_before
+    settings = (await auth_client.get("/api/settings")).json()
+    assert settings["primary_goal"] == "fitness"
+    assert settings["secondary_goals"] == ["strength", "stamina"]
+    assert settings["health_domains"] == ["nutrition", "sleep"]
+    assert settings["activity_level"] == "moderate"
+
+
+@pytest.mark.asyncio
+async def test_goals_round_trip_per_user(pair, app):
+    """Spec scenario: users A and B save different valid goals and lifestyle
+    values; each reads back ONLY their own values with list order preserved.
+    The settings PUT path round-trips the same JSON-list serialization."""
+    alice, bob = pair
+
+    alice_resp = await alice.post(
+        "/api/onboarding",
+        json=_payload(primary_goal="fitness",
+                      secondary_goals=["strength", "stamina"],
+                      health_domains=["nutrition", "sleep"],
+                      activity_level="moderate"),
+    )
+    assert alice_resp.status_code == 200, alice_resp.text
+    bob_resp = await bob.post(
+        "/api/onboarding",
+        json=_payload(primary_goal="weight_loss",
+                      secondary_goals=["endurance"],
+                      health_domains=["exercise"],
+                      activity_level="active"),
+    )
+    assert bob_resp.status_code == 200, bob_resp.text
+
+    alice_settings = (await alice.get("/api/settings")).json()
+    assert alice_settings["primary_goal"] == "fitness"
+    assert alice_settings["secondary_goals"] == ["strength", "stamina"]
+    assert alice_settings["health_domains"] == ["nutrition", "sleep"]
+    assert alice_settings["activity_level"] == "moderate"
+
+    bob_settings = (await bob.get("/api/settings")).json()
+    assert bob_settings["primary_goal"] == "weight_loss"
+    assert bob_settings["secondary_goals"] == ["endurance"]
+    assert bob_settings["health_domains"] == ["exercise"]
+    assert bob_settings["activity_level"] == "active"
+
+    # A later PUT overwrites one user's list and preserves the order given.
+    updated = await bob.put(
+        "/api/settings",
+        json={"secondary_goals": ["cardio", "flexibility"],
+              "health_domains": ["mindfulness"]},
+    )
+    assert updated.status_code == 200
+    bob_settings = (await bob.get("/api/settings")).json()
+    assert bob_settings["secondary_goals"] == ["cardio", "flexibility"]
+    assert bob_settings["health_domains"] == ["mindfulness"]
+    # Alice's values are untouched by Bob's write.
+    alice_settings = (await alice.get("/api/settings")).json()
+    assert alice_settings["secondary_goals"] == ["strength", "stamina"]
+    assert alice_settings["health_domains"] == ["nutrition", "sleep"]
+
+
+@pytest.mark.asyncio
+async def test_onboarding_empty_lists_round_trip(auth_client, app):
+    """Explicit empty lists persist as JSON and read back as [] (the empty
+    list is a distinct serialization path from a populated list)."""
+    user_id = auth_user_id(app)
+    resp = await auth_client.post(
+        "/api/onboarding",
+        json=_payload(secondary_goals=[], health_domains=[]),
+    )
+    assert resp.status_code == 200, resp.text
+
+    settings = (await auth_client.get("/api/settings")).json()
+    assert settings["secondary_goals"] == []
+    assert settings["health_domains"] == []
+    assert settings["primary_goal"] == "fitness"
+    # The stored rows hold the JSON form, not a Python repr.
+    stored = {
+        row["key"]: row["value"]
+        for row in app.state.db.conn.execute(
+            "SELECT key, value FROM settings WHERE user_id = ?", (user_id,)
+        ).fetchall()
+    }
+    assert stored["secondary_goals"] == "[]"
+    assert stored["health_domains"] == "[]"
+
+
+@pytest.mark.asyncio
+async def test_onboarding_omitted_goals_default(auth_client):
+    """Omitting the optional goals/lifestyle fields yields the spec defaults:
+    null, [], [], null (no settings rows are created for them)."""
+    payload = _payload()
+    for key in ("primary_goal", "secondary_goals", "health_domains",
+                "activity_level"):
+        payload.pop(key, None)
+    resp = await auth_client.post("/api/onboarding", json=payload)
+    assert resp.status_code == 200, resp.text
+
+    settings = (await auth_client.get("/api/settings")).json()
+    assert settings["primary_goal"] is None
+    assert settings["secondary_goals"] == []
+    assert settings["health_domains"] == []
+    assert settings["activity_level"] is None

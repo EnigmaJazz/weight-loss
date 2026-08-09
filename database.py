@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import json
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -1024,6 +1025,12 @@ class Database:
             ),
             theme=str(stored.get("theme", DEFAULT_SETTINGS["theme"])),
             onboarding_complete=_optional_bool(stored.get("onboarding_complete")),
+            # Goals & lifestyle (user-onboarding): nullable strings default to
+            # None; JSON lists default to [] and round-trip with order intact.
+            primary_goal=_optional_str(stored.get("primary_goal")),
+            secondary_goals=_optional_json_list(stored.get("secondary_goals")),
+            health_domains=_optional_json_list(stored.get("health_domains")),
+            activity_level=_optional_str(stored.get("activity_level")),
         )
 
     def _apply_settings(
@@ -1042,7 +1049,7 @@ class Database:
                 conn.execute(
                     "INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)"
                     " ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value",
-                    (user_id, key, str(value)),
+                    (user_id, key, _settings_value(value)),
                 )
 
     def update_settings(self, user_id: int, updates: dict[str, Any]) -> None:
@@ -1540,6 +1547,35 @@ def _optional_int(value: Optional[str]) -> Optional[int]:
     if value is None or value == "":
         return None
     return int(value)
+
+
+def _optional_str(value: Optional[str]) -> Optional[str]:
+    if value is None or value == "":
+        return None
+    return value
+
+
+def _optional_json_list(value: Optional[str]) -> list[str]:
+    """Parse a settings k/v JSON-list value; absent/empty -> [] and a
+    malformed value degrades to [] so a legacy row can never break reads."""
+    if value is None or value == "":
+        return []
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item) for item in parsed]
+
+
+def _settings_value(value: Any) -> str:
+    """Settings k/v string form: JSON for list values so they round-trip with
+    order intact; plain str for everything else (bools/floats keep the form
+    the existing readers already parse)."""
+    if isinstance(value, list):
+        return json.dumps(value)
+    return str(value)
 
 
 def _optional_bool(value: Optional[str]) -> bool:

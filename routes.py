@@ -24,9 +24,11 @@ from auth import (
     verify_password,
 )
 from constants import (
+    ACTIVITY_LEVELS,
     EXERCISE_TYPES,
     HABIT_TYPES,
     NOTIFICATION_TYPES,
+    PRIMARY_GOALS,
     PUBLIC_URL,
     RESET_TOKEN_EXPIRY_SECONDS,
     SESSION_COOKIE_NAME,
@@ -453,6 +455,20 @@ def _valid_theme(value: Optional[str]) -> Optional[str]:
     return value
 
 
+def _valid_primary_goal(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in PRIMARY_GOALS:
+        raise ValueError(f"primary_goal must be one of {', '.join(PRIMARY_GOALS)}")
+    return value
+
+
+def _valid_activity_level(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in ACTIVITY_LEVELS:
+        raise ValueError(
+            f"activity_level must be one of {', '.join(ACTIVITY_LEVELS)}"
+        )
+    return value
+
+
 class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -469,6 +485,11 @@ class SettingsIn(BaseModel):
     target_unit: Optional[str] = None  # "kg" | "st-lb"
     weight_display: Optional[str] = None  # "lb" | "st-lb"
     theme: Optional[str] = None  # "system" | "light" | "dark"
+    # Goals & lifestyle (user-onboarding): all optional; lists are JSON lists.
+    primary_goal: Optional[str] = None
+    secondary_goals: list[str] = Field(default_factory=list)
+    health_domains: list[str] = Field(default_factory=list)
+    activity_level: Optional[str] = None
 
     @field_validator("tip_time", "reminder_time", "exercise_time")
     @classmethod
@@ -495,6 +516,16 @@ class SettingsIn(BaseModel):
     def validate_theme(cls, value: Optional[str]) -> Optional[str]:
         return _valid_theme(value)
 
+    @field_validator("primary_goal")
+    @classmethod
+    def validate_primary_goal(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_primary_goal(value)
+
+    @field_validator("activity_level")
+    @classmethod
+    def validate_activity_level(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_level(value)
+
 
 class OnboardingIn(BaseModel):
     """Body for POST /api/onboarding — the atomic wizard completion payload.
@@ -518,6 +549,11 @@ class OnboardingIn(BaseModel):
     reminder_time: Optional[str] = None
     reminder_weekday: Optional[int] = Field(default=None, ge=0, le=6)
     exercise_time: Optional[str] = None
+    # Goals & lifestyle (user-onboarding): all optional; lists are JSON lists.
+    primary_goal: Optional[str] = None
+    secondary_goals: list[str] = Field(default_factory=list)
+    health_domains: list[str] = Field(default_factory=list)
+    activity_level: Optional[str] = None
 
     @field_validator("tip_time", "reminder_time", "exercise_time")
     @classmethod
@@ -538,6 +574,16 @@ class OnboardingIn(BaseModel):
     @classmethod
     def validate_weight_display(cls, value: Optional[str]) -> Optional[str]:
         return _valid_weight_display(value)
+
+    @field_validator("primary_goal")
+    @classmethod
+    def validate_primary_goal(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_primary_goal(value)
+
+    @field_validator("activity_level")
+    @classmethod
+    def validate_activity_level(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_level(value)
 
     @model_validator(mode="after")
     def _check_target(self) -> "OnboardingIn":

@@ -108,10 +108,10 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 9 · S5a (~300) — onboarding backend (goals/lifestyle)
 
-- [ ] 9.1 `models.py`: `AppSettings` adds `primary_goal`, `secondary_goals`, `health_domains`, `activity_level` (defaults `null`, `[]`, `[]`, `null`).
-- [ ] 9.2 `database.py`: settings defaults + `_optional_json_list` helper + JSON list serialization in `_apply_settings` (round-trip preserves order).
-- [ ] 9.3 `routes.py`: `SettingsIn`/`OnboardingIn` validators — primary_goal `weight_loss|general_health|fitness|wellbeing`, activity_level `sedentary|light|moderate|active`, `extra="forbid"`, height checked before BMI bounds; `complete_onboarding` atomically upserts all settings incl. goals/lifestyle, inserts today's weight (single), reconciles rewards.
-- [ ] 9.4 Tests: `tests/test_onboarding.py` — allowlist 422 preserves settings, JSON list round-trip per user, idempotent re-POST keeps single weight, partial-failure rollback; existing XOR/extra/atomic tests stay green.
+- [x] 9.1 `models.py`: `AppSettings` adds `primary_goal`, `secondary_goals`, `health_domains`, `activity_level` (defaults `null`, `[]`, `[]`, `null`).
+- [x] 9.2 `database.py`: settings defaults + `_optional_json_list` helper + JSON list serialization in `_apply_settings` (round-trip preserves order).
+- [x] 9.3 `routes.py`: `SettingsIn`/`OnboardingIn` validators — primary_goal `weight_loss|general_health|fitness|wellbeing`, activity_level `sedentary|light|moderate|active`, `extra="forbid"`, height checked before BMI bounds; `complete_onboarding` atomically upserts all settings incl. goals/lifestyle, inserts today's weight (single), reconciles rewards.
+- [x] 9.4 Tests: `tests/test_onboarding.py` — allowlist 422 preserves settings, JSON list round-trip per user, idempotent re-POST keeps single weight, partial-failure rollback; existing XOR/extra/atomic tests stay green.
 - Commit plan (work unit): `feat(onboarding): persist goals and lifestyle` — tasks 9.1–9.4. Acceptance: `python -m pytest tests/test_onboarding.py -q` green; `pyright` clean.
 
 ## PR 10 · S5b (~390) — wizard step + Me card UI
