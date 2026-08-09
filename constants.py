@@ -41,7 +41,29 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "weight_display": "lb",  # display preference: "lb" | "st-lb"
     "theme": "system",  # per-user theme: "system" | "light" | "dark"
     "onboarding_complete": False,  # wizard finished (flag lands Phase 3)
+    # Goals & lifestyle (user-onboarding): all optional; lists persist as JSON.
+    "primary_goal": None,
+    "secondary_goals": [],
+    "health_domains": [],
+    "activity_level": None,
 }
+
+# Goals/lifestyle allowlists (user-onboarding spec): drive server validation
+# (routes.py). Mirrored literals land in the SPA with S5b; these constants are
+# the normative source, same pattern as EXERCISE_TYPES / HABIT_TYPES.
+PRIMARY_GOALS: tuple[str, ...] = (
+    "weight_loss",
+    "general_health",
+    "fitness",
+    "wellbeing",
+)
+
+ACTIVITY_LEVELS: tuple[str, ...] = (
+    "sedentary",
+    "light",
+    "moderate",
+    "active",
+)
 
 # Notification types and whether each fires daily or weekly (fixed weekday).
 # tip/exercise: daily; reminder (weigh-in): weekly on reminder_weekday.
