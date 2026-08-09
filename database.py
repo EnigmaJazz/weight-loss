@@ -12,6 +12,7 @@ from models import (
     AppSettings,
     ExerciseEntry,
     MealEntry,
+    MomentumDayFacts,
     PushSubscription,
     Quest,
     QuestDetectionFacts,
@@ -1231,6 +1232,48 @@ class Database:
                 (user_id, limit),
             ).fetchall()
         return [_quest_from_row(row) for row in rows]
+
+    def momentum_facts(
+        self, user_id: int, start: str, end: str
+    ) -> list[MomentumDayFacts]:
+        """Per-date momentum facts for one user across [start, end] inclusive:
+        current assigned quests (replaced rows are not assignments), done
+        quests, and log-row counts from the weight/exercise/meal tables. S3
+        extends the log-row count with mood/habit rows."""
+        with self._tx() as conn:
+            quest_rows = conn.execute(
+                "SELECT date,"
+                " SUM(CASE WHEN status != 'replaced' THEN 1 ELSE 0 END)"
+                "   AS assigned,"
+                " SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done_n"
+                " FROM quests WHERE user_id = ? AND date BETWEEN ? AND ?"
+                " GROUP BY date",
+                (user_id, start, end),
+            ).fetchall()
+            log_rows: list[sqlite3.Row] = []
+            for table in ("weight_entries", "exercise_entries", "meal_entries"):
+                log_rows.extend(
+                    conn.execute(
+                        f"SELECT date, COUNT(*) AS n FROM {table}"
+                        " WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date",
+                        (user_id, start, end),
+                    ).fetchall()
+                )
+        facts: dict[str, MomentumDayFacts] = {}
+        for row in quest_rows:
+            facts[row["date"]] = MomentumDayFacts(
+                date=row["date"],
+                assigned_quests=int(row["assigned"]),
+                done_quests=int(row["done_n"]),
+            )
+        for row in log_rows:
+            day = row["date"]
+            day_facts = facts.get(day)
+            if day_facts is None:
+                day_facts = MomentumDayFacts(date=day)
+                facts[day] = day_facts
+            day_facts.log_rows += int(row["n"])
+        return sorted(facts.values(), key=lambda fact: fact.date)
 
 
 async def run_db(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:

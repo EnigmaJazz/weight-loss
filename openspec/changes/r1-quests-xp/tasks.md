@@ -65,10 +65,10 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 4 · S2b (~280) — momentum
 
-- [ ] 4.1 create `momentum.py` (pure): `classify_day` — all done & ≥1 action = Great, ≥2 = Good, ≥1 = Spark, no assignments = none (Great precedence; replaced rows not current; skipped blocks Great).
-- [ ] 4.2 `database.py`: `momentum_facts(user, start, end)` — done quests + weight/exercise/meal rows per date; window = today−20 … today (21 days).
-- [ ] 4.3 `routes.py`: `GET /api/momentum` → `today_tier`, `successful_days` (Good/Great), `window_days` (21).
-- [ ] 4.4 Tests: `tests/test_momentum.py` (`test_tier_matrix`, `test_inclusive_21_days`, `test_day_22_excluded`, `test_no_quests_none`); `tests/test_api.py` `test_momentum_api_isolation`.
+- [x] 4.1 create `momentum.py` (pure): `classify_day` — all done & ≥1 action = Great, ≥2 = Good, ≥1 = Spark, no assignments = none (Great precedence; replaced rows not current; skipped blocks Great).
+- [x] 4.2 `database.py`: `momentum_facts(user, start, end)` — done quests + weight/exercise/meal rows per date; window = today−20 … today (21 days).
+- [x] 4.3 `routes.py`: `GET /api/momentum` → `today_tier`, `successful_days` (Good/Great), `window_days` (21).
+- [x] 4.4 Tests: `tests/test_momentum.py` (`test_tier_matrix`, `test_inclusive_21_days`, `test_day_22_excluded`, `test_no_quests_none`); `tests/test_api.py` `test_momentum_api_isolation`.
 - Commit plan (work unit): `feat(momentum): derive 21-day state` — tasks 4.1–4.4. Acceptance: `python -m pytest tests/test_momentum.py tests/test_api.py -q` green; `pyright` clean.
 
 ## PR 5 · S3a (~390) — mood & habit CRUD

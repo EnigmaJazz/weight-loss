@@ -190,3 +190,28 @@ class XpState:
     total_xp: int
     xp_into_next: int
     next_level_at: int
+
+
+@dataclass
+class MomentumDayFacts:
+    """Per-date momentum facts for one user gathered from the quest and log
+    tables. ``assigned_quests`` counts current assignments (replaced rows are
+    not current); ``done_quests`` counts done quests; ``log_rows`` counts the
+    user's weight/exercise/meal rows for the date. S3 extends ``log_rows``
+    with mood/habit rows."""
+
+    date: str
+    assigned_quests: int = 0
+    done_quests: int = 0
+    log_rows: int = 0
+
+
+@dataclass
+class MomentumState:
+    """Derived 21-day momentum state for one user (never persisted), mirroring
+    the derived-not-persisted pattern of StreakState/RewardState."""
+
+    today_tier: str
+    successful_days: int
+    window_days: int
+    is_successful_today: bool
