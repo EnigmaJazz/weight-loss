@@ -103,8 +103,10 @@ async def test_habit_types_literal_matches_server_constant(client):
 @pytest.mark.asyncio
 async def test_index_html_ships_onboarding_wizard_between_auth_and_tracker(client):
     """The onboarding wizard ships in the delivered HTML, starts hidden, sits
-    between the auth gate and the tracker, and carries all five step blocks
-    plus the target mode toggle and schedule fields the wizard submits."""
+    between the auth gate and the tracker, and carries all six step blocks
+    (goals-lifestyle between target and units) plus the target mode toggle,
+    the optional goals/lifestyle fields, and the schedule fields the wizard
+    submits."""
     resp = await client.get("/")
     assert resp.status_code == 200
     html = resp.text
@@ -114,12 +116,13 @@ async def test_index_html_ships_onboarding_wizard_between_auth_and_tracker(clien
     assert wizard_at != -1, "index.html must ship the onboarding screen"
     assert auth_at != -1 and tracker_at != -1 and auth_at < wizard_at < tracker_at
     assert 'id="onboarding-screen" hidden' in html
-    # All five wizard steps ship, in order: height -> weight -> target ->
-    # units -> notifications.
+    # All six wizard steps ship, in order: height -> weight -> target ->
+    # goals-lifestyle -> units -> notifications.
     for step_id in (
         "wizard-step-height",
         "wizard-step-weight",
         "wizard-step-target",
+        "wizard-step-goals-lifestyle",
         "wizard-step-units",
         "wizard-step-notifications",
     ):
@@ -128,9 +131,18 @@ async def test_index_html_ships_onboarding_wizard_between_auth_and_tracker(clien
         html.find('id="wizard-step-height"')
         < html.find('id="wizard-step-weight"')
         < html.find('id="wizard-step-target"')
+        < html.find('id="wizard-step-goals-lifestyle"')
         < html.find('id="wizard-step-units"')
         < html.find('id="wizard-step-notifications"')
     )
+    # Goals & lifestyle step: the four optional fields (allowlists mirrored
+    # from constants.PRIMARY_GOALS/ACTIVITY_LEVELS) live in the
+    # #goals-lifestyle-form container; none of them are required.
+    assert 'id="goals-lifestyle-form"' in html
+    assert 'id="ob-primary-goal"' in html
+    assert 'name="ob-secondary-goals"' in html
+    assert 'name="ob-health-domains"' in html
+    assert 'id="ob-activity-level"' in html
     # Target step: weight/BMI mode toggle + healthy-range hint container.
     assert 'name="ob-target-mode"' in html
     assert 'value="bmi"' in html
@@ -353,7 +365,7 @@ async def test_style_css_ships_reduced_motion_block_without_starting_style(clien
 @pytest.mark.asyncio
 async def test_index_html_ships_mascot_and_wizard_indicator(client):
     """The header must carry the fox mascot (aria-hidden, before the h1) and
-    the onboarding screen a 5-dot wizard indicator with no visible text
+    the onboarding screen a 6-dot wizard indicator with no visible text
     (design D3, spec 'Motivation surfaces and mascot')."""
     resp = await client.get("/")
     assert resp.status_code == 200
@@ -368,8 +380,15 @@ async def test_index_html_ships_mascot_and_wizard_indicator(client):
     ]
     assert '<ol class="wizard-indicator">' in onboarding
     dots = re.findall(r'<li data-step="([^"]+)"></li>', onboarding)
-    assert dots == ["height", "weight", "target", "units", "notifications"], (
-        "wizard indicator must carry the five step dots, in order, text-free"
+    assert dots == [
+        "height",
+        "weight",
+        "target",
+        "goals-lifestyle",
+        "units",
+        "notifications",
+    ], (
+        "wizard indicator must carry the six step dots, in order, text-free"
     )
 
 
