@@ -55,12 +55,12 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 3 · S2a (~330) — derived XP
 
-- [ ] 3.1 `constants.py`: `LEVEL_XP_PER_LEVEL`, `LEVEL_XP_STEP`, `LEVEL_TITLES` (1–4 Sprout, 5–9 Explorer, 10–19 Adventurer, 20–29 Champion, 30+ Legend).
-- [ ] 3.2 create `xp.py` (pure): `threshold_for_level` (cumulative 100+(n−1)×50), `level_from_xp` (greatest L with threshold ≤ total, min 1), `level_progress` (xp_into_next, next_level_at), `title_for_level`.
-- [ ] 3.3 `models.py`: XP state dataclass (level, title, total_xp, xp_into_next, next_level_at).
-- [ ] 3.4 `database.py`: per-user XP aggregate = `SUM(xp_value) WHERE status='done'` (no `reward_events`).
-- [ ] 3.5 `routes.py`: `GET /api/xp`; level-up detection in quest complete via before/after level diff (`level_up:{from,to}|null`, quiet on repeat).
-- [ ] 3.6 Tests: `tests/test_xp.py` (`test_threshold_vectors` 99/100/250, `test_progress_vectors`, `test_title_bands` 4/5/29/30); `tests/test_api.py` (`test_xp_api_boundaries`, `test_level_up_diff`).
+- [x] 3.1 `constants.py`: `LEVEL_XP_PER_LEVEL`, `LEVEL_XP_STEP`, `LEVEL_TITLES` (1–4 Sprout, 5–9 Explorer, 10–19 Adventurer, 20–29 Champion, 30+ Legend).
+- [x] 3.2 create `xp.py` (pure): `threshold_for_level` (cumulative 100+(n−1)×50), `level_from_xp` (greatest L with threshold ≤ total, min 1), `level_progress` (xp_into_next, next_level_at), `title_for_level`.
+- [x] 3.3 `models.py`: XP state dataclass (level, title, total_xp, xp_into_next, next_level_at).
+- [x] 3.4 `database.py`: per-user XP aggregate = `SUM(xp_value) WHERE status='done'` (no `reward_events`) + `list_recent_done_quests` for the 10 recent completions.
+- [x] 3.5 `routes.py`: `GET /api/xp`; level-up detection in quest complete via before/after level diff (`level_up:{from,to}|null`, quiet on repeat).
+- [x] 3.6 Tests: `tests/test_xp.py` (`test_threshold_vectors` 99/100/250, `test_progress_vectors`, `test_title_bands` 4/5/29/30); `tests/test_api.py` (`test_xp_api_boundaries`, `test_level_up_diff`).
 - Commit plan (work unit): `feat(progress): derive xp levels` — tasks 3.1–3.6. Acceptance: `python -m pytest tests/test_xp.py tests/test_api.py -q` green; `pyright` clean.
 
 ## PR 4 · S2b (~280) — momentum
