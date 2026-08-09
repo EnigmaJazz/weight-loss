@@ -229,6 +229,25 @@ QUEST_POOL: tuple[tuple[str, str, str, str, int, str], ...] = (
     ),
 )
 
+# ---- XP level curve (r1-quests-xp) ----
+
+# Level curve (xp-progression spec): level 1 starts at 0 XP and advancing from
+# level n costs LEVEL_XP_PER_LEVEL + (n-1)*LEVEL_XP_STEP, so level L starts at
+# T(L) = 25*(L-1)*(L+2) XP (cumulative). Pinned by tests/test_xp.py.
+LEVEL_XP_PER_LEVEL = 100
+LEVEL_XP_STEP = 50
+
+# Title bands as ascending (min_level, title) pairs: the last band whose
+# minimum is not above the level wins (1-4 Sprout, 5-9 Explorer, 10-19
+# Adventurer, 20-29 Champion, 30+ Legend). Pinned by tests/test_xp.py.
+LEVEL_TITLES: tuple[tuple[int, str], ...] = (
+    (1, "Sprout"),
+    (5, "Explorer"),
+    (10, "Adventurer"),
+    (20, "Champion"),
+    (30, "Legend"),
+)
+
 SCHEDULER_INTERVAL_SECONDS = 60
 
 # ---- authentication (user-accounts-auth) ----

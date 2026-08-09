@@ -1203,6 +1203,35 @@ class Database:
             ),
         )
 
+    def total_xp_for_user(self, user_id: int) -> int:
+        """Derived XP: the SUM of xp_value across the user's done quests.
+        Open, skipped, and replaced quests contribute zero; no ledger is ever
+        written (reward_events is dropped on every schema init)."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(xp_value), 0) AS total FROM quests"
+                " WHERE user_id = ? AND status = 'done'",
+                (user_id,),
+            ).fetchone()
+        return int(row["total"])
+
+    def list_recent_done_quests(
+        self, user_id: int, limit: int = 10
+    ) -> list[Quest]:
+        """Newest done quests for the user, newest date first, capped at
+        ``limit`` — the recent-completions list on GET /api/xp. Quests can
+        only be completed on their own date, so date order is completion
+        order; id DESC breaks same-day ties."""
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, quest_key, domain, title, description, xp_value,"
+                " status, difficulty, source, completed_at, created_at"
+                " FROM quests WHERE user_id = ? AND status = 'done'"
+                " ORDER BY date DESC, id DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        return [_quest_from_row(row) for row in rows]
+
 
 async def run_db(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """Run a synchronous Database method on a thread so callers stay async."""

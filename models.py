@@ -178,3 +178,15 @@ class QuestDetectionFacts:
     exercise_min: int = 0
     has_meal: bool = False
     has_any_entry: bool = False
+
+
+@dataclass
+class XpState:
+    """Derived XP state for one user (never persisted), mirroring the
+    derived-not-persisted pattern of StreakState/RewardState."""
+
+    level: int
+    title: str
+    total_xp: int
+    xp_into_next: int
+    next_level_at: int
