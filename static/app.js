@@ -20,7 +20,7 @@ const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -596,6 +596,7 @@ async function loadData() {
   renderExerciseHistory(exercise.entries);
   renderMealHistory(meals.entries);
   renderStreaks(streaks);
+  await loadQuestsAndXp();
   // Any reload lands back on Today.
   switchTab("today");
 }
@@ -1528,6 +1529,161 @@ function renderRewards(r) {
   el.append(next);
 }
 
+/* ---- daily quests + XP chip (r1-quests-xp S4a) ------------------------- */
+
+/* R1 requests are failure-scoped (design §Loading): quests and XP load via
+ * Promise.allSettled so one failed fetch shows a scoped error and never
+ * blanks the rest of the Today view. Shared by loadData and the post-mutation
+ * refresh in mutateQuest. Sequencing matters: /api/quests reconciles (and
+ * persists) read-detected completions and /api/xp derives its total from
+ * those rows, so the XP fetch must settle AFTER the quests fetch — racing
+ * them can render a stale chip total when an auto-completion persists
+ * between the two responses. */
+async function loadQuestsAndXp() {
+  const [questsRes] = await Promise.allSettled([fetchJson("/api/quests")]);
+  if (questsRes.status === "fulfilled") {
+    renderQuests(questsRes.value);
+  } else {
+    showQuestsError(questsRes.reason);
+  }
+  const [xpRes] = await Promise.allSettled([fetchJson("/api/xp")]);
+  if (xpRes.status === "fulfilled") {
+    renderXpChip(xpRes.value);
+  } else {
+    const el = $("xp-chip-content");
+    el.innerHTML = "";
+    const err = document.createElement("p");
+    err.className = "hint error";
+    err.textContent = "Could not load XP";
+    el.append(err);
+  }
+}
+
+function showQuestsError(err) {
+  const errorEl = $("quests-error");
+  errorEl.textContent = `Could not load quests: ${err.message}`;
+  errorEl.hidden = false;
+}
+
+/* The row's status text: detected completion must read as auto-completed,
+ * manual completion as done, skipped stays skipped, open stays open. */
+function questStatusLabel(q) {
+  if (q.status === "done") {
+    return q.source === "detected" ? "Auto-completed" : "Done";
+  }
+  if (q.status === "skipped") return "Skipped";
+  return "Open";
+}
+
+function renderQuests(data) {
+  const list = $("quests-list");
+  list.innerHTML = "";
+  for (const q of data.quests) {
+    const row = document.createElement("li");
+    row.className = "quest-row";
+    row.dataset.questId = String(q.id);
+    row.dataset.status = q.status;
+    const label = document.createElement("div");
+    label.className = "quest-title";
+    label.textContent = q.title;
+    const meta = document.createElement("div");
+    meta.className = "quest-meta";
+    const domain = document.createElement("span");
+    domain.className = "quest-domain";
+    domain.textContent = q.domain;
+    const xp = document.createElement("span");
+    xp.className = "quest-xp";
+    xp.textContent = `+${q.xp_value} XP`;
+    meta.append(domain, xp);
+    const status = document.createElement("div");
+    status.className = "quest-status";
+    if (q.status === "done") status.classList.add("is-done");
+    status.textContent = questStatusLabel(q);
+    row.append(label, meta, status);
+    // Open rows offer Complete/Skip/Replace; terminal (done/skipped) rows
+    // expose no invalid controls.
+    if (q.status === "open") {
+      row.append(buildQuestActions(q.id));
+    }
+    list.append(row);
+  }
+}
+
+function buildQuestActions(questId) {
+  const actions = document.createElement("div");
+  actions.className = "quest-actions";
+  for (const [action, label] of [
+    ["complete", "Complete"],
+    ["skip", "Skip"],
+    ["replace", "Replace"],
+  ]) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "quest-action";
+    btn.dataset.action = action;
+    btn.dataset.questId = String(questId);
+    btn.textContent = label;
+    actions.append(btn);
+  }
+  return actions;
+}
+
+/* Mutation flow: disable every quest action while a request is pending (no
+ * duplicate submission), announce success or failure without ever removing
+ * the card, and on success re-fetch quests + XP so the completed row
+ * refreshes to done and the chip reflects the new total. A rejected second
+ * replacement (409) leaves the rendered assignment unchanged and surfaces
+ * the server detail in the accessible error region. */
+async function mutateQuest(questId, action) {
+  const card = $("quests-card");
+  const errorEl = $("quests-error");
+  for (const btn of card.querySelectorAll(".quest-action")) btn.disabled = true;
+  errorEl.hidden = true;
+  try {
+    await fetchJson(`/api/quests/${questId}/${action}`, { method: "POST" });
+    await loadQuestsAndXp();
+  } catch (err) {
+    errorEl.textContent = `Could not ${action} quest: ${err.message}`;
+    errorEl.hidden = false;
+  } finally {
+    for (const btn of card.querySelectorAll(".quest-action")) btn.disabled = false;
+  }
+}
+
+function renderXpChip(xp) {
+  const el = $("xp-chip-content");
+  el.innerHTML = "";
+  const title = document.createElement("div");
+  title.className = "xp-chip-title";
+  title.textContent = xp.title;
+  const level = document.createElement("div");
+  level.className = "xp-chip-level";
+  level.textContent = `Level ${xp.level}`;
+  const total = document.createElement("div");
+  total.className = "xp-chip-total";
+  total.textContent = `${xp.total_xp} XP`;
+  el.append(title, level, total);
+  // Progress toward the next level: xp_into_next of the level's span
+  // (next_level_at - T(level)) — the threshold mirror keeps the denominator
+  // exact, and the label names the absolute next_level_at target.
+  const span = xp.next_level_at - thresholdForLevel(xp.level);
+  const pct =
+    span > 0 ? Math.min(100, Math.round((xp.xp_into_next / span) * 100)) : 100;
+  const progress = document.createElement("div");
+  progress.className = "xp-chip-progress";
+  const track = document.createElement("div");
+  track.className = "progress-track";
+  const fill = document.createElement("div");
+  fill.className = "progress-fill";
+  fill.style.width = `${pct}%`;
+  track.append(fill);
+  const label = document.createElement("div");
+  label.className = "progress-label";
+  label.textContent = `${xp.xp_into_next} / ${span} XP to level ${xp.level + 1}`;
+  progress.append(track, label);
+  el.append(progress);
+}
+
 /* ---- settings ---------------------------------------------------------- */
 
 function setRadio(name, value) {
@@ -2014,6 +2170,11 @@ async function init() {
   $("goal-form").addEventListener("submit", saveGoal);
   $("goals-lifestyle-settings-form").addEventListener("submit", saveGoalsLifestyle);
   $("reminders-form").addEventListener("submit", saveReminders);
+  $("quests-list").addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".quest-action");
+    if (!btn) return;
+    mutateQuest(btn.dataset.questId, btn.dataset.action);
+  });
   $("enable-push").addEventListener("click", enablePush);
   $("disable-push").addEventListener("click", disablePush);
   $("test-push").addEventListener("click", testPush);

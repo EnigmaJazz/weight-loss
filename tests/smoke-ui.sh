@@ -5,8 +5,8 @@
 # ~/.claude/skills/playwright-cli). Verifies the full user loop:
 #   gate shown unauthenticated -> register a fresh account -> tracker loads
 #   -> kg entry + st/lb (unit-toggle) entry -> me/BMI -> rewards ->
-#   logout returns to the gate. The tracker is tabbed, so Journey/World/Me
-#   assertions click their tab first.
+#   today quests card + XP chip -> logout returns to the gate. The tracker is
+#   tabbed, so Journey/World/Me assertions click their tab first.
 #
 # NOTE: this registers a fresh account and writes test weight entries into the
 # target app's database. Point it at a scratch instance (WEIGHT_LOSS_DB tmp)
@@ -247,6 +247,133 @@ if [ "$GOAL_AFTER" = "weight_loss" ] && [ "$LEVEL_AFTER" = "moderate" ]; then
   step_ok "goals card save round-trips primary_goal + activity_level"
 else
   step_fail "goals card save round-trips primary_goal + activity_level (goal='$GOAL_AFTER', level='$LEVEL_AFTER')"
+fi
+
+# ---- 5.15 today quests card + XP chip (r1-quests-xp S4a) ------------------
+# The quests card and XP chip render on the Today tab after login. The
+# wizard's weight entry auto-completes any assigned streak_alive quest with
+# source 'detected' (so done rows must read Auto-completed), and the chip
+# shows the derived Level-1 XP state (a fresh account is always below 100 XP:
+# at most log_weight 20 + streak_alive 20). Mutation order is chosen so every
+# step only needs the one open row that is always guaranteed (mood_checkin is
+# assigned daily and never auto-completes without a mood entry): surface,
+# replace -> replace-cap 409 -> complete.
+echo "-- today quests + XP chip"
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
+sleep 1
+
+QUEST_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row').length" 2>&1 | tr -d '"')"
+if [ "$QUEST_ROWS" = "3" ]; then
+  step_ok "quests card renders exactly 3 rows ($QUEST_ROWS)"
+else
+  step_fail "quests card renders exactly 3 rows (count='$QUEST_ROWS')"
+fi
+
+OPEN_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
+if [ "$OPEN_ROWS" -ge 1 ] 2>/dev/null; then
+  step_ok "at least one open quest row renders ($OPEN_ROWS)"
+else
+  step_fail "at least one open quest row renders (count='$OPEN_ROWS')"
+fi
+
+# Every open row offers exactly Complete/Skip/Replace; terminal rows none.
+OPEN_ACTIONS="$(playwright-cli --raw eval "(() => { let ok = true; for (const row of document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]')) { const a = [...row.querySelectorAll('.quest-action')].map(b => b.dataset.action).sort().join(','); if (a !== 'complete,replace,skip') ok = false; } return String(ok); })()" 2>&1 | tr -d '"')"
+if [ "$OPEN_ACTIONS" = "true" ]; then
+  step_ok "open quest rows offer Complete/Skip/Replace"
+else
+  step_fail "open quest rows offer Complete/Skip/Replace (got '$OPEN_ACTIONS')"
+fi
+
+TERMINAL_ACTIONS="$(playwright-cli --raw eval "(() => { let n = 0; for (const row of document.querySelectorAll('#quests-card .quest-row[data-status=\"done\"], #quests-card .quest-row[data-status=\"skipped\"]')) n += row.querySelectorAll('.quest-action').length; return String(n); })()" 2>&1 | tr -d '"')"
+if [ "$TERMINAL_ACTIONS" = "0" ]; then
+  step_ok "terminal quest rows expose no action controls"
+else
+  step_fail "terminal quest rows expose no action controls (count='$TERMINAL_ACTIONS')"
+fi
+
+# Detected completion must display as auto-completed (vacuous when no done
+# row exists that day: every() over an empty list is true).
+AUTO_COMPLETED="$(playwright-cli --raw eval "(() => { const rows = [...document.querySelectorAll('#quests-card .quest-row[data-status=\"done\"]')]; return String(rows.every(r => r.querySelector('.quest-status')?.textContent === 'Auto-completed')); })()" 2>&1 | tr -d '"')"
+if [ "$AUTO_COMPLETED" = "true" ]; then
+  step_ok "detected-done rows read as Auto-completed"
+else
+  step_fail "detected-done rows read as Auto-completed (got '$AUTO_COMPLETED')"
+fi
+
+# XP chip: title, level, total, and progress toward the next level.
+CHIP_LEVEL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-level')?.textContent" 2>&1 | tr -d '"')"
+if [ "$CHIP_LEVEL" = "Level 1" ]; then
+  step_ok "XP chip shows Level 1"
+else
+  step_fail "XP chip shows Level 1 (got '$CHIP_LEVEL')"
+fi
+CHIP_TITLE="$(playwright-cli --raw eval "document.querySelector('.xp-chip-title')?.textContent" 2>&1 | tr -d '"')"
+if [ "$CHIP_TITLE" = "Sprout" ]; then
+  step_ok "XP chip shows Sprout title"
+else
+  step_fail "XP chip shows Sprout title (got '$CHIP_TITLE')"
+fi
+CHIP_TOTAL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-total')?.textContent" 2>&1 | tr -d '"')"
+if printf '%s' "$CHIP_TOTAL" | grep -Eq '^[0-9]+ XP$'; then
+  step_ok "XP chip shows a total ($CHIP_TOTAL)"
+else
+  step_fail "XP chip shows a total (got '$CHIP_TOTAL')"
+fi
+CHIP_PROGRESS="$(playwright-cli --raw eval "document.querySelector('.xp-chip-progress .progress-label')?.textContent" 2>&1 | tr -d '"')"
+if printf '%s' "$CHIP_PROGRESS" | grep -Eq 'XP to level 2$'; then
+  step_ok "XP chip shows progress to level 2 ($CHIP_PROGRESS)"
+else
+  step_fail "XP chip shows progress to level 2 (got '$CHIP_PROGRESS')"
+fi
+
+# ---- 5.16 quest actions: replace -> 409 -> complete (r1-quests-xp S4a) -----
+# Replace an open quest (one replacement per day): the replaced row disappears
+# and a fresh open row takes its place (still 3 current rows). A second
+# Replace must 409: accessible error feedback appears and the assignment is
+# unchanged. Then Complete must refresh the row to done (open count drops by
+# one) and raise the chip total by the quest's XP.
+echo "-- quest actions"
+REPLACED_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
+playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-status=\"open\"] [data-action=\"replace\"]').click()" >/dev/null 2>&1
+sleep 1
+ROWS_AFTER_REPLACE="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row').length" 2>&1 | tr -d '"')"
+AFTER_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
+if [ "$ROWS_AFTER_REPLACE" = "3" ] && [ "$AFTER_IDS" != "$REPLACED_IDS" ]; then
+  step_ok "replace swaps in a fresh quest (still 3 rows)"
+else
+  step_fail "replace swaps in a fresh quest (rows='$ROWS_AFTER_REPLACE', ids changed=$([ "$AFTER_IDS" != "$REPLACED_IDS" ] && echo yes || echo no))"
+fi
+ERROR_HIDDEN_AFTER_REPLACE="$(playwright-cli --raw eval "document.querySelector('#quests-error').hidden" 2>&1 | tr -d '"')"
+if [ "$ERROR_HIDDEN_AFTER_REPLACE" = "true" ]; then
+  step_ok "successful replace leaves the error region hidden"
+else
+  step_fail "successful replace leaves the error region hidden (hidden='$ERROR_HIDDEN_AFTER_REPLACE')"
+fi
+
+PRE_409_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
+playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-status=\"open\"] [data-action=\"replace\"]').click()" >/dev/null 2>&1
+sleep 1
+ERROR_VISIBLE="$(playwright-cli --raw eval "!document.querySelector('#quests-error').hidden" 2>&1 | tr -d '"')"
+POST_409_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
+ROWS_AFTER_409="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row').length" 2>&1 | tr -d '"')"
+if [ "$ERROR_VISIBLE" = "true" ] && [ "$POST_409_IDS" = "$PRE_409_IDS" ] && [ "$ROWS_AFTER_409" = "3" ]; then
+  step_ok "replacement cap 409 shows error and keeps the assignment"
+else
+  step_fail "replacement cap 409 shows error and keeps the assignment (error='$ERROR_VISIBLE', rows='$ROWS_AFTER_409', ids same=$([ "$POST_409_IDS" = "$PRE_409_IDS" ] && echo yes || echo no))"
+fi
+
+OPEN_BEFORE_COMPLETE="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
+ROW_XP="$(playwright-cli --raw eval "Number(document.querySelector('#quests-card .quest-row[data-status=\"open\"] .quest-xp').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+CHIP_BEFORE="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-status=\"open\"] [data-action=\"complete\"]').click()" >/dev/null 2>&1
+sleep 1
+OPEN_AFTER_COMPLETE="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
+CHIP_AFTER="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+EXPECTED_CHIP=$((CHIP_BEFORE + ROW_XP))
+if [ "$OPEN_AFTER_COMPLETE" = "$((OPEN_BEFORE_COMPLETE - 1))" ] && [ "$CHIP_AFTER" = "$EXPECTED_CHIP" ]; then
+  step_ok "complete refreshes the row to done and adds XP to the chip ($CHIP_AFTER)"
+else
+  step_fail "complete refreshes the row to done and adds XP to the chip (open $OPEN_BEFORE_COMPLETE -> $OPEN_AFTER_COMPLETE, chip $CHIP_BEFORE + $ROW_XP = $EXPECTED_CHIP, got $CHIP_AFTER)"
 fi
 
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------

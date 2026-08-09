@@ -591,6 +591,73 @@ button.link:hover { color: var(--accent); background: none; }
 
 .progress-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.5rem; }
 
+/* Today quests card + XP chip (r1-quests-xp S4a). Token-only: every color
+ * comes from a var() so both themes stay correct — no palette hex anywhere
+ * in these rules (pinned by test_today_quest_surface). The chip reuses the
+ * shared .progress-track/.progress-fill/.progress-label tokens from the
+ * rewards card. Quest action buttons inherit the base button rule, so the
+ * 48px touch target and focus-visible ring stay intact. */
+.quest-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quest-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.15s ease;
+}
+.quest-row:last-child { border-bottom: none; }
+
+.quest-title { font-weight: 600; }
+
+.quest-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.quest-xp { color: var(--accent-dark); font-weight: 600; }
+
+.quest-status { font-size: 0.85rem; color: var(--muted); }
+.quest-status.is-done { color: var(--accent-dark); }
+
+.quest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Compact quest action buttons: smaller horizontal padding than the base
+ * button rule, but min-height stays 48px for the touch target. Disabled
+ * (mutation pending) state overrides the base hover accent. */
+.quest-action {
+  padding: 0.35rem 0.7rem;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.quest-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.quest-action:disabled:hover { background: var(--accent); }
+
+.xp-chip-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--fox);
+  margin: 0;
+}
+.xp-chip-level { font-size: 0.9rem; color: var(--muted); }
+.xp-chip-total { font-size: 1.05rem; font-weight: 600; margin-top: var(--space-1); }
+.xp-chip-progress { margin-top: var(--space-2); }
+
 /* achieved-milestone strip (UI refinement of the five-card grid): compact
  * round dots, one per earned checkpoint, on ONE line; the last achieved dot
  * is scaled up with a gold ring; pending milestones are not rendered; the
@@ -754,7 +821,9 @@ a:focus-visible,
   .progress-fill,
   .toast,
   .wizard-indicator li,
-  .goal-ring-progress {
+  .goal-ring-progress,
+  .quest-row,
+  .quest-action {
     transition: none !important;
   }
   /* motion-gate additions (Phase 3): confetti never spawns visibly and the

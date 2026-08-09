@@ -91,11 +91,11 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 7 · S4a (~380) — Today quests card + XP chip
 
-- [ ] 7.1 `static/index.html`: `#quests-card` (3 rows: label, domain, XP, status; open rows offer Complete/Skip/Replace; terminal rows no invalid controls) + `#xp-summary-chip` (title, level, total, progress) on Today.
-- [ ] 7.2 `static/app.js`: `loadData` adds quests + xp via `Promise.allSettled`; `renderQuests`; `mutateQuest` (disable while pending, error feedback, never remove card, replace-cap 409 leaves assignment); `renderXpChip`.
-- [ ] 7.3 `static/format.js`: pure mirrors `thresholdForLevel`, `levelFromXp`, `xpIntoNext`.
-- [ ] 7.4 `static/style.css`: token-only (no hex literals), dark-mode, 48px targets, focus visible, `prefers-reduced-motion` neutralized.
-- [ ] 7.5 Tests: `tests/frontend/xp.test.mjs` (99/100/250 vs backend); `test_spa_gate.py::test_today_quest_surface`; `tests/smoke-ui.sh` quest selectors/actions.
+- [x] 7.1 `static/index.html`: `#quests-card` (3 rows: label, domain, XP, status; open rows offer Complete/Skip/Replace; terminal rows no invalid controls) + `#xp-summary-chip` (title, level, total, progress) on Today.
+- [x] 7.2 `static/app.js`: `loadData` adds quests + xp via `Promise.allSettled`; `renderQuests`; `mutateQuest` (disable while pending, error feedback, never remove card, replace-cap 409 leaves assignment); `renderXpChip`.
+- [x] 7.3 `static/format.js`: pure mirrors `thresholdForLevel`, `levelFromXp`, `xpIntoNext`.
+- [x] 7.4 `static/style.css`: token-only (no hex literals), dark-mode, 48px targets, focus visible, `prefers-reduced-motion` neutralized.
+- [x] 7.5 Tests: `tests/frontend/xp.test.mjs` (99/100/250 vs backend); `test_spa_gate.py::test_today_quest_surface`; `tests/smoke-ui.sh` quest selectors/actions.
 - Commit plan (work unit): `feat(today): surface quests and xp` — tasks 7.1–7.5. Acceptance: `node --test tests/frontend/xp.test.mjs && python -m pytest tests/test_spa_gate.py -q && bash tests/smoke-ui.sh` green; `pyright` clean.
 
 ## PR 8 · S4b (~350) — Journey XP/momentum/quest-history cards
