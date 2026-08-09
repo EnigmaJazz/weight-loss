@@ -48,9 +48,9 @@ Threat matrix: all rows N/A per design; auth/ownership/404/422/409 behaviors are
 
 ## PR 2 · S1b (~390) — quest lifecycle API
 
-- [ ] 2.1 `routes.py`: quest serializers + `GET /api/quests` — generate when absent, reconcile, return 3 current rows, `is_today_weigh_in`, `can_replace`, newest 10 history rows.
-- [ ] 2.2 `routes.py`: `POST /api/quests/{id}/complete|skip|replace` — foreign/missing → 404; non-today → 409; done-complete → 200 no-op; skipped/replaced-complete → 409; skip idempotent only for skipped; replace requires open/current/cap/eligible key else 409. No write coupling from existing log routes.
-- [ ] 2.3 Tests `tests/test_api.py`: `test_quest_crud_and_idempotency`, `test_quest_404_isolation`, `test_quest_wrong_day_409`, `test_quest_auto_detection`.
+- [x] 2.1 `routes.py`: quest serializers + `GET /api/quests` — generate when absent, reconcile, return 3 current rows, `is_today_weigh_in`, `can_replace`, newest 10 history rows.
+- [x] 2.2 `routes.py`: `POST /api/quests/{id}/complete|skip|replace` — foreign/missing → 404; non-today → 409; done-complete → 200 no-op; skipped/replaced-complete → 409; skip idempotent only for skipped; replace requires open/current/cap/eligible key else 409. No write coupling from existing log routes.
+- [x] 2.3 Tests `tests/test_api.py`: `test_quest_crud_and_idempotency`, `test_quest_404_isolation`, `test_quest_wrong_day_409`, `test_quest_auto_detection`.
 - Commit plan (work unit): `feat(routes): expose quest lifecycle` — tasks 2.1–2.3. Acceptance: `python -m pytest tests/test_api.py -q` green; `pyright` clean.
 
 ## PR 3 · S2a (~330) — derived XP
