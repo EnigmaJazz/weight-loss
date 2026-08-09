@@ -596,15 +596,15 @@ async def test_index_html_ships_theme_toggle_beside_logout(client):
 
 @pytest.mark.asyncio
 async def test_index_html_ships_appearance_radio_group(client):
-    """The Settings tab must ship the three-state Appearance radio group
+    """The Me tab must ship the three-state Appearance radio group
     (name="appearance": system/light/dark) that drives the same theme
     setting as the header toggle (spec 'Theme UX Surfaces')."""
     resp = await client.get("/")
     assert resp.status_code == 200
     html = resp.text
-    # Slice the whole Settings panel: from the tab-panel open tag up to the
-    # last card in it (push-card), so every Settings card is included.
-    settings = html[html.index('id="tab-settings"') : html.index('id="push-card"')]
+    # Slice the whole Me panel: from the tab-panel open tag up to the last
+    # card in it (push-card), so every Me card is included.
+    settings = html[html.index('id="tab-me"') : html.index('id="push-card"')]
     assert 'name="appearance"' in settings
     for value in ("system", "light", "dark"):
         assert f'name="appearance" value="{value}"' in settings, (
@@ -612,11 +612,159 @@ async def test_index_html_ships_appearance_radio_group(client):
         )
     # The radio group must live in a card after the Units & display card
     # (design §JS Theming Lifecycle: Appearance card after weight-display).
-    assert 'id="tab-settings"' in html
-    assert "Appearance" in settings, "the Appearance card must ship in Settings"
+    assert 'id="tab-me"' in html
+    assert "Appearance" in settings, "the Appearance card must ship in Me"
     assert 'name="weight-display"' in settings, "weight-display group must still ship"
     assert settings.index('name="weight-display"') < settings.index('name="appearance"'), (
         "Appearance card must come after the Units & display card"
+    )
+
+
+# ---- R0 navigation restructure gate additions (feat/r0-nav) ---------------
+# The tabbed SPA was restructured from (today/progress/history/settings) to
+# (today/journey/world/me): Journey absorbs the old Progress charts and the
+# History entry lists (the longitudinal view, strategy §6.2), World is a
+# friendly fox placeholder, and Me absorbs the old Settings panel. These assert
+# the DELIVERED structure so the smoke's tab flow keeps working (spec 'R0
+# Navigation Restructure').
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_four_tab_buttons(client):
+    """The tab bar must ship exactly the four buttons today/journey/world/me,
+    in order, with Today active and the rest inactive."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    nav = html[html.index('<nav class="tabs"') : html.index("</nav>")]
+    buttons = re.findall(r'data-tab="([^"]+)"', nav)
+    assert buttons == ["today", "journey", "world", "me"], (
+        "tab bar must ship today/journey/world/me in order"
+    )
+    assert 'data-tab="today" role="tab" aria-selected="true"' in nav
+    for tab in ("journey", "world", "me"):
+        assert f'data-tab="{tab}" role="tab" aria-selected="false"' in nav
+
+
+@pytest.mark.asyncio
+async def test_index_html_journey_panel_absorbs_charts_and_history(client):
+    """The Journey panel must ship the old Progress chart canvases AND the old
+    History entry lists — journey is the longitudinal view (strategy §6.2)."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert (
+        html.index('id="tab-today"')
+        < html.index('id="tab-journey"')
+        < html.index('id="tab-world"')
+        < html.index('id="tab-me"')
+    ), "panels must order today < journey < world < me"
+    journey = html[html.index('id="tab-journey"') : html.index('id="tab-world"')]
+    for needle in (
+        '<canvas id="chart" height',
+        '<canvas id="chart-exercise" height',
+        '<canvas id="chart-meals" height',
+        '<ul class="entry-list" id="entry-list">',
+        'id="exercise-list"',
+        'id="meal-list"',
+    ):
+        assert needle in journey, f"Journey panel must ship {needle}"
+
+
+@pytest.mark.asyncio
+async def test_index_html_world_panel_ships_fox_placeholder(client):
+    """The World panel must ship the friendly placeholder: the fox mascot
+    glyph + the 'coming soon' copy (spec 'R0 Navigation Restructure')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    world = html[html.index('id="tab-world"') : html.index('id="tab-me"')]
+    assert "Your adventure map is coming soon." in world
+    assert 'class="mascot" aria-hidden="true"' in world, (
+        "World placeholder must carry the fox mascot"
+    )
+    assert 'fill="#eb892c"' in world, (
+        "fox mascot must render with the fox-orange fill"
+    )
+
+
+@pytest.mark.asyncio
+async def test_index_html_me_panel_ships_old_settings_forms(client):
+    """The Me panel must absorb the old Settings panel: account, goal & body,
+    units & display, appearance, reminders, and push cards all ship under
+    #tab-me (spec 'R0 Navigation Restructure')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    me = html[html.index('id="tab-me"') : html.index("</main>")]
+    for needle in (
+        'id="account-form"',
+        'id="goal-form"',
+        'id="display-form"',
+        'id="appearance-form"',
+        'id="reminders-form"',
+        'id="push-card"',
+        'id="target-weight"',
+        'id="height-cm"',
+        'id="start-override"',
+    ):
+        assert needle in me, f"Me panel must ship {needle}"
+
+
+@pytest.mark.asyncio
+async def test_index_html_has_no_old_tab_remnants(client):
+    """No progress/history/settings remnants may remain in index.html: neither
+    tab buttons, panel ids, nor the footer's Settings reference (spec 'R0
+    Navigation Restructure')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    for remnant in (
+        'data-tab="progress"',
+        'data-tab="history"',
+        'data-tab="settings"',
+        'id="tab-progress"',
+        'id="tab-history"',
+        'id="tab-settings"',
+        ">Progress</button>",
+        ">History</button>",
+        ">Settings</button>",
+    ):
+        assert remnant not in html, f"index.html must not ship {remnant}"
+    assert "chosen in Settings" not in html, (
+        "footer must reference the Me tab, not the removed Settings tab"
+    )
+
+
+@pytest.mark.asyncio
+async def test_app_js_redraws_charts_on_journey_tab(client):
+    """switchTab stays generic (data-tab / .tab-panel / .tab-btn) but the canvas
+    redraw that used to trigger for 'progress' must now trigger for 'journey'
+    (the charts live there); applyTheme redraws only when the Journey panel is
+    visible (spec 'R0 Navigation Restructure')."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    # switchTab stays generic...
+    assert "btn.dataset.tab === name" in body, (
+        "switchTab must stay keyed off data-tab"
+    )
+    assert "panel.id !== `tab-${name}`" in body, (
+        "switchTab must keep the [hidden] panel toggle"
+    )
+    # ...and redraws the charts when the Journey tab is shown.
+    assert 'if (name === "journey")' in body, (
+        "switchTab must redraw charts on the Journey tab"
+    )
+    assert 'name === "progress"' not in body, (
+        "switchTab must not branch on the removed progress tab"
+    )
+    # applyTheme redraws only when the Journey panel is visible.
+    assert 'if (!$("tab-journey").hidden)' in body, (
+        "applyTheme must redraw charts only when the Journey panel is visible"
+    )
+    assert '"tab-progress"' not in body, (
+        "app.js must not reference the removed progress panel"
     )
 
 
