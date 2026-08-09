@@ -376,6 +376,54 @@ else
   step_fail "complete refreshes the row to done and adds XP to the chip (open $OPEN_BEFORE_COMPLETE -> $OPEN_AFTER_COMPLETE, chip $CHIP_BEFORE + $ROW_XP = $EXPECTED_CHIP, got $CHIP_AFTER)"
 fi
 
+# ---- 5.17 journey progress cards: XP / momentum / quest history (S4b) ----
+
+# The three progression cards render on the Journey tab: #xp-card (level,
+# title, total, progress), #momentum-card (today tier + successful/21), and
+# #quest-history-card (date, label, status, awarded XP; non-done = 0; explicit
+# empty state). The smoke account has completed one quest on the Today tab,
+# so XP > 0 and the history card shows its empty state (no past-day rows).
+echo "-- journey progress cards"
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
+assert_visibility "journey panel visible for progress cards" "#tab-journey" "visible"
+
+XP_CARD_TITLE="$(playwright-cli --raw eval "document.querySelector('#xp-card .journey-xp-title')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ -n "$XP_CARD_TITLE" ]; then
+  step_ok "xp card renders the level title ($XP_CARD_TITLE)"
+else
+  step_fail "xp card renders the level title (got '$XP_CARD_TITLE')"
+fi
+
+XP_CARD_LEVEL="$(playwright-cli --raw eval "document.querySelector('#xp-card .journey-xp-level')?.textContent.trim()" 2>&1 | tr -d '"')"
+case "$XP_CARD_LEVEL" in
+  "Level "*) step_ok "xp card shows level and total ($XP_CARD_LEVEL)" ;;
+  *) step_fail "xp card shows level and total (got '$XP_CARD_LEVEL')" ;;
+esac
+
+MOMENTUM_TIER="$(playwright-cli --raw eval "document.querySelector('#momentum-card .momentum-tier')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ -n "$MOMENTUM_TIER" ]; then
+  step_ok "momentum card renders today's tier ($MOMENTUM_TIER)"
+else
+  step_fail "momentum card renders today's tier (got '$MOMENTUM_TIER')"
+fi
+
+MOMENTUM_COUNT="$(playwright-cli --raw eval "document.querySelector('#momentum-card .momentum-count')?.textContent.trim()" 2>&1 | tr -d '"')"
+case "$MOMENTUM_COUNT" in
+  *"in the last 21"*) step_ok "momentum card shows successful days out of 21 ($MOMENTUM_COUNT)" ;;
+  *) step_fail "momentum card shows successful days out of 21 (got '$MOMENTUM_COUNT')" ;;
+esac
+
+# Quest history: the smoke account has completed a quest today but has no
+# past-day rows, so the explicit empty state must render (XP/momentum above
+# stay visible — the empty state never hides the other cards).
+HISTORY_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#quest-history-card .quest-history-row').length" 2>&1 | tr -d '"')"
+HISTORY_EMPTY="$(playwright-cli --raw eval "document.querySelector('#quest-history-card .hint')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ "$HISTORY_ROWS" = "0" ] && [ -n "$HISTORY_EMPTY" ]; then
+  step_ok "quest history renders the explicit empty state ($HISTORY_EMPTY)"
+else
+  step_fail "quest history renders the explicit empty state (rows='$HISTORY_ROWS', empty='$HISTORY_EMPTY')"
+fi
+
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
 
 echo "-- weight-display radio toggle"

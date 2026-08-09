@@ -1017,6 +1017,67 @@ async def test_format_js_ships_milestone_next_builder(client):
     )
 
 
+# Journey progress cards (r1-quests-xp S4b): the XP, momentum, and quest
+# history card markup inside the Journey panel, the app.js renderer hooks, the
+# failure-scoped momentum load, and the token-only journey CSS with
+# reduced-motion neutralization. Behavior (populated + empty renders) is
+# exercised by tests/smoke-ui.sh; these gate the delivered artifacts.
+
+
+@pytest.mark.asyncio
+async def test_journey_progress_surfaces(client):
+    """Journey must ship #xp-card, #momentum-card, and #quest-history-card
+    inside the Journey panel; app.js must define the three renderers and load
+    momentum failure-scoped; the new CSS must be token-only with reduced-motion
+    neutralization (spec 'Journey Progress Cards' + 'Journey UI Regression
+    Contract')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    journey = html[html.index('id="tab-journey"') : html.index('id="tab-world"')]
+    for needle in ('id="xp-card"', 'id="momentum-card"', 'id="quest-history-card"'):
+        assert needle in journey, f"Journey panel must ship {needle}"
+    # The pre-existing absorb pin must remain: the panel keeps its chart
+    # canvases and history lists (spec 'Journey UI Regression Contract').
+    assert '<canvas id="chart" height' in journey
+    assert '<ul class="entry-list" id="entry-list">' in journey
+
+    app = await client.get("/static/app.js")
+    assert app.status_code == 200
+    body = app.text
+    for hook in ("renderJourneyXp", "renderMomentum", "renderQuestHistory"):
+        assert hook in body, f"app.js must define {hook}"
+    # Journey loading must be failure-scoped: momentum via Promise.allSettled.
+    assert "Promise.allSettled" in body
+    assert re.search(r"fetchJson\(\"/api/momentum\"\)", body) is not None, (
+        "app.js must fetch /api/momentum"
+    )
+    # Non-done history rows award zero XP: the renderer must branch on status.
+    assert re.search(r"status\s*[!=]==\s*[\"']done[\"']", body) is not None, (
+        "quest-history renderer must branch on done vs non-done XP"
+    )
+
+    css = await client.get("/static/style.css")
+    assert css.status_code == 200
+    sheet = css.text
+    for selector in (".journey-xp", ".momentum-tier", ".quest-history"):
+        assert selector in sheet, f"style.css must declare {selector}"
+    # Token-only: the new surface rules must not introduce palette hex.
+    for rule in re.finditer(
+        r"\.(?:journey|momentum|quest-history)[a-z-]*\s*\{[^}]*}", sheet
+    ):
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
+            "journey/momentum/history CSS must be token-only (no hex literals)"
+        )
+    # Reduced motion: the new surfaces' transitions are neutralized.
+    media_at = sheet.index("@media (prefers-reduced-motion: reduce)")
+    block = sheet[media_at:]
+    for selector in (".xp-card", ".momentum-card", ".quest-history-card"):
+        assert re.search(
+            re.escape(selector) + r"[^}]*transition\s*:\s*none", block
+        ), f"reduced-motion must neutralize {selector}"
+
+
 # Today quests + XP chip (r1-quests-xp S4a): the quests card markup, the
 # format.js XP mirrors, the app.js renderer/mutation hooks, and the
 # token-only quest/chip CSS with reduced-motion neutralization. Behavior
