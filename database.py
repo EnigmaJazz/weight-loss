@@ -1095,6 +1095,36 @@ class Database:
             ).fetchall()
         return [_quest_from_row(row) for row in rows]
 
+    def get_quest(self, user_id: int, quest_id: int) -> Optional[Quest]:
+        """Ownership-scoped single-row read; None for a foreign/missing id (404
+        at the API — the same concealment as update_quest_status)."""
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT id, date, quest_key, domain, title, description, xp_value,"
+                " status, difficulty, source, completed_at, created_at"
+                " FROM quests WHERE id = ? AND user_id = ?",
+                (quest_id, user_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return _quest_from_row(row)
+
+    def list_quest_history(
+        self, user_id: int, before_date: str, limit: int = 10
+    ) -> list[Quest]:
+        """Newest quest rows strictly before ``before_date`` (past days' history),
+        newest date first, capped at ``limit`` — the bounded history the GET
+        endpoint returns alongside today's current rows."""
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, quest_key, domain, title, description, xp_value,"
+                " status, difficulty, source, completed_at, created_at"
+                " FROM quests WHERE user_id = ? AND date < ?"
+                " ORDER BY date DESC, id DESC LIMIT ?",
+                (user_id, before_date, limit),
+            ).fetchall()
+        return [_quest_from_row(row) for row in rows]
+
     def update_quest_status(
         self,
         user_id: int,

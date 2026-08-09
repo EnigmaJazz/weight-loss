@@ -121,6 +121,22 @@ class TestGenerationMatrix:
         assert len(rotating) == 2
         assert rotating <= set(quests.ROTATION_POOL)
 
+    def test_draft_for_key_carries_catalogue_fields(self) -> None:
+        """Replacement rows can be any rotating key not represented by a row
+        that day — even one outside the day's originally selected keys — so the
+        engine exposes a single-key draft builder."""
+        by_key = _pool_by_key()
+        draft = quests.draft_for_key("habit_checkin", WEDNESDAY)
+        assert draft.quest_key == "habit_checkin"
+        assert draft.status == "open"
+        assert draft.source == "rules"
+        assert draft.id == 0
+        assert draft.date == WEDNESDAY.isoformat()
+        assert draft.completed_at is None
+        assert draft.difficulty == by_key["habit_checkin"][5]
+        assert draft.xp_value == by_key["habit_checkin"][4]
+        assert draft.domain == by_key["habit_checkin"][1]
+
     def test_drafts_carry_catalogue_fields(self) -> None:
         by_key = _pool_by_key()
         quests_for_day = quests.generate_quests(1, WEDNESDAY, AppSettings(reminder_weekday=0))
@@ -416,6 +432,61 @@ class TestQuestPersistence:
             replacement = _draft(key=new_key0)
             db.insert_quests(user.id, date_str, [replacement])
             assert db.list_assigned_keys_today(user.id, date_str) == assigned | {new_key0}
+        finally:
+            db.close()
+
+    def test_get_quest_scoped_and_hidden(self, tmp_path) -> None:
+        """Ownership-scoped single-row read: the owner sees their row, foreign
+        and missing ids are hidden (None -> 404 at the API)."""
+        db = Database(str(tmp_path / "quests.db"))
+        db.init_schema()
+        try:
+            alice = make_user(db, "alice-get")
+            bob = make_user(db, "bob-get")
+            date_str = WEDNESDAY.isoformat()
+            rows = db.insert_quests(
+                alice.id,
+                date_str,
+                quests.generate_quests(
+                    alice.id, WEDNESDAY, AppSettings(reminder_weekday=0)
+                ),
+            )
+            target = rows[0]
+            found = db.get_quest(alice.id, target.id)
+            assert found is not None
+            assert found.id == target.id
+            assert found.quest_key == target.quest_key
+            assert found.status == "open"
+            assert db.get_quest(bob.id, target.id) is None  # foreign hidden
+            assert db.get_quest(alice.id, 999999) is None  # missing hidden
+        finally:
+            db.close()
+
+    def test_list_quest_history_newest_first_excludes_today(self, tmp_path) -> None:
+        """Bounded recent history: rows strictly before the boundary date,
+        newest date first, capped by limit."""
+        db = Database(str(tmp_path / "quests.db"))
+        db.init_schema()
+        try:
+            user = make_user(db, "history-user")
+            settings = AppSettings(reminder_weekday=0)
+            db.insert_quests(
+                user.id,
+                MONDAY.isoformat(),
+                quests.generate_quests(user.id, MONDAY, settings),
+            )
+            db.insert_quests(
+                user.id,
+                WEDNESDAY.isoformat(),
+                quests.generate_quests(user.id, WEDNESDAY, settings),
+            )
+            # SUNDAY is the boundary: only the two past days, newest first.
+            history = db.list_quest_history(user.id, SUNDAY.isoformat(), limit=10)
+            assert [h.date for h in history] == [
+                WEDNESDAY.isoformat()
+            ] * 3 + [MONDAY.isoformat()] * 3
+            assert len(db.list_quest_history(user.id, SUNDAY.isoformat(), limit=2)) == 2
+            assert db.list_quest_history(user.id, MONDAY.isoformat(), limit=10) == []
         finally:
             db.close()
 
