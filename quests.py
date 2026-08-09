@@ -191,9 +191,12 @@ def skip_allowed(quest: Quest) -> bool:
 
 
 def detect(facts: QuestDetectionFacts) -> set[str]:
-    """The quest keys whose completion the given facts prove. mood_checkin and
-    habit_checkin have no facts until their tables exist (S3), so they are
-    never detected here."""
+    """The quest keys whose completion the given facts prove. Every catalogue
+    key maps to a fact: weight row, exercise sum >= 10, meal row, mood row,
+    habit row, or any qualifying entry row (streak_alive). The mood/habit
+    facts are gathered by database.py; has_habit is HABIT_TYPES-driven there,
+    so a catalogue change propagates to detection without touching this
+    mapping."""
     detected: set[str] = set()
     if facts.has_weight:
         detected.add("log_weight")
@@ -201,6 +204,10 @@ def detect(facts: QuestDetectionFacts) -> set[str]:
         detected.add("exercise_10")
     if facts.has_meal:
         detected.add("log_meal")
+    if facts.has_mood:
+        detected.add("mood_checkin")
+    if facts.has_habit:
+        detected.add("habit_checkin")
     if facts.has_any_entry:
         detected.add("streak_alive")
     return detected

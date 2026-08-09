@@ -197,12 +197,15 @@ class Quest:
 @dataclass
 class QuestDetectionFacts:
     """Detection-relevant facts for one user+date gathered from the log
-    tables. S3 adds mood/habit row facts; until then those quests stay open."""
+    tables. has_mood/has_habit come from the mood/habit tables (S3); the
+    habit side is HABIT_TYPES-driven — only catalogue habit rows qualify."""
 
     date: str
     has_weight: bool = False
     exercise_min: int = 0
     has_meal: bool = False
+    has_mood: bool = False
+    has_habit: bool = False
     has_any_entry: bool = False
 
 
@@ -223,8 +226,7 @@ class MomentumDayFacts:
     """Per-date momentum facts for one user gathered from the quest and log
     tables. ``assigned_quests`` counts current assignments (replaced rows are
     not current); ``done_quests`` counts done quests; ``log_rows`` counts the
-    user's weight/exercise/meal rows for the date. S3 extends ``log_rows``
-    with mood/habit rows."""
+    user's weight/exercise/meal/mood/habit rows for the date."""
 
     date: str
     assigned_quests: int = 0

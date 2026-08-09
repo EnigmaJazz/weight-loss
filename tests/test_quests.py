@@ -9,7 +9,7 @@ persistence through the database layer (conftest tmp_path DB).
 
 from datetime import date
 
-from constants import QUEST_POOL
+from constants import HABIT_TYPES, QUEST_POOL
 from database import Database
 from models import AppSettings, Quest, QuestDetectionFacts
 import quests
@@ -163,6 +163,33 @@ class TestGenerationMatrix:
                 assert len(keys) == 3
                 assert len(set(keys)) == 3
 
+    def test_mood_checkin_always_assigned(self) -> None:
+        """Spec: mood_checkin is the mandatory daily quest — it must be in
+        every day's assignment, on weigh-in and other weekdays alike."""
+        for user_id in (1, 2, 3, 7, 42):
+            for day in (MONDAY, WEDNESDAY, SUNDAY):
+                keys = {
+                    q.quest_key
+                    for q in quests.generate_quests(
+                        user_id, day, AppSettings(reminder_weekday=0)
+                    )
+                }
+                assert "mood_checkin" in keys
+
+    def test_habit_checkin_participates_in_rotation(self) -> None:
+        """habit_checkin is one of the four rotating keys: across the
+        deterministic (user, date) samples it must be selected at least once
+        on a non-weigh-in day."""
+        settings = AppSettings(reminder_weekday=0)
+        seen: set[str] = set()
+        for user_id in range(1, 25):
+            for day in (MONDAY, WEDNESDAY, SUNDAY):
+                seen.update(
+                    q.quest_key
+                    for q in quests.generate_quests(user_id, day, settings)
+                )
+        assert "habit_checkin" in seen
+
 
 class TestWeekdayRule:
     def test_reminder_weekday_mapping(self) -> None:
@@ -298,18 +325,48 @@ class TestDetectionMatrix:
         )
         assert quests.detect(facts) == {"log_meal", "streak_alive"}
 
-    def test_wellbeing_and_routine_keys_inactive_until_s3a(self) -> None:
+    def test_mood_row_detects_mood_checkin(self) -> None:
+        facts = QuestDetectionFacts(
+            date=WEDNESDAY.isoformat(), has_mood=True, has_any_entry=True
+        )
+        assert quests.detect(facts) == {"mood_checkin", "streak_alive"}
+
+    def test_habit_row_detects_habit_checkin(self) -> None:
+        facts = QuestDetectionFacts(
+            date=WEDNESDAY.isoformat(), has_habit=True, has_any_entry=True
+        )
+        assert quests.detect(facts) == {"habit_checkin", "streak_alive"}
+
+    def test_streak_alive_from_mood_or_habit_only(self) -> None:
+        # streak_alive counts ANY qualifying entry row — a mood row alone or a
+        # habit row alone (no weight/exercise/meal) still keeps the streak.
+        mood_only = QuestDetectionFacts(
+            date=WEDNESDAY.isoformat(), has_mood=True, has_any_entry=True
+        )
+        habit_only = QuestDetectionFacts(
+            date=WEDNESDAY.isoformat(), has_habit=True, has_any_entry=True
+        )
+        assert quests.detect(mood_only) == {"mood_checkin", "streak_alive"}
+        assert quests.detect(habit_only) == {"habit_checkin", "streak_alive"}
+
+    def test_full_facts_detect_all_six_keys(self) -> None:
         full = QuestDetectionFacts(
             date=WEDNESDAY.isoformat(),
             has_weight=True,
             exercise_min=30,
             has_meal=True,
+            has_mood=True,
+            has_habit=True,
             has_any_entry=True,
         )
-        detected = quests.detect(full)
-        assert detected == {"log_weight", "exercise_10", "log_meal", "streak_alive"}
-        assert "mood_checkin" not in detected
-        assert "habit_checkin" not in detected
+        assert quests.detect(full) == {
+            "log_weight",
+            "exercise_10",
+            "log_meal",
+            "mood_checkin",
+            "habit_checkin",
+            "streak_alive",
+        }
 
     def test_reconcile_marks_detected_open_quests_done(self) -> None:
         day_quests = [
@@ -322,7 +379,7 @@ class TestDetectionMatrix:
         )
         reconciled = quests.reconcile(day_quests, facts)
         assert {q.quest_key: q.status for q in reconciled} == {
-            "mood_checkin": "open",  # not auto-detectable in S1a
+            "mood_checkin": "open",  # no mood row logged → not detected
             "exercise_10": "done",
             "log_meal": "done",
         }
@@ -332,6 +389,26 @@ class TestDetectionMatrix:
         again = quests.reconcile([manual], facts)
         assert again[0].status == "done"
         assert again[0].source == "rules"
+
+    def test_reconcile_detects_mood_and_habit(self) -> None:
+        day_quests = [
+            _draft(key="mood_checkin"),
+            _draft(key="habit_checkin"),
+            _draft(key="streak_alive"),
+        ]
+        facts = QuestDetectionFacts(
+            date=WEDNESDAY.isoformat(),
+            has_mood=True,
+            has_habit=True,
+            has_any_entry=True,
+        )
+        reconciled = quests.reconcile(day_quests, facts)
+        assert {q.quest_key: q.status for q in reconciled} == {
+            "mood_checkin": "done",
+            "habit_checkin": "done",
+            "streak_alive": "done",
+        }
+        assert all(q.source == "detected" for q in reconciled)
 
 
 # ---- database-layer persistence (conftest tmp_path DB) ----------------
@@ -503,15 +580,48 @@ class TestQuestPersistence:
                 False,
                 False,
             )
+            assert (empty.has_mood, empty.has_habit) == (False, False)
             db.upsert_entry(user.id, date_str, 80.0)
             db.insert_exercise(user.id, date_str, "walk", 6)
             db.insert_exercise(user.id, date_str, "run", 6)
             db.insert_meal(user.id, date_str, 500.0)
+            db.insert_mood_entry(user.id, date_str, 4, None)
+            db.insert_habit_entry(user.id, date_str, "water")
             facts = db.quest_detection_facts(user.id, date_str)
             assert facts.has_weight is True
             assert facts.exercise_min == 12  # summed across the day's rows
             assert facts.has_meal is True
+            assert facts.has_mood is True
+            assert facts.has_habit is True
             assert facts.has_any_entry is True
+        finally:
+            db.close()
+
+    def test_detection_facts_ignore_foreign_and_non_catalogue_rows(self, tmp_path) -> None:
+        """HABIT_TYPES-driven detection: only catalogue habit rows qualify, and
+        another user's mood/habit rows never leak into this user's facts."""
+        db = Database(str(tmp_path / "quests.db"))
+        db.init_schema()
+        try:
+            alice = make_user(db, "alice-facts")
+            bob = make_user(db, "bob-facts")
+            date_str = WEDNESDAY.isoformat()
+            # bob's mood + habit rows must not surface in alice's facts.
+            db.insert_mood_entry(bob.id, date_str, 2, "meh")
+            db.insert_habit_entry(bob.id, date_str, "water")
+            # alice logs a habit type outside the catalogue (direct insert —
+            # the API allowlist would reject it) → not a qualifying habit row.
+            assert "wildcard" not in HABIT_TYPES
+            db.insert_habit_entry(alice.id, date_str, "wildcard")
+            facts = db.quest_detection_facts(alice.id, date_str)
+            assert facts.has_mood is False
+            assert facts.has_habit is False
+            assert facts.has_any_entry is False
+            # A catalogue habit row + a mood row for alice flip the facts on.
+            db.insert_habit_entry(alice.id, date_str, "fruit_veg")
+            db.insert_mood_entry(alice.id, date_str, 5, None)
+            on = db.quest_detection_facts(alice.id, date_str)
+            assert (on.has_mood, on.has_habit, on.has_any_entry) == (True, True, True)
         finally:
             db.close()
 
@@ -542,6 +652,6 @@ class TestQuestPersistence:
             assert final["log_weight"].status == "done"
             assert final["log_weight"].source == "detected"
             assert final["log_weight"].completed_at is not None
-            assert final["mood_checkin"].status == "open"  # never auto-detected in S1a
+            assert final["mood_checkin"].status == "open"  # no mood row logged
         finally:
             db.close()

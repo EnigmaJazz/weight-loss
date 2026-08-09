@@ -26,8 +26,8 @@ _SUCCESSFUL_TIERS: frozenset[str] = frozenset({TIER_GOOD, TIER_GREAT})
 
 def action_count(facts: MomentumDayFacts) -> int:
     """Total actions for one date: done quests plus the user's log rows
-    (weight/exercise/meal). Each quest and row counts once (row count, not
-    distinct dates). S3 extends the log-row side with mood/habit rows."""
+    (weight/exercise/meal/mood/habit). Each quest and row counts once (row
+    count, not distinct dates); database.py gathers the mood/habit rows."""
     return facts.done_quests + facts.log_rows
 
 
