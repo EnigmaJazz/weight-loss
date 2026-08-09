@@ -55,6 +55,17 @@ NOTIFICATION_TYPES: tuple[str, ...] = ("tip", "reminder", "exercise")
 # NOTIFICATION_TYPES allowlist pattern.
 EXERCISE_TYPES: tuple[str, ...] = ("walk", "run", "gym", "cycling", "swim", "other")
 
+# Habit-type allowlist (habit-logging spec): exactly the four v1 values. Drives
+# server validation (routes.py), the SPA's habit check-in UI (mirrored literal
+# in static/app.js, pinned by the drift-guard test), and the quest-detection
+# mapping in quests.py (S3b derives from this same constant).
+HABIT_TYPES: tuple[str, ...] = (
+    "water",
+    "fruit_veg",
+    "home_cooked",
+    "sleep_routine",
+)
+
 # Notification message pools: each type has multiple (title, body) variants,
 # one picked randomly at send time so users see varied text. The FIRST variant
 # per type is the original single message (backward-compatible).

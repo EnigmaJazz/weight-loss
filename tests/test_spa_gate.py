@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from constants import EXERCISE_TYPES
+from constants import EXERCISE_TYPES, HABIT_TYPES
 
 
 @pytest.mark.asyncio
@@ -84,6 +84,20 @@ async def test_app_js_exercise_types_literal_matches_server_constant(client):
     match = re.search(r"EXERCISE_TYPES\s*=\s*(\[[^\]]*\])", resp.text)
     assert match is not None, "app.js must embed the EXERCISE_TYPES literal"
     assert ast.literal_eval(match.group(1)) == list(EXERCISE_TYPES)
+
+
+@pytest.mark.asyncio
+async def test_habit_types_literal_matches_server_constant(client):
+    """The SPA embeds the HABIT_TYPES literal that will drive the habit
+    check-in UI; it must stay in sync with constants.HABIT_TYPES, which drives
+    server-side validation. The quest-detection mapping (S3b) derives from the
+    same server constant, so the four-value set stays pinned end-to-end. No
+    /api/habit-types endpoint exists by design."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    match = re.search(r"HABIT_TYPES\s*=\s*(\[[^\]]*\])", resp.text)
+    assert match is not None, "app.js must embed the HABIT_TYPES literal"
+    assert ast.literal_eval(match.group(1)) == list(HABIT_TYPES)
 
 
 @pytest.mark.asyncio

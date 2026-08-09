@@ -25,6 +25,7 @@ from auth import (
 )
 from constants import (
     EXERCISE_TYPES,
+    HABIT_TYPES,
     NOTIFICATION_TYPES,
     PUBLIC_URL,
     RESET_TOKEN_EXPIRY_SECONDS,
@@ -47,7 +48,9 @@ from database import (
 from models import (
     AppSettings,
     ExerciseEntry,
+    HabitEntry,
     MealEntry,
+    MoodEntry,
     Quest,
     User,
     WeightEntry,
@@ -334,6 +337,65 @@ class MealIn(BaseModel):
         return _valid_activity_time(value)
 
 
+class MoodIn(BaseModel):
+    """Mood check-in payload: mood 1-5, optional note of at most 500 characters.
+    ``date`` is optional and defaults to the host-local today, so a client can
+    log "how I feel right now" without knowing the server's calendar."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    date: str = Field(default_factory=lambda: date.today().isoformat())
+    time: Optional[str] = None
+    mood: int = Field(ge=1, le=5)
+    note: Optional[str] = None
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value: str) -> str:
+        return _valid_date(value)
+
+    @field_validator("time")
+    @classmethod
+    def validate_time(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_time(value)
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and len(value) > 500:
+            raise ValueError("note must be at most 500 characters")
+        return value
+
+
+class HabitIn(BaseModel):
+    """Habit check-in payload: ``habit_type`` must be one of the fixed v1
+    catalogue in constants.HABIT_TYPES. ``date`` is optional and defaults to
+    the host-local today (same posture as MoodIn)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    date: str = Field(default_factory=lambda: date.today().isoformat())
+    time: Optional[str] = None
+    habit_type: str
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value: str) -> str:
+        return _valid_date(value)
+
+    @field_validator("time")
+    @classmethod
+    def validate_time(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_activity_time(value)
+
+    @field_validator("habit_type")
+    @classmethod
+    def validate_habit_type(cls, value: str) -> str:
+        if value not in HABIT_TYPES:
+            raise ValueError("unknown habit_type")
+        return value
+
+
 class PushSubscribeIn(BaseModel):
     endpoint: str
     p256dh: str
@@ -540,6 +602,27 @@ def _meal_dict(entry: MealEntry) -> dict[str, Any]:
         "date": entry.date,
         "time": entry.time,
         "calories": entry.calories,
+        "created_at": entry.created_at,
+    }
+
+
+def _mood_dict(entry: MoodEntry) -> dict[str, Any]:
+    return {
+        "id": entry.id,
+        "date": entry.date,
+        "time": entry.time,
+        "mood": entry.mood,
+        "note": entry.note,
+        "created_at": entry.created_at,
+    }
+
+
+def _habit_dict(entry: HabitEntry) -> dict[str, Any]:
+    return {
+        "id": entry.id,
+        "date": entry.date,
+        "time": entry.time,
+        "habit_type": entry.habit_type,
         "created_at": entry.created_at,
     }
 
@@ -1015,6 +1098,88 @@ async def delete_meal(
     # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
     # id deletes nothing and surfaces as 404, leaking no information.
     deleted = await run_db(db.delete_meal, user.id, entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="entry not found")
+    return {"deleted": True}
+
+
+# ---- mood and habit logging (r1-quests-xp S3a) -------------------------------
+
+
+@router.get("/api/mood")
+async def get_mood(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    entries = await run_db(db.list_mood_entries, user.id)
+    return {"entries": [_mood_dict(e) for e in entries]}
+
+
+@router.post("/api/mood", status_code=201)
+async def add_mood(
+    payload: MoodIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    entry = await run_db(
+        db.insert_mood_entry,
+        user.id,
+        payload.date,
+        payload.mood,
+        payload.note,
+        payload.time,
+    )
+    logger.info("logged mood for user %s", user.username)
+    return _mood_dict(entry)
+
+
+@router.delete("/api/mood/{entry_id}")
+async def delete_mood(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, bool]:
+    # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
+    # id deletes nothing and surfaces as 404, leaking no information.
+    deleted = await run_db(db.delete_mood_entry, user.id, entry_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="entry not found")
+    return {"deleted": True}
+
+
+@router.get("/api/habits")
+async def get_habits(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    entries = await run_db(db.list_habit_entries, user.id)
+    return {"entries": [_habit_dict(e) for e in entries]}
+
+
+@router.post("/api/habits", status_code=201)
+async def add_habit(
+    payload: HabitIn,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, Any]:
+    entry = await run_db(
+        db.insert_habit_entry,
+        user.id,
+        payload.date,
+        payload.habit_type,
+        payload.time,
+    )
+    logger.info("logged %s habit for user %s", payload.habit_type, user.username)
+    return _habit_dict(entry)
+
+
+@router.delete("/api/habits/{entry_id}")
+async def delete_habit(
+    entry_id: int,
+    user: User = Depends(require_user),
+    db: Database = Depends(get_db),
+) -> dict[str, bool]:
+    # Ownership is enforced in the DELETE (WHERE id AND user_id): a cross-user
+    # id deletes nothing and surfaces as 404, leaking no information.
+    deleted = await run_db(db.delete_habit_entry, user.id, entry_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="entry not found")
     return {"deleted": True}

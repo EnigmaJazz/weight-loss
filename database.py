@@ -11,8 +11,10 @@ from constants import DEFAULT_SETTINGS, get_logger
 from models import (
     AppSettings,
     ExerciseEntry,
+    HabitEntry,
     MealEntry,
     MomentumDayFacts,
+    MoodEntry,
     PushSubscription,
     Quest,
     QuestDetectionFacts,
@@ -67,6 +69,31 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         date TEXT NOT NULL,
         time TEXT,
         calories REAL NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    # Mood and habit logging (r1-quests-xp S3a): multiple entries per user
+    # per date are allowed (like exercise/meal), so no per-date uniqueness.
+    # Range/allowlist validation (mood 1-5, HABIT_TYPES) lives in routes.py,
+    # matching the exercise/meal template.
+    """
+    CREATE TABLE IF NOT EXISTS mood_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        time TEXT,
+        mood INTEGER NOT NULL,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS habit_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        time TEXT,
+        habit_type TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     """,
@@ -575,6 +602,93 @@ class Database:
         if row is None:
             return None
         return _meal_from_row(row)
+
+    # ---- mood entries (r1-quests-xp S3a) ----
+
+    def list_mood_entries(self, user_id: int) -> list[MoodEntry]:
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, time, mood, note, created_at"
+                " FROM mood_entries WHERE user_id = ? ORDER BY id DESC",
+                (user_id,),
+            ).fetchall()
+        return [_mood_from_row(row) for row in rows]
+
+    def insert_mood_entry(
+        self,
+        user_id: int,
+        date: str,
+        mood: int,
+        note: Optional[str],
+        time: Optional[str] = None,
+    ) -> MoodEntry:
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "INSERT INTO mood_entries"
+                " (user_id, date, time, mood, note, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, date, time, mood, note, _local_now()),
+            )
+            row = conn.execute(
+                "SELECT id, date, time, mood, note, created_at"
+                " FROM mood_entries WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("mood insert produced no row")
+        return _mood_from_row(row)
+
+    def delete_mood_entry(self, user_id: int, entry_id: int) -> bool:
+        # Ownership check inside the DELETE: a cross-user id deletes nothing.
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM mood_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            )
+            return cursor.rowcount > 0
+
+    # ---- habit entries (r1-quests-xp S3a) ----
+
+    def list_habit_entries(self, user_id: int) -> list[HabitEntry]:
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT id, date, time, habit_type, created_at"
+                " FROM habit_entries WHERE user_id = ? ORDER BY id DESC",
+                (user_id,),
+            ).fetchall()
+        return [_habit_from_row(row) for row in rows]
+
+    def insert_habit_entry(
+        self,
+        user_id: int,
+        date: str,
+        habit_type: str,
+        time: Optional[str] = None,
+    ) -> HabitEntry:
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "INSERT INTO habit_entries"
+                " (user_id, date, time, habit_type, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (user_id, date, time, habit_type, _local_now()),
+            )
+            row = conn.execute(
+                "SELECT id, date, time, habit_type, created_at"
+                " FROM habit_entries WHERE id = ?",
+                (cursor.lastrowid,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("habit insert produced no row")
+        return _habit_from_row(row)
+
+    def delete_habit_entry(self, user_id: int, entry_id: int) -> bool:
+        # Ownership check inside the DELETE: a cross-user id deletes nothing.
+        with self._tx() as conn:
+            cursor = conn.execute(
+                "DELETE FROM habit_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user_id),
+            )
+            return cursor.rowcount > 0
 
     # ---- active reward checkpoints ----
 
@@ -1339,6 +1453,27 @@ def _meal_from_row(row: sqlite3.Row) -> MealEntry:
         date=row["date"],
         time=row["time"],
         calories=row["calories"],
+        created_at=row["created_at"],
+    )
+
+
+def _mood_from_row(row: sqlite3.Row) -> MoodEntry:
+    return MoodEntry(
+        id=row["id"],
+        date=row["date"],
+        time=row["time"],
+        mood=row["mood"],
+        note=row["note"],
+        created_at=row["created_at"],
+    )
+
+
+def _habit_from_row(row: sqlite3.Row) -> HabitEntry:
+    return HabitEntry(
+        id=row["id"],
+        date=row["date"],
+        time=row["time"],
+        habit_type=row["habit_type"],
         created_at=row["created_at"],
     )
 
