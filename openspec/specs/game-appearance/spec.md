@@ -38,6 +38,22 @@ The system MUST apply game styling to the header (fox mascot + playful lockup), 
 - WHEN smoke selectors run on the header and streak tile and visible-text pins run
 - THEN a fox mascot element and a flame element MUST be present (flame pulse gated by the active-streak data attribute) and every pinned string MUST still appear unchanged
 
+### Requirement: R1 Quest and Progress Surface Styling
+
+The Today `#quests-card` and XP chip plus Journey `#xp-card`, `#momentum-card`, and `#quest-history-card` MUST use existing semantic color, spacing, radius, elevation, typography, and state tokens. New CSS MUST introduce no hardcoded hex colors, MUST remain compatible with `[data-theme="dark"]`, and MUST neutralize new transitions and celebratory motion under `prefers-reduced-motion: reduce`.
+
+#### Scenario: Tokens and dark mode
+
+- GIVEN either light or dark theme is active
+- WHEN the R1 cards, statuses, controls, and chip render
+- THEN their colors MUST resolve from existing tokens with readable contrast and no new hex literal
+
+#### Scenario: Reduced motion
+
+- GIVEN reduced motion is requested
+- WHEN quests change status or progress values update
+- THEN new movement and transitions MUST be neutralized without hiding state changes
+
 ### Requirement: Data Surfaces, Accessibility, and Mobile-Primary
 
 History rows, forms/inputs, tabs, and charts MUST stay clean but token-consistent. Interactive and input elements MUST have ≥48px touch targets and a `:focus-visible` ring. New palette colors MUST meet WCAG AA contrast. The layout MUST default to a single-column stacking baseline with responsive stats/streak grids that collapse on narrow viewports; primary actions MUST sit in thumb-reach positions.

@@ -28,9 +28,25 @@ The `onboarding_complete` settings flag MUST default absent. A user with no `onb
 - WHEN they next authenticate
 - THEN needs_onboarding MUST be true, surfacing the wizard once
 
+### Requirement: Goals and Lifestyle Settings
+
+Settings and `AppSettings` MUST support optional `primary_goal`, `secondary_goals`, `health_domains`, and `activity_level`. Missing values MUST default to `null`, `[]`, `[]`, and `null`; list fields MUST round-trip as JSON lists. Primary goal MUST be one of `weight_loss|general_health|fitness|wellbeing`; activity level MUST be one of `sedentary|light|moderate|active`. The Me tab MUST provide a goals/lifestyle settings card.
+
+#### Scenario: Optional fields round-trip per user
+
+- GIVEN users A and B save different valid goals and lifestyle values
+- WHEN each reads settings
+- THEN each MUST receive only their own values with list order preserved
+
+#### Scenario: Reject invalid allowlist values
+
+- GIVEN onboarding or settings contains an out-of-allowlist primary goal or activity level
+- WHEN submitted
+- THEN the API MUST return 422 and preserve current settings
+
 ### Requirement: Onboarding Request Contract
 
-`POST /api/onboarding` MUST accept `OnboardingIn` with `extra="forbid"`: `height_cm` (required, positive), `weight_kg` (required, positive, today's first entry), exactly one of `target_weight` XOR `target_bmi`, and optional unit and schedule preferences reusing existing settings shapes. Validation MUST check height presence before BMI target bounds.
+`POST /api/onboarding` MUST accept `OnboardingIn` with `extra="forbid"`: `height_cm` (required, positive), `weight_kg` (required, positive, today's first entry), exactly one of `target_weight` XOR `target_bmi`, optional unit and schedule preferences reusing existing settings shapes, and the four optional goals/lifestyle fields with the stated allowlists and JSON-list shapes. Validation MUST check height presence before BMI target bounds.
 
 #### Scenario: Valid weight-target payload
 
@@ -58,7 +74,7 @@ The `onboarding_complete` settings flag MUST default absent. A user with no `onb
 
 ### Requirement: Atomic Idempotent Completion
 
-`complete_onboarding` MUST upsert settings, insert today's weight entry, and reconcile active rewards in a single transaction. A second valid `POST /api/onboarding` by the same user MUST be idempotent: today's weight MUST NOT duplicate and settings MUST be overwritten, not appended.
+`complete_onboarding` MUST atomically upsert all supplied settings including goals/lifestyle, insert today's weight entry, and reconcile active rewards in a single transaction. A second valid `POST /api/onboarding` by the same user MUST be idempotent: today's weight MUST NOT duplicate and settings MUST be overwritten, not appended.
 
 #### Scenario: Happy atomic completion
 
@@ -91,7 +107,7 @@ The `onboarding_complete` settings flag MUST default absent. A user with no `onb
 
 ### Requirement: Wizard SPA Gate
 
-The SPA MUST branch on `needs_onboarding` from `/api/auth/me` and show the onboarding wizard once for flagged users before any tracker data loads.
+The SPA MUST branch on `needs_onboarding` from `/api/auth/me` and show the onboarding wizard once for flagged users before any tracker data loads. The wizard MUST have six ordered steps: height, weight, target, `goals-lifestyle`, units, notifications, with `#wizard-step-goals-lifestyle` between target and units.
 
 #### Scenario: Show wizard for flagged user
 
