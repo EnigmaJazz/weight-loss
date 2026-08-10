@@ -101,9 +101,16 @@ async def test_habit_unknown_type_422(auth_client):
 @pytest.mark.asyncio
 async def test_habit_all_four_catalogue_types_accepted(auth_client):
     # Imported here so this file collects even before constants.HABIT_TYPES
-    # exists (RED phase); the value set itself is pinned by the drift guard.
+    # exists (RED phase).
     from constants import HABIT_TYPES
 
+    # Drift guard: the v1 catalogue is exactly the normative four-value set
+    # (spec 'Habit Entry Contract'); pinning the literal makes an empty or
+    # mutated catalogue fail instead of silently skipping cases.
+    assert tuple(HABIT_TYPES) == ("water", "fruit_veg", "home_cooked", "sleep_routine"), (
+        f"HABIT_TYPES drifted from the normative four-value set: {tuple(HABIT_TYPES)}"
+    )
+    assert len(HABIT_TYPES) > 0  # ghost-loop guard: the loop below must run
     for habit_type in HABIT_TYPES:
         res = await _post_habit(auth_client, habit_type, date="2026-08-01")
         assert res.status_code == 201, habit_type

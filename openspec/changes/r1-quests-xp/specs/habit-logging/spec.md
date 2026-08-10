@@ -8,7 +8,7 @@ Record repeatable healthy-routine check-ins from a fixed v1 catalogue.
 
 ### Requirement: Habit Entry Contract
 
-The system MUST persist a `habit_entries` table represented by `HabitEntry` records with id, user id, date, time, and `habit_type`. Multiple records for the same user and date MUST be allowed. `HABIT_TYPES` MUST allow exactly `water`, `fruit_veg`, `home_cooked`, and `sleep_routine`.
+The system MUST persist a `habit_entries` table whose rows carry the owner id; the API MUST represent each row to its owner as an entry-style `HabitEntry` record with id, date, time, and `habit_type` (the owner id lives in the persistence/API layer and is never carried on the entry dataclass, matching `WeightEntry`/`ExerciseEntry`/`MealEntry`). Multiple records for the same user and date MUST be allowed. `HABIT_TYPES` MUST allow exactly `water`, `fruit_veg`, `home_cooked`, and `sleep_routine`.
 
 #### Scenario: Multiple habits in one day
 

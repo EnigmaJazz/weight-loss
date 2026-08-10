@@ -8,7 +8,7 @@ Record multiple timestamped mood check-ins per user and day.
 
 ### Requirement: Mood Entry Contract
 
-The system MUST persist a `mood_entries` table represented by `MoodEntry` records with id, user id, date, time, integer mood from 1 through 5, and an optional note of at most 500 characters. Multiple records for the same user and date MUST be allowed.
+The system MUST persist a `mood_entries` table whose rows carry the owner id; the API MUST represent each row to its owner as an entry-style `MoodEntry` record with id, date, time, integer mood from 1 through 5, and an optional note of at most 500 characters (the owner id lives in the persistence/API layer and is never carried on the entry dataclass, matching `WeightEntry`/`ExerciseEntry`/`MealEntry`). Multiple records for the same user and date MUST be allowed.
 
 #### Scenario: Multiple moods in one day
 

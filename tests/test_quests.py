@@ -140,6 +140,9 @@ class TestGenerationMatrix:
     def test_drafts_carry_catalogue_fields(self) -> None:
         by_key = _pool_by_key()
         quests_for_day = quests.generate_quests(1, WEDNESDAY, AppSettings(reminder_weekday=0))
+        # Ghost-loop guard: an empty (or over-trimmed) rotation must fail here
+        # instead of letting the loop below run zero assertions.
+        assert len(quests_for_day) > 0, "generation must produce quests"
         for q in quests_for_day:
             entry = by_key[q.quest_key]
             assert q.status == "open"

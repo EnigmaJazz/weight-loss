@@ -1063,9 +1063,14 @@ async def test_journey_progress_surfaces(client):
     for selector in (".journey-xp", ".momentum-tier", ".quest-history"):
         assert selector in sheet, f"style.css must declare {selector}"
     # Token-only: the new surface rules must not introduce palette hex.
-    for rule in re.finditer(
+    # Materialize the matches first so a missing rule family fails the
+    # non-empty assertion instead of silently running zero checks (ghost-loop
+    # guard, strict TDD).
+    journey_rules = list(re.finditer(
         r"\.(?:journey|momentum|quest-history)[a-z-]*\s*\{[^}]*}", sheet
-    ):
+    ))
+    assert len(journey_rules) > 0, "style.css must declare journey/momentum/history rules"
+    for rule in journey_rules:
         assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
             "journey/momentum/history CSS must be token-only (no hex literals)"
         )
@@ -1137,7 +1142,12 @@ async def test_today_quest_surface(client):
     for selector in (".quest-row", ".quest-action", ".xp-chip"):
         assert selector in sheet, f"style.css must declare {selector}"
     # Token-only: the new surface rules must not introduce palette hex.
-    for rule in re.finditer(r"\.quest-[a-z-]+\s*\{[^}]*}|\.[a-z-]*xp-chip[a-z-]*\s*\{[^}]*}", sheet):
+    # Materialize the matches first so a missing rule family fails the
+    # non-empty assertion instead of silently running zero checks (ghost-loop
+    # guard, strict TDD).
+    today_rules = list(re.finditer(r"\.quest-[a-z-]+\s*\{[^}]*}|\.[a-z-]*xp-chip[a-z-]*\s*\{[^}]*}", sheet))
+    assert len(today_rules) > 0, "style.css must declare quest/chip rules"
+    for rule in today_rules:
         assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
             "quest/chip CSS must be token-only (no hex literals)"
         )
