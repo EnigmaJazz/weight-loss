@@ -40,6 +40,33 @@ def _assert_local_created_at(value: str) -> None:
     assert abs((datetime.now() - created).total_seconds()) < 120
 
 
+# ---- entry-style contract (spec 'Mood Entry Contract') ---------------------
+
+
+def test_mood_entry_dataclass_is_entry_style():
+    """The amended spec pins the entry-style convention: the owner id is a
+    column of the persisted table and an ownership filter of every API query,
+    never a field of the MoodEntry record itself (mirroring
+    WeightEntry/ExerciseEntry/MealEntry). The dataclass fields must not carry
+    user_id while the table schema must."""
+    from models import MoodEntry
+
+    assert "user_id" not in MoodEntry.__dataclass_fields__, (
+        "MoodEntry must stay entry-style: owner id lives in the persistence layer"
+    )
+
+
+def test_mood_entries_table_carries_owner_column():
+    """The persisted table, not the dataclass, carries the owner id (spec
+    'Mood Entry Contract')."""
+    from database import SCHEMA_STATEMENTS
+
+    assert any(
+        "mood_entries" in stmt and "user_id INTEGER NOT NULL" in stmt
+        for stmt in SCHEMA_STATEMENTS
+    )
+
+
 # ---- mood CRUD ---------------------------------------------------------------
 
 

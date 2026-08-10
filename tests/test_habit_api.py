@@ -139,6 +139,33 @@ async def test_habit_extra_field_422(auth_client):
     assert res.status_code == 422
 
 
+# ---- entry-style contract (spec 'Habit Entry Contract') ---------------------
+
+
+def test_habit_entry_dataclass_is_entry_style():
+    """The amended spec pins the entry-style convention: the owner id is a
+    column of the persisted table and an ownership filter of every API query,
+    never a field of the HabitEntry record itself (mirroring
+    WeightEntry/ExerciseEntry/MealEntry). The dataclass fields must not carry
+    user_id while the table schema must."""
+    from models import HabitEntry
+
+    assert "user_id" not in HabitEntry.__dataclass_fields__, (
+        "HabitEntry must stay entry-style: owner id lives in the persistence layer"
+    )
+
+
+def test_habit_entries_table_carries_owner_column():
+    """The persisted table, not the dataclass, carries the owner id (spec
+    'Habit Entry Contract')."""
+    from database import SCHEMA_STATEMENTS
+
+    assert any(
+        "habit_entries" in stmt and "user_id INTEGER NOT NULL" in stmt
+        for stmt in SCHEMA_STATEMENTS
+    )
+
+
 # ---- authorization and isolation ---------------------------------------------
 
 
