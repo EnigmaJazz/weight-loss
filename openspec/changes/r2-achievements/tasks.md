@@ -28,11 +28,11 @@ Chain: each PR rebases on the merged predecessor and targets `main` in order (S1
 
 ## Phase 1: S1 — Engine Foundation (PR 1)
 
-- [ ] 1.1 Add `AchievementQuestFact`, `ExerciseDayFacts`, `AchievementFacts`, `AchievementState` dataclasses to `models.py`.
-- [ ] 1.2 Add ordered `ACHIEVEMENTS` catalog (6 keys/titles) to `constants.py`.
-- [ ] 1.3 RED: write `tests/test_achievements.py` — empty/order; quest thresholds/dates; `streak_alive` exclusion; five-in-seven with Spark/missing; comeback (skipped, replaced-only break, Spark return); distinct domains; daily sums/earliest/re-lock (spec scenarios).
-- [ ] 1.4 GREEN: create pure `achievements.py` with `states(facts, catalog)` — six predicates + earliest-earned derivation; reuse `momentum.classify_day`/`is_successful`; `quest.date`; no I/O.
-- [ ] 1.5 `pytest tests/test_achievements.py` green; keep S1 ≤400 changed lines (parametrize).
+- [x] 1.1 Add `AchievementQuestFact`, `ExerciseDayFacts`, `AchievementFacts`, `AchievementState` dataclasses to `models.py`.
+- [x] 1.2 Add ordered `ACHIEVEMENTS` catalog (6 keys/titles) to `constants.py`.
+- [x] 1.3 RED: write `tests/test_achievements.py` — empty/order; quest thresholds/dates; `streak_alive` exclusion; five-in-seven with Spark/missing; comeback (skipped, replaced-only break, Spark return); distinct domains; daily sums/earliest/re-lock (spec scenarios).
+- [x] 1.4 GREEN: create pure `achievements.py` with `states(facts, catalog)` — six predicates + earliest-earned derivation; reuse `momentum.classify_day`/`is_successful`; `quest.date`; no I/O.
+- [x] 1.5 `pytest tests/test_achievements.py` green; keep S1 ≤400 changed lines (parametrize).
 
 ## Phase 2: S2 — Facts Gather + API (PR 2)
 
