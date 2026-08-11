@@ -424,6 +424,52 @@ else
   step_fail "quest history renders the explicit empty state (rows='$HISTORY_ROWS', empty='$HISTORY_EMPTY')"
 fi
 
+# Achievements card (r2-achievements S3): renders all six catalogue rows
+# (earned with an unlock date or locked with no partial progress) and sits
+# immediately after momentum. The smoke account has exactly one earned
+# achievement at this point — Getting Started from the streak_alive quest the
+# wizard weight entry auto-completed — so five stay locked.
+ACH_CARD_ORDER="$(playwright-cli --raw eval "(() => { const sections = [...document.querySelectorAll('#tab-journey section')]; const idx = ['momentum-card','achievements-card','quest-history-card'].map(id => sections.findIndex(s => s.id === id)); return String(idx[0] !== -1 && idx[0] < idx[1] && idx[1] < idx[2]); })()" 2>&1 | tr -d '"')"
+if [ "$ACH_CARD_ORDER" = "true" ]; then
+  step_ok "achievements card renders after momentum, before quest history"
+else
+  step_fail "achievements card renders after momentum, before quest history (got '$ACH_CARD_ORDER')"
+fi
+
+ACH_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#achievements-card .achievement-row').length" 2>&1 | tr -d '"')"
+if [ "$ACH_ROWS" = "6" ]; then
+  step_ok "achievements card renders all six catalogue rows ($ACH_ROWS)"
+else
+  step_fail "achievements card renders all six catalogue rows (count='$ACH_ROWS')"
+fi
+
+ACH_EARNED="$(playwright-cli --raw eval "document.querySelectorAll('#achievements-card .achievement-row[data-state=\"earned\"]').length" 2>&1 | tr -d '"')"
+if [ "$ACH_EARNED" = "1" ]; then
+  step_ok "achievements card shows exactly one earned row ($ACH_EARNED)"
+else
+  step_fail "achievements card shows exactly one earned row (count='$ACH_EARNED')"
+fi
+
+ACH_LOCKED="$(playwright-cli --raw eval "document.querySelectorAll('#achievements-card .achievement-row[data-state=\"locked\"]').length" 2>&1 | tr -d '"')"
+if [ "$ACH_LOCKED" = "5" ]; then
+  step_ok "achievements card shows five locked rows ($ACH_LOCKED)"
+else
+  step_fail "achievements card shows five locked rows (count='$ACH_LOCKED')"
+fi
+
+ACH_EARNED_STATE="$(playwright-cli --raw eval "document.querySelector('#achievements-card .achievement-row[data-state=\"earned\"] .achievement-state')?.textContent.trim()" 2>&1 | tr -d '"')"
+case "$ACH_EARNED_STATE" in
+  "Unlocked "*) step_ok "earned row shows an unlock date ($ACH_EARNED_STATE)" ;;
+  *) step_fail "earned row shows an unlock date (got '$ACH_EARNED_STATE')" ;;
+esac
+
+ACH_PROGRESS="$(playwright-cli --raw eval "document.querySelectorAll('#achievements-card .achievement-progress').length" 2>&1 | tr -d '"')"
+if [ "$ACH_PROGRESS" = "0" ]; then
+  step_ok "achievements card shows no partial progress"
+else
+  step_fail "achievements card shows no partial progress (count='$ACH_PROGRESS')"
+fi
+
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
 
 echo "-- weight-display radio toggle"

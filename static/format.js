@@ -250,6 +250,17 @@
     return `Next: ${percent}% at ${weightLabel(kg, imp.lb, imp.stone, imp.stoneLb, displayUnit)}`;
   }
 
+  /** Achievements read-diff (design §Celebration): the keys newly present in
+   * the earned-key set since the previous successful read. null/undefined
+   * previous suppresses the first render; set subtraction ignores unchanged
+   * and lost keys so only genuinely new unlocks are returned. Pure, no side
+   * effects. */
+  function newAchievementKeys(previous, current) {
+    if (previous == null) return [];
+    const prev = new Set(previous);
+    return (current ?? []).filter((key) => !prev.has(key));
+  }
+
   /** Confetti eligibility gate (design §Confetti): "fire" only when the
    * earned checkpoint count increased since the previous load; the first
    * render (null/undefined previous count) is always "suppress". Equal or
@@ -309,7 +320,7 @@
     };
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext };
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

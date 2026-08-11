@@ -1186,3 +1186,90 @@ async def test_style_css_gold_is_fill_only(client):
         "gold must never be applied to a text color property"
     )
 
+
+# Journey achievements card (r2-achievements S3): the #achievements-card markup
+# immediately after #momentum-card, the app.js read-diff/confetti wiring
+# (renderAchievements + newAchievementKeys destructure + prevAchievementKeys
+# state + card-scoped failure), the format.js newAchievementKeys export, and
+# the token-only achievement CSS with reduced-motion neutralization. Behavior
+# (six earned/locked rows, no partial progress, card order) is exercised by
+# tests/smoke-ui.sh; these gate the delivered artifacts (spec 'Journey Progress
+# Cards' + 'Journey UI Regression Contract' gate scenario).
+
+
+@pytest.mark.asyncio
+async def test_journey_achievements_surface(client):
+    """Journey must ship #achievements-card immediately after #momentum-card
+    (gate scenario: '#achievements-card' found after '#momentum-card'); app.js
+    must define renderAchievements, destructure newAchievementKeys from
+    WeightFormat, keep the prior earned-key set (prevAchievementKeys), diff
+    only successful reads (card-scoped failure copy), and render no partial
+    progress; format.js must export newAchievementKeys; the new CSS must be
+    token-only with reduced-motion neutralization (spec 'Journey UI
+    Regression Contract')."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    journey = html[html.index('id="tab-journey"') : html.index('id="tab-world"')]
+    # The achievements card ships inside the Journey panel, after momentum and
+    # before quest history (design: insert after #momentum-card).
+    assert 'id="achievements-card"' in journey
+    assert (
+        journey.index('id="momentum-card"')
+        < journey.index('id="achievements-card"')
+        < journey.index('id="quest-history-card"')
+    ), "#achievements-card must sit between #momentum-card and #quest-history-card"
+    assert 'aria-label="Achievements"' in journey
+
+    fmt = await client.get("/static/format.js")
+    assert fmt.status_code == 200
+    assert "function newAchievementKeys" in fmt.text, (
+        "format.js must define newAchievementKeys()"
+    )
+    assert re.search(
+        r"milestoneNextLabel,\s*newAchievementKeys", fmt.text
+    ) is not None, (
+        "newAchievementKeys must be registered on the format.js api export"
+    )
+
+    app = await client.get("/static/app.js")
+    assert app.status_code == 200
+    body = app.text
+    assert "function renderAchievements" in body, (
+        "app.js must define renderAchievements()"
+    )
+    assert re.search(
+        r"\{[^}]*newAchievementKeys[^}]*\}\s*=\s*globalThis\.WeightFormat", body
+    ) is not None, "app.js must destructure newAchievementKeys from WeightFormat"
+    # Read-diff state + wiring: prior earned-key set kept, diff consulted, and
+    # the achievements fetch added beside momentum (Promise.allSettled batch).
+    assert "let prevAchievementKeys = null" in body
+    assert "newAchievementKeys(" in body
+    assert re.search(r"fetchJson\(\"/api/achievements\"\)", body) is not None, (
+        "app.js must fetch /api/achievements"
+    )
+    # Failure is card-scoped: the achievements error copy must exist, and the
+    # prior set must only be re-stored on a fulfilled read (never on failure).
+    assert "Could not load achievements" in body
+    # Locked rows render without partial progress (no progress elements).
+    assert "achievement-progress" not in body
+
+    css = await client.get("/static/style.css")
+    assert css.status_code == 200
+    sheet = css.text
+    assert re.search(r"\.achievements-card\s*\{", sheet) is not None, (
+        "style.css must declare a .achievements-card rule"
+    )
+    # Token-only: the new surface rules must not introduce palette hex.
+    achievement_rules = list(re.finditer(r"\.achievement[a-z-]*\s*\{[^}]*}", sheet))
+    assert len(achievement_rules) > 0, "style.css must declare achievement rules"
+    for rule in achievement_rules:
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
+            "achievement CSS must be token-only (no hex literals)"
+        )
+    # Reduced motion: the new card's transition is neutralized.
+    media_at = sheet.index("@media (prefers-reduced-motion: reduce)")
+    block = sheet[media_at:]
+    assert re.search(
+        r"\.achievements-card[^}]*transition\s*:\s*none", block
+    ), "reduced-motion must neutralize .achievements-card"
