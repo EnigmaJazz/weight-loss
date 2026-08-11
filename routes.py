@@ -24,6 +24,7 @@ from auth import (
     verify_password,
 )
 from constants import (
+    ACHIEVEMENTS,
     ACTIVITY_LEVELS,
     EXERCISE_TYPES,
     HABIT_TYPES,
@@ -58,6 +59,7 @@ from models import (
     WeightEntry,
     XpState,
 )
+import achievements
 import momentum
 import notifications
 import quests
@@ -1536,6 +1538,21 @@ async def get_rewards(
         # summary's target_kg by construction (same resolve_target_kg helper).
         "target_kg": state.target_kg,
     }
+
+
+# ---- achievements (r2-achievements) --------------------------------------
+
+
+@router.get("/api/achievements")
+async def get_achievements(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Derived six-milestone state for this user in catalogue order. Never
+    persisted — every value derives from one ownership-scoped database
+    snapshot (done quests, momentum facts, per-date exercise sums) on read."""
+    facts = await run_db(db.achievement_facts, user.id)
+    states = achievements.states(facts, ACHIEVEMENTS)
+    return {"achievements": [asdict(state) for state in states]}
 
 
 # ---- settings -----------------------------------------------------------

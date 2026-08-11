@@ -1249,3 +1249,142 @@ async def test_momentum_api_isolation(app, pair):
     assert bob_data["is_successful_today"] is False
     assert bob_data["successful_days"] == 0
     assert bob_data["window_days"] == 21
+
+
+# ---- achievements API (r2-achievements · S2) -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_achievements_api_requires_auth(client):
+    """GET /api/achievements is authenticated; unauthenticated calls are 401
+    (spec: isolated API response; threat-matrix HTTP boundary)."""
+    assert (await client.get("/api/achievements")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_achievements_api_empty_history(auth_client):
+    """Spec: empty history — all six states appear in catalogue order, locked
+    with null dates, and the entry shape is exactly {key, title, earned,
+    unlocked_at}."""
+    data = (await auth_client.get("/api/achievements")).json()
+    assert data == {
+        "achievements": [
+            {"key": "getting_started", "title": "Getting Started", "earned": False, "unlocked_at": None},
+            {"key": "moving_forward", "title": "Moving Forward", "earned": False, "unlocked_at": None},
+            {"key": "consistency", "title": "Consistency", "earned": False, "unlocked_at": None},
+            {"key": "comeback", "title": "Comeback", "earned": False, "unlocked_at": None},
+            {"key": "explorer", "title": "Explorer", "earned": False, "unlocked_at": None},
+            {"key": "personal_best", "title": "Personal Best", "earned": False, "unlocked_at": None},
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_achievements_api_quest_dates_and_order(auth_client, app):
+    """Spec: quest thresholds/dates — earning history surfaces the earliest
+    qualifying dates: first done quest (Getting Started), tenth exercise_10
+    (Moving Forward), fifth success in the earliest seven-date span
+    (Consistency), fifth first-seen domain (Explorer), and the first positive
+    exercise day (Personal Best). Comeback stays locked (no inactive run). The
+    six states keep catalogue order with the exact entry shape."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    # 07-01..07-05: five done quests across five distinct domains, each also a
+    # successful momentum day (assigned + done → Great Day).
+    for day, key in [
+        (date(2026, 7, 1), "exercise_10"),
+        (date(2026, 7, 2), "log_meal"),
+        (date(2026, 7, 3), "streak_alive"),
+        (date(2026, 7, 4), "habit_checkin"),
+        (date(2026, 7, 5), "mood_checkin"),
+    ]:
+        seeded = db.insert_quests(
+            user_id, day.isoformat(), [quests.draft_for_key(key, day)]
+        )
+        db.update_quest_status(user_id, seeded[0].id, "done")
+    # 07-06..07-14: nine more done exercise_10 quests → the tenth overall lands
+    # on 07-14 (Moving Forward).
+    for d in range(6, 15):
+        day = date(2026, 7, d)
+        seeded = db.insert_quests(
+            user_id, day.isoformat(), [quests.draft_for_key("exercise_10", day)]
+        )
+        db.update_quest_status(user_id, seeded[0].id, "done")
+    # Exercise rows: 07-01 30 min and 07-02 45 min → Personal Best on 07-01
+    # (first positive day, zero baseline).
+    db.insert_exercise(user_id, "2026-07-01", "walk", 30)
+    db.insert_exercise(user_id, "2026-07-02", "run", 45)
+
+    data = (await auth_client.get("/api/achievements")).json()
+    assert [s["key"] for s in data["achievements"]] == [
+        "getting_started",
+        "moving_forward",
+        "consistency",
+        "comeback",
+        "explorer",
+        "personal_best",
+    ]
+    by_key = {s["key"]: s for s in data["achievements"]}
+    assert set(by_key["getting_started"]) == {"key", "title", "earned", "unlocked_at"}
+    assert by_key["getting_started"] == {
+        "key": "getting_started",
+        "title": "Getting Started",
+        "earned": True,
+        "unlocked_at": "2026-07-01",
+    }
+    assert by_key["moving_forward"]["unlocked_at"] == "2026-07-14"
+    assert by_key["consistency"]["unlocked_at"] == "2026-07-05"
+    assert by_key["comeback"]["earned"] is False
+    assert by_key["comeback"]["unlocked_at"] is None
+    assert by_key["explorer"]["unlocked_at"] == "2026-07-05"
+    assert by_key["personal_best"]["unlocked_at"] == "2026-07-01"
+
+
+@pytest.mark.asyncio
+async def test_achievements_api_two_user_isolation(app, pair):
+    """Spec: isolated API response — alice's done quests surface in her own six
+    states; bob's response stays fully locked (empty history)."""
+    alice, bob = pair
+    db = app.state.db
+    alice_user = db.get_user_by_username("alice")
+    bob_user = db.get_user_by_username("bob")
+    assert alice_user is not None and bob_user is not None
+    day = date(2026, 7, 1)
+    seeded = db.insert_quests(
+        alice_user.id, day.isoformat(), [quests.draft_for_key("exercise_10", day)]
+    )
+    db.update_quest_status(alice_user.id, seeded[0].id, "done")
+
+    alice_data = (await alice.get("/api/achievements")).json()
+    bob_data = (await bob.get("/api/achievements")).json()
+    alice_by_key = {s["key"]: s for s in alice_data["achievements"]}
+    assert alice_by_key["getting_started"]["earned"] is True
+    assert alice_by_key["getting_started"]["unlocked_at"] == "2026-07-01"
+    assert all(not s["earned"] for s in bob_data["achievements"])
+    assert all(s["unlocked_at"] is None for s in bob_data["achievements"])
+
+
+@pytest.mark.asyncio
+async def test_achievements_api_gather_isolation_per_user_sums(app, pair):
+    """Spec: per-user daily sums (gather isolation) — alice's exercise minutes
+    never feed bob's Personal Best; bob's own rows do. Cross-user quests are
+    likewise invisible to the gather (alice's done quest never unlocks bob's
+    Getting Started)."""
+    alice, bob = pair
+    db = app.state.db
+    alice_user = db.get_user_by_username("alice")
+    bob_user = db.get_user_by_username("bob")
+    assert alice_user is not None and bob_user is not None
+    db.insert_exercise(alice_user.id, "2026-07-01", "walk", 30)
+    # Bob logs more minutes on a later date: without user_id filtering his
+    # Personal Best would wrongly unlock on alice's earlier day.
+    db.insert_exercise(bob_user.id, "2026-07-02", "run", 45)
+
+    alice_data = (await alice.get("/api/achievements")).json()
+    bob_data = (await bob.get("/api/achievements")).json()
+    alice_by_key = {s["key"]: s for s in alice_data["achievements"]}
+    bob_by_key = {s["key"]: s for s in bob_data["achievements"]}
+    assert alice_by_key["personal_best"]["unlocked_at"] == "2026-07-01"
+    assert bob_by_key["personal_best"]["unlocked_at"] == "2026-07-02"
+    assert alice_by_key["getting_started"]["earned"] is False
+    assert bob_by_key["getting_started"]["earned"] is False

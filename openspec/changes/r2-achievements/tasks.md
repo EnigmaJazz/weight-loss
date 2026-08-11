@@ -36,10 +36,10 @@ Chain: each PR rebases on the merged predecessor and targets `main` in order (S1
 
 ## Phase 2: S2 — Facts Gather + API (PR 2)
 
-- [ ] 2.1 RED: extend `tests/test_api.py` — 401 unauthenticated, two-user isolation, empty history, six-state shape/order, gather isolation (spec: isolated API response; threat-matrix HTTP boundary).
-- [ ] 2.2 GREEN: add `Database.achievement_facts(user_id)` to `database.py` — done quest rows, per-date momentum facts, per-date exercise sums, `WHERE user_id = ?`, one `_tx`.
-- [ ] 2.3 Add `GET /api/achievements` to `routes.py` — `Depends(require_user)` + `await run_db(...)` + `asdict` serialization (design contract).
-- [ ] 2.4 `pytest tests/test_api.py` + `.venv/bin/pyright` green.
+- [x] 2.1 RED: extend `tests/test_api.py` — 401 unauthenticated, two-user isolation, empty history, six-state shape/order, gather isolation (spec: isolated API response; threat-matrix HTTP boundary).
+- [x] 2.2 GREEN: add `Database.achievement_facts(user_id)` to `database.py` — done quest rows, per-date momentum facts, per-date exercise sums, `WHERE user_id = ?`, one `_tx`.
+- [x] 2.3 Add `GET /api/achievements` to `routes.py` — `Depends(require_user)` + `await run_db(...)` + `asdict` serialization (design contract).
+- [x] 2.4 `pytest tests/test_api.py` + `.venv/bin/pyright` green.
 
 ## Phase 3: S3 — Journey UI + Confetti (PR 3)
 
