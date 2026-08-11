@@ -10,7 +10,10 @@ from typing import Any, Callable, Iterator, Optional, Sequence
 
 from constants import DEFAULT_SETTINGS, HABIT_TYPES, get_logger
 from models import (
+    AchievementFacts,
+    AchievementQuestFact,
     AppSettings,
+    ExerciseDayFacts,
     ExerciseEntry,
     HabitEntry,
     MealEntry,
@@ -1381,30 +1384,7 @@ class Database:
         quests, and log-row counts from the weight/exercise/meal/mood/habit
         tables."""
         with self._tx() as conn:
-            quest_rows = conn.execute(
-                "SELECT date,"
-                " SUM(CASE WHEN status != 'replaced' THEN 1 ELSE 0 END)"
-                "   AS assigned,"
-                " SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done_n"
-                " FROM quests WHERE user_id = ? AND date BETWEEN ? AND ?"
-                " GROUP BY date",
-                (user_id, start, end),
-            ).fetchall()
-            log_rows: list[sqlite3.Row] = []
-            for table in (
-                "weight_entries",
-                "exercise_entries",
-                "meal_entries",
-                "mood_entries",
-                "habit_entries",
-            ):
-                log_rows.extend(
-                    conn.execute(
-                        f"SELECT date, COUNT(*) AS n FROM {table}"
-                        " WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date",
-                        (user_id, start, end),
-                    ).fetchall()
-                )
+            quest_rows, log_rows = _momentum_day_rows(conn, user_id, start, end)
         facts: dict[str, MomentumDayFacts] = {}
         for row in quest_rows:
             facts[row["date"]] = MomentumDayFacts(
@@ -1420,6 +1400,96 @@ class Database:
                 facts[day] = day_facts
             day_facts.log_rows += int(row["n"])
         return sorted(facts.values(), key=lambda fact: fact.date)
+
+    def achievement_facts(self, user_id: int) -> AchievementFacts:
+        """One ownership-scoped snapshot for the achievements engine: done
+        quest rows (date/quest_key/domain), per-date momentum facts across all
+        history (same shape as momentum_facts), and per-date summed exercise
+        minutes. Every read filters on ``WHERE user_id = ?`` inside one
+        transaction, so cross-user rows can never leak into the snapshot."""
+        with self._tx() as conn:
+            done_rows = conn.execute(
+                "SELECT date, quest_key, domain FROM quests"
+                " WHERE user_id = ? AND status = 'done' ORDER BY date, id",
+                (user_id,),
+            ).fetchall()
+            quest_rows, log_rows = _momentum_day_rows(conn, user_id)
+            exercise_rows = conn.execute(
+                "SELECT date, SUM(duration_min) AS duration_min"
+                " FROM exercise_entries WHERE user_id = ? GROUP BY date",
+                (user_id,),
+            ).fetchall()
+        done_quests = [
+            AchievementQuestFact(
+                date=row["date"], quest_key=row["quest_key"], domain=row["domain"]
+            )
+            for row in done_rows
+        ]
+        by_date: dict[str, MomentumDayFacts] = {}
+        for row in quest_rows:
+            by_date[row["date"]] = MomentumDayFacts(
+                date=row["date"],
+                assigned_quests=int(row["assigned"]),
+                done_quests=int(row["done_n"]),
+            )
+        for row in log_rows:
+            day = row["date"]
+            day_facts = by_date.get(day)
+            if day_facts is None:
+                day_facts = MomentumDayFacts(date=day)
+                by_date[day] = day_facts
+            day_facts.log_rows += int(row["n"])
+        exercise_days = [
+            ExerciseDayFacts(date=row["date"], duration_min=int(row["duration_min"]))
+            for row in exercise_rows
+        ]
+        return AchievementFacts(
+            done_quests=done_quests,
+            momentum_days=sorted(by_date.values(), key=lambda fact: fact.date),
+            exercise_days=sorted(exercise_days, key=lambda entry: entry.date),
+        )
+
+
+def _momentum_day_rows(
+    conn: sqlite3.Connection,
+    user_id: int,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+    """Quest and log-table day-row counts for one user, optionally bounded to
+    [start, end] inclusive (shared by momentum_facts and achievement_facts).
+    Returns ``(quest_rows, log_rows)``: quest rows carry ``assigned`` and
+    ``done_n``; log rows carry ``n``. Callers merge both into
+    MomentumDayFacts."""
+    bounds = ""
+    params: tuple[Any, ...] = (user_id,)
+    if start is not None and end is not None:
+        bounds = " AND date BETWEEN ? AND ?"
+        params = (user_id, start, end)
+    quest_rows = conn.execute(
+        "SELECT date,"
+        " SUM(CASE WHEN status != 'replaced' THEN 1 ELSE 0 END)"
+        "   AS assigned,"
+        " SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done_n"
+        f" FROM quests WHERE user_id = ?{bounds} GROUP BY date",
+        params,
+    ).fetchall()
+    log_rows: list[sqlite3.Row] = []
+    for table in (
+        "weight_entries",
+        "exercise_entries",
+        "meal_entries",
+        "mood_entries",
+        "habit_entries",
+    ):
+        log_rows.extend(
+            conn.execute(
+                f"SELECT date, COUNT(*) AS n FROM {table}"
+                f" WHERE user_id = ?{bounds} GROUP BY date",
+                params,
+            ).fetchall()
+        )
+    return quest_rows, log_rows
 
 
 async def run_db(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
