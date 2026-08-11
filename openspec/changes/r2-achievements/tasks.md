@@ -43,12 +43,12 @@ Chain: each PR rebases on the merged predecessor and targets `main` in order (S1
 
 ## Phase 3: S3 — Journey UI + Confetti (PR 3)
 
-- [ ] 3.1 RED: add `tests/frontend/achievements.test.mjs` — first-read suppress, new-key fire once, unchanged/lost sets suppress, `shouldCelebrate` regression (game-appearance scenarios).
-- [ ] 3.2 GREEN: add `newAchievementKeys(previous, current)` to `static/format.js`.
-- [ ] 3.3 Insert `#achievements-card` after `#momentum-card` in `static/index.html`; style in `static/style.css` (tokens, dark/mobile, reduced-motion, no `@starting-style`).
-- [ ] 3.4 Wire `static/app.js`: fetch achievements beside momentum (`Promise.allSettled`, card-scoped failure), render six rows, read-diff → `fireConfetti()` once, prior set updated only on success (journey-progress-ui scenarios).
-- [ ] 3.5 Update `tests/test_spa_gate.py` + `tests/smoke-ui.sh` pins: card order, six locked/earned rows, no progress, reduced-motion; keep all existing checks.
-- [ ] 3.6 Run node + pytest + `bash tests/smoke-ui.sh` green.
+- [x] 3.1 RED: add `tests/frontend/achievements.test.mjs` — first-read suppress, new-key fire once, unchanged/lost sets suppress, `shouldCelebrate` regression (game-appearance scenarios).
+- [x] 3.2 GREEN: add `newAchievementKeys(previous, current)` to `static/format.js`.
+- [x] 3.3 Insert `#achievements-card` after `#momentum-card` in `static/index.html`; style in `static/style.css` (tokens, dark/mobile, reduced-motion, no `@starting-style`).
+- [x] 3.4 Wire `static/app.js`: fetch achievements beside momentum (`Promise.allSettled`, card-scoped failure), render six rows, read-diff → `fireConfetti()` once, prior set updated only on success (journey-progress-ui scenarios).
+- [x] 3.5 Update `tests/test_spa_gate.py` + `tests/smoke-ui.sh` pins: card order, six locked/earned rows, no progress, reduced-motion; keep all existing checks.
+- [x] 3.6 Run node + pytest + `bash tests/smoke-ui.sh` green.
 
 ## Phase 4: Full Verification
 

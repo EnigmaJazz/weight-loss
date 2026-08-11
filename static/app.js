@@ -20,7 +20,7 @@ const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -556,6 +556,12 @@ let chartData = { weightEntries: [], weightSummary: null, exerciseEntries: [], m
 // Last earned-checkpoint count seen by loadData. null until the first load
 // so the first render is always suppressed (design §Confetti).
 let prevEarned = null;
+
+// Last earned-achievement key set from a SUCCESSFUL read. null until the first
+// fulfilled /api/achievements response, so the first render never celebrates;
+// only re-stored on success, so a failed read cannot reset the diff (design
+// §Celebration).
+let prevAchievementKeys = null;
 
 async function loadData() {
   const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
@@ -1571,7 +1577,10 @@ async function loadQuestsAndXp() {
  * /api/momentum separately so one failed Journey request never blanks the
  * others (spec 'Journey Data Loading'). */
 async function loadJourneyCards(questsPayload, xpPayload) {
-  const [momRes] = await Promise.allSettled([fetchJson("/api/momentum")]);
+  const [momRes, achRes] = await Promise.allSettled([
+    fetchJson("/api/momentum"),
+    fetchJson("/api/achievements"),
+  ]);
   renderJourneyXp(xpPayload);
   renderQuestHistory(questsPayload);
   if (momRes.status === "fulfilled") {
@@ -1584,6 +1593,7 @@ async function loadJourneyCards(questsPayload, xpPayload) {
     err.textContent = "Could not load momentum";
     el.append(err);
   }
+  renderAchievements(achRes);
 }
 
 function renderJourneyXp(xp) {
@@ -1648,6 +1658,49 @@ function renderMomentum(m) {
   count.className = "momentum-count";
   count.textContent = `${m.successful_days} successful day${m.successful_days === 1 ? "" : "s"} in the last ${m.window_days}`;
   el.append(tier, count);
+}
+
+/* ---- achievements card (r2-achievements S3) ---------------------------- */
+
+function renderAchievements(achRes) {
+  const el = $("achievements-card-content");
+  el.innerHTML = "";
+  if (achRes.status !== "fulfilled") {
+    const err = document.createElement("p");
+    err.className = "hint error";
+    err.textContent = "Could not load achievements";
+    el.append(err);
+    return;
+  }
+  const achievements = achRes.value?.achievements ?? [];
+  const earned = achievements.filter((a) => a.earned).map((a) => a.key);
+  // Read-diff celebration: only genuinely new earned keys fire, and only
+  // after a successful read; the first render and unchanged/lost sets stay
+  // quiet (design §Celebration, spec 'Achievement key-set diff').
+  if (prevAchievementKeys !== null) {
+    if (newAchievementKeys(prevAchievementKeys, earned).length > 0) {
+      fireConfetti();
+    }
+  }
+  prevAchievementKeys = earned;
+  const list = document.createElement("ul");
+  list.className = "achievement-list";
+  for (const a of achievements) {
+    const li = document.createElement("li");
+    li.className = "achievement-row";
+    // data-state hooks the earned/locked rows for tests and styling; locked
+    // rows never show partial progress (spec 'Journey Progress Cards').
+    li.dataset.state = a.earned ? "earned" : "locked";
+    const title = document.createElement("span");
+    title.className = "achievement-title";
+    title.textContent = a.title;
+    const state = document.createElement("span");
+    state.className = "achievement-state";
+    state.textContent = a.earned ? `Unlocked ${formatDate(a.unlocked_at)}` : "Locked";
+    li.append(title, state);
+    list.append(li);
+  }
+  el.append(list);
 }
 
 function renderQuestHistory(questsPayload) {
