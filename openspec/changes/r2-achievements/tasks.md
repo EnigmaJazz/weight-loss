@@ -52,4 +52,4 @@ Chain: each PR rebases on the merged predecessor and targets `main` in order (S1
 
 ## Phase 4: Full Verification
 
-- [ ] 4.1 Full suite: `.venv/bin/python -m pytest` + `node --test tests/frontend/` + `.venv/bin/pyright`; all green.
+- [x] 4.1 Full suite: `.venv/bin/python -m pytest` (573 passed) + `node --test tests/frontend/*.test.mjs` (126 pass) + `.venv/bin/pyright` (0 errors); all green on merged main.
