@@ -250,3 +250,40 @@ class MomentumState:
     successful_days: int
     window_days: int
     is_successful_today: bool
+
+
+@dataclass
+class AchievementQuestFact:
+    """One done quest row for the achievements engine (date = quest.date)."""
+
+    date: str
+    quest_key: str
+    domain: str
+
+
+@dataclass
+class ExerciseDayFacts:
+    """One user's summed exercise minutes for one local date."""
+
+    date: str
+    duration_min: int = 0
+
+
+@dataclass
+class AchievementFacts:
+    """Facts the pure achievements engine consumes: one per-user snapshot
+    gathered in a single database read (never persisted)."""
+
+    done_quests: list[AchievementQuestFact] = field(default_factory=list)
+    momentum_days: list[MomentumDayFacts] = field(default_factory=list)
+    exercise_days: list[ExerciseDayFacts] = field(default_factory=list)
+
+
+@dataclass
+class AchievementState:
+    """One derived achievement state (never persisted)."""
+
+    key: str
+    title: str
+    earned: bool
+    unlocked_at: Optional[str] = None

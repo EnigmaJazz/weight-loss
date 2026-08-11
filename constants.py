@@ -262,6 +262,20 @@ QUEST_POOL: tuple[tuple[str, str, str, str, int, str], ...] = (
     ),
 )
 
+# ---- achievements (r2-achievements) ----
+
+# Achievement catalogue as ordered (key, title) pairs. Order is normative:
+# the six behaviour milestones appear in the Journey card in this exact
+# order. Pinned by tests/test_achievements.py.
+ACHIEVEMENTS: tuple[tuple[str, str], ...] = (
+    ("getting_started", "Getting Started"),
+    ("moving_forward", "Moving Forward"),
+    ("consistency", "Consistency"),
+    ("comeback", "Comeback"),
+    ("explorer", "Explorer"),
+    ("personal_best", "Personal Best"),
+)
+
 # ---- XP level curve (r1-quests-xp) ----
 
 # Level curve (xp-progression spec): level 1 starts at 0 XP and advancing from
