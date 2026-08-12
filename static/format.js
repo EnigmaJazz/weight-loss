@@ -320,7 +320,30 @@
     };
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext };
+  /* ---- World island stage bands (r2-world-xp-island S1) ----
+   * Total XP where each stage begins — mirrors the LEVEL_TITLES bands from
+   * the world-island-ui spec 'Five XP Stages': 1 Sprout 0-699, 2 Explorer
+   * 700-2699, 3 Adventurer 2700-10449, 4 Champion 10450-23199, 5 Legend
+   * 23200+. Pure numeric banding like the XP mirrors above; pinned by
+   * tests/frontend/world.test.mjs against the spec boundary vectors. */
+  const WORLD_STAGE_THRESHOLDS = [700, 2700, 10450, 23200];
+
+  /** World island stage (1-5) for a total XP total. */
+  function worldStage(totalXp) {
+    return 1 + WORLD_STAGE_THRESHOLDS.filter((t) => totalXp >= t).length;
+  }
+
+  /** World stage-up confetti eligibility (game-appearance spec 'World stage
+   * diff'): "fire" only when the stage strictly increased between consecutive
+   * successfully rendered stages; first render (null/undefined previous), a
+   * failed read (null/undefined current), an unchanged stage, and a lower
+   * stage all "suppress". Mirrors shouldCelebrate's fire/suppress contract. */
+  function stageChanged(previous, current) {
+    if (previous == null || current == null) return "suppress";
+    return current > previous ? "fire" : "suppress";
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
