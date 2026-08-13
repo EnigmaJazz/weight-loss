@@ -20,7 +20,7 @@ const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -562,6 +562,12 @@ let prevEarned = null;
 // only re-stored on success, so a failed read cannot reset the diff (design
 // §Celebration).
 let prevAchievementKeys = null;
+
+// Last World island stage from a SUCCESSFUL render. null until the first
+// fulfilled /api/xp render, so the first render never celebrates; only
+// re-stored after a successful render, so a failed read cannot reset the
+// stage-up diff (design §SPA; spec 'Stage-Up Celebration').
+let prevWorldStage = null;
 
 async function loadData() {
   const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
@@ -1558,6 +1564,14 @@ async function loadQuestsAndXp() {
   const [xpRes] = await Promise.allSettled([fetchJson("/api/xp")]);
   if (xpRes.status === "fulfilled") {
     renderXpChip(xpRes.value);
+    // World island renders from the same successful XP read; stage-up
+    // confetti fires only when the stage rose between successful renders,
+    // and prevWorldStage updates only after that render/diff (design §SPA).
+    const currentStage = renderWorld(xpRes.value);
+    if (stageChanged(prevWorldStage, currentStage) === "fire") {
+      fireConfetti();
+    }
+    prevWorldStage = currentStage;
   } else {
     const el = $("xp-chip-content");
     el.innerHTML = "";
@@ -1862,6 +1876,56 @@ function renderXpChip(xp) {
   label.textContent = `${xp.xp_into_next} / ${span} XP to level ${xp.level + 1}`;
   progress.append(track, label);
   el.append(progress);
+}
+
+/* World island live render (r2-world-xp-island S3): derives the current
+ * stage from the fetched /api/xp payload via the format.js worldStage mirror
+ * and drives the static S2 island — #world-card data-stage, #world-island
+ * data-current-stage + aria-label, the stage name, and the scoped progress
+ * fill/label. Stage 1 labels the level span; stages 2-4 normalize progress
+ * across the stage bands (0/700/2700/10450/23200); stage 5 is terminal.
+ * Returns the rendered stage so the caller can evaluate stageChanged(). */
+const WORLD_STAGE_NAMES = [
+  "Sprout Isle",
+  "Explorer Isle",
+  "Adventurer Isle",
+  "Champion Isle",
+  "Legend Isle",
+];
+const WORLD_STAGE_STARTS = [700, 2700, 10450, 23200];
+
+function renderWorld(xp) {
+  const currentStage = worldStage(xp.total_xp);
+  $("world-card").dataset.stage = String(currentStage);
+  const island = $("world-island");
+  island.dataset.currentStage = String(currentStage);
+  island.setAttribute(
+    "aria-label",
+    `Your XP island, stage ${currentStage}, ${WORLD_STAGE_NAMES[currentStage - 1]}`
+  );
+  $("world-stage-name").textContent = WORLD_STAGE_NAMES[currentStage - 1];
+  const fill = $("world-progress").querySelector(".progress-fill");
+  const label = $("world-progress").querySelector(".progress-label");
+  if (currentStage === 5) {
+    label.textContent = "Island fully evolved";
+    fill.style.width = "100%";
+  } else if (currentStage === 1) {
+    const span = xp.next_level_at - thresholdForLevel(xp.level);
+    const pct =
+      span > 0 ? Math.min(100, Math.round((xp.xp_into_next / span) * 100)) : 100;
+    label.textContent = `${xp.xp_into_next} / ${span}`;
+    fill.style.width = `${pct}%`;
+  } else {
+    const start = WORLD_STAGE_STARTS[currentStage - 2];
+    const next = WORLD_STAGE_STARTS[currentStage - 1];
+    const pct = Math.max(
+      0,
+      Math.min(100, Math.round(((xp.total_xp - start) / (next - start)) * 100))
+    );
+    label.textContent = `${xp.total_xp - start} / ${next - start}`;
+    fill.style.width = `${pct}%`;
+  }
+  return currentStage;
 }
 
 /* ---- settings ---------------------------------------------------------- */
