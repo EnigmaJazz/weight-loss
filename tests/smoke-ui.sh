@@ -515,11 +515,27 @@ else
   step_fail "meals chart draws on journey tab (clientWidth=$MEALS_CHART_W)"
 fi
 
-# ---- 5.6 world tab: placeholder copy ----------------------------------------
+# ---- 5.6 world tab: XP island visible, placeholder gone ---------------------
 
-echo "-- world tab (placeholder)"
+echo "-- world tab (island)"
 playwright-cli click "[data-tab=world]" >/dev/null 2>&1
-assert_find "world placeholder copy visible" "Your adventure map is coming soon."
+# Static island (Slice 2): the inline SVG renders visibly and the old
+# coming-soon placeholder copy is gone. Live stage labels/progress are
+# Slice 3's pins, not asserted here.
+# NB: SVG elements expose no offsetWidth/clientWidth (HTMLElement-only), so
+# measure via getBoundingClientRect.
+ISLAND_VIS="$(playwright-cli --raw eval "!!document.querySelector('#world-island') && document.querySelector('#world-island').getBoundingClientRect().width > 0" 2>&1 | tr -d '"')"
+if [ "$ISLAND_VIS" = "true" ]; then
+  step_ok "world island svg visible"
+else
+  step_fail "world island svg visible (got '$ISLAND_VIS')"
+fi
+PLACEHOLDER_GONE="$(playwright-cli --raw eval "!document.body.textContent.includes('Your adventure map is coming soon.')" 2>&1 | tr -d '"')"
+if [ "$PLACEHOLDER_GONE" = "true" ]; then
+  step_ok "world placeholder copy absent"
+else
+  step_fail "world placeholder copy absent (got '$PLACEHOLDER_GONE')"
+fi
 
 # ---- 5.75 theme toggle + Appearance radio (selector-only, no text pins) ----
 

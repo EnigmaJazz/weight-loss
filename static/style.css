@@ -43,6 +43,19 @@
   /* toast tokens (dark-mode): .toast consumes these instead of hardcoded rgba */
   --toast-bg: rgba(15, 23, 42, 0.92);
   --toast-text: #f8fafc;
+  /* r2-world-xp-island S2: semantic island tokens (spec 'Island Evolution and
+   * Appearance'). --island-foliage-deep stays lockstep with the brand accent
+   * (#2f7d54) so the island palette can never drift from the game palette. */
+  --island-sky: #dbeafe;
+  --island-sea: #9ed9c2;
+  --island-ground: #8fbf6f;
+  --island-foliage: #58a97e;
+  --island-foliage-deep: #2f7d54;
+  --island-trunk: #a9743f;
+  --island-flower: #f5c518;
+  --island-sun: #fde68a;
+  --island-fox-face: #fcf8f0;
+  --island-fox-eye: #26201e;
 }
 
 /* dark theme (design §CSS): [data-theme="dark"] redefines the semantic
@@ -62,6 +75,18 @@
   /* --accent UNCHANGED #2f7d54 (lockstep/mascot/manifest) */
   --toast-bg: #1e293b;
   --toast-text: #e2e8f0;
+  /* r2-world-xp-island S2: island tokens in the dark palette; foliage-deep
+   * stays lockstep with --accent in both themes. */
+  --island-sky: #16233a;
+  --island-sea: #1d4a40;
+  --island-ground: #3f6b46;
+  --island-foliage: #58a97e;
+  --island-foliage-deep: #2f7d54;
+  --island-trunk: #8a5a33;
+  --island-flower: #fbd34a;
+  --island-sun: #fcd34d;
+  --island-fox-face: #f8f4ec;
+  --island-fox-eye: #1c1a18;
 }
 
 * { box-sizing: border-box; }
@@ -170,23 +195,86 @@ main {
 
 .tab-panel > .card + .card { margin-top: 1.25rem; }
 
-/* World tab placeholder (R0 navigation): the fox mascot + coming-soon copy,
- * centered in a card. Tokens only — no palette hex; static (no animation), so
- * the reduced-motion block needs no additions. */
-.world-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* World island (r2-world-xp-island S2): the XP island card replaces the R0
+ * placeholder. One accessible inline SVG (#world-island) carries five
+ * data-stage groups; the selectors below show exactly the group matching
+ * data-current-stage (Slice 3 drives the attribute; the static markup ships
+ * stage 1). Responsive: the SVG scales with the card, capped at 26rem.
+ * Token-only fills — no palette hex anywhere in this block (pinned by
+ * test_index_html_world_panel_ships_xp_island). */
+#world-card {
   text-align: center;
-  gap: var(--space-2);
-  padding: var(--space-5) var(--space-4);
 }
-.world-placeholder .mascot svg {
-  width: 4.5rem;
-  height: 4.5rem;
+
+#world-island {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 26rem;
+  margin: 0 auto;
 }
-.world-placeholder h2 { margin: 0; }
-.world-placeholder .hint { margin: 0; }
+
+#world-island [data-stage] {
+  display: none;
+}
+
+#world-island[data-current-stage="1"] [data-stage="1"],
+#world-island[data-current-stage="2"] [data-stage="2"],
+#world-island[data-current-stage="3"] [data-stage="3"],
+#world-island[data-current-stage="4"] [data-stage="4"],
+#world-island[data-current-stage="5"] [data-stage="5"] {
+  display: block;
+}
+
+/* island fills — semantic tokens only (light/dark via the blocks above). */
+.island-sky { fill: var(--island-sky); }
+.island-sun { fill: var(--island-sun); }
+.island-sea { fill: var(--island-sea); }
+.island-ground { fill: var(--island-ground); }
+.island-stem,
+.island-leaf,
+.island-foliage { fill: var(--island-foliage); }
+.island-foliage-deep { fill: var(--island-foliage-deep); }
+.island-trunk { fill: var(--island-trunk); }
+.island-flower { fill: var(--island-flower); }
+.island-fox-ear,
+.island-fox-head { fill: var(--fox); }
+.island-fox-ear-inner { fill: var(--fox-dark); }
+.island-fox-cheek,
+.island-fox-muzzle { fill: var(--island-fox-face); }
+.island-fox-eye,
+.island-fox-nose { fill: var(--island-fox-eye); }
+
+/* stage name + progress (static stage-1 defaults; Slice 3 renders live). */
+.island-stage-name {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--accent-dark);
+}
+
+#world-progress {
+  max-width: 22rem;
+  margin: 0 auto;
+}
+
+/* gentle rise/fade on the visible stage — transform/opacity only, no layout
+ * animation; killed inside the reduced-motion block without hiding the stage. */
+@keyframes island-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.island-stage {
+  animation: island-appear 0.6s ease-out;
+}
 
 /* auth gate card: narrower than the tracker, centered. */
 #auth-screen {
@@ -919,6 +1007,11 @@ a:focus-visible,
     display: none !important;
   }
   [data-streak-active="true"] .flame {
+    animation: none !important;
+  }
+  /* r2-world-xp-island S2: island motion is killed without hiding the current
+   * stage (spec 'Island Evolution and Appearance'). */
+  .island-stage {
     animation: none !important;
   }
 }

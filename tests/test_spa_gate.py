@@ -656,8 +656,8 @@ async def test_index_html_ships_appearance_radio_group(client):
 # ---- R0 navigation restructure gate additions (feat/r0-nav) ---------------
 # The tabbed SPA was restructured from (today/progress/history/settings) to
 # (today/journey/world/me): Journey absorbs the old Progress charts and the
-# History entry lists (the longitudinal view, strategy §6.2), World is a
-# friendly fox placeholder, and Me absorbs the old Settings panel. These assert
+# History entry lists (the longitudinal view, strategy §6.2), World is the XP
+# island, and Me absorbs the old Settings panel. These assert
 # the DELIVERED structure so the smoke's tab flow keeps working (spec 'R0
 # Navigation Restructure').
 
@@ -704,21 +704,88 @@ async def test_index_html_journey_panel_absorbs_charts_and_history(client):
         assert needle in journey, f"Journey panel must ship {needle}"
 
 
+# ---- r2-world-xp-island S2 gate additions: static XP island --------------
+# One accessible SVG, five ordered data-stage groups, fox at the terminal
+# stage, token fills (never raw hex) (spec 'Island Evolution and Appearance').
+_ISLAND_TOKENS = (
+    "--island-sky", "--island-sea", "--island-ground", "--island-foliage",
+    "--island-foliage-deep", "--island-trunk", "--island-flower",
+    "--island-sun", "--island-fox-face", "--island-fox-eye",
+)
+_STAGE_NAMES = ("sprout", "sapling", "tree", "lush", "thriving")
+
+
 @pytest.mark.asyncio
-async def test_index_html_world_panel_ships_fox_placeholder(client):
-    """The World panel must ship the friendly placeholder: the fox mascot
-    glyph + the 'coming soon' copy (spec 'R0 Navigation Restructure')."""
+async def test_index_html_world_panel_ships_xp_island(client):
+    """World panel ships #world-card with one accessible #world-island SVG at
+    stage 1, five ordered data-stage groups, fox only in stage 5, token-only
+    fills, no placeholder; CSS declares island tokens in :root + dark, one
+    stage per data-current-stage, and kills island motion on reduced-motion."""
     resp = await client.get("/")
     assert resp.status_code == 200
     html = resp.text
     world = html[html.index('id="tab-world"') : html.index('id="tab-me"')]
-    assert "Your adventure map is coming soon." in world
-    assert 'class="mascot" aria-hidden="true"' in world, (
-        "World placeholder must carry the fox mascot"
+
+    # Card + island ship at the static stage-1 default (Slice 3 wires runtime).
+    for needle in (
+        'id="world-card"',
+        'id="world-island"',
+        'data-current-stage="1"',
+        'id="world-stage-name"',
+        'id="world-progress"',
+    ):
+        assert needle in world, f"World panel must ship {needle}"
+
+    # One accessible inline SVG island.
+    assert world.count("<svg") == 1, "World panel must ship exactly one SVG"
+    svg = world[world.index("<svg") : world.index("</svg>") + len("</svg>")]
+    assert 'role="img"' in svg and "aria-label=" in svg
+
+    # Five stage groups in order; fox only inside the stage-5 group.
+    stages = re.findall(
+        r'<g[^>]*data-stage="([^"]+)" data-stage-name="([^"]+)">', world
     )
-    assert 'fill="#eb892c"' in world, (
-        "fox mascot must render with the fox-orange fill"
+    assert [num for num, _ in stages] == ["1", "2", "3", "4", "5"]
+    assert [name for _, name in stages] == list(_STAGE_NAMES)
+    fox_in = {}
+    for num in ("1", "2", "3", "4", "5"):
+        start = world.index(f'data-stage="{num}"')
+        end_marker = f'data-stage="{int(num) + 1}"' if int(num) < 5 else "</svg>"
+        fox_in[num] = "island-fox" in world[start : world.index(end_marker, start)]
+    assert fox_in == {"1": False, "2": False, "3": False, "4": False, "5": True}
+
+    # Fills are token classes, never raw hex; no placeholder copy.
+    assert re.search(r'fill\s*=\s*["\']#', svg) is None
+    assert re.search(r'class="island-', svg) is not None
+    assert "Your adventure map is coming soon." not in world
+
+    # CSS: island tokens in :root + dark; foliage-deep lockstep with brand.
+    css = (await client.get("/static/style.css")).text
+    root = _root_block(css)
+    dark = re.search(r'\[data-theme="dark"\]\s*\{([^}]*)\}', css)
+    assert dark is not None, 'style.css must declare a [data-theme="dark"] block'
+    for token in _ISLAND_TOKENS:
+        assert re.search(rf"{token}\s*:", root) is not None
+        assert re.search(rf"{token}\s*:", dark.group(1)) is not None
+    assert re.search(r"--island-foliage-deep\s*:\s*#2f7d54", root) is not None
+
+    # One stage visible per data-current-stage.
+    assert re.search(
+        r"#world-island\s+\[data-stage\]\s*\{[^}]*display\s*:\s*none", css
     )
+    for num in ("1", "2", "3", "4", "5"):
+        assert re.search(
+            rf'#world-island\[data-current-stage="{num}"\]\s+\[data-stage="{num}"\]',
+            css,
+        )
+
+    # Island SVG rules are token-only (no hex); reduced-motion kills motion.
+    island_rules = list(re.finditer(r"\.island-[a-z-]+\s*\{[^}]*}", css))
+    assert island_rules, "style.css must declare island SVG rules"
+    for rule in island_rules:
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None
+    media = css[css.index("@media (prefers-reduced-motion: reduce)"):]
+    assert re.search(r"\.island-stage[^}]*animation\s*:\s*none", media)
 
 
 @pytest.mark.asyncio
