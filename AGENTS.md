@@ -69,3 +69,4 @@ project-specific.
 ## Reference docs
 
 - `AGENTS.md` — this file, consumed by `.gga` as review rules
+- `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`); relevant when implementing or debugging in documented areas
