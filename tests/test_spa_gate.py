@@ -1340,3 +1340,97 @@ async def test_journey_achievements_surface(client):
     assert re.search(
         r"\.achievements-card[^}]*transition\s*:\s*none", block
     ), "reduced-motion must neutralize .achievements-card"
+
+
+# ---- r2-world-xp-island S3 gate additions (PR 3): live island wiring ------
+# app.js must ship the runtime wiring the static S2 island needs: renderWorld()
+# defined, worldStage destructured from the format.js api, the transient
+# prevWorldStage read-diff state, and stageChanged invoked inside the fulfilled
+# /api/xp branch of loadQuestsAndXp() — not merely somewhere in app.js. Stage
+# math and diff eligibility are pinned by tests/frontend/world.test.mjs and the
+# behavior by tests/smoke-ui.sh; these gate the delivered artifacts (design
+# §SPA; spec 'Stage-Up Celebration').
+
+
+def _js_block(source: str, brace_at: int) -> str:
+    """Return the brace-delimited block starting at the `{` at brace_at
+    (including both braces), treating strings and comments as opaque so
+    braces inside template literals never confuse the depth count."""
+    assert source[brace_at] == "{"
+    depth = 0
+    i = brace_at
+    n = len(source)
+    quote = None  # None, "'", '"', or '`'
+    while i < n:
+        c = source[i]
+        nxt = source[i + 1] if i + 1 < n else ""
+        if quote is not None:
+            if c == "\\":
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+        elif c in ("'", '"', "`"):
+            quote = c
+        elif c == "/" and nxt == "/":
+            newline = source.find("\n", i)
+            if newline == -1:
+                break
+            i = newline
+        elif c == "/" and nxt == "*":
+            end = source.find("*/", i + 2)
+            if end == -1:
+                break
+            i = end + 2
+            continue
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return source[brace_at : i + 1]
+        i += 1
+    raise AssertionError("unbalanced braces in JS block")
+
+
+def _js_fn_body(source: str, name: str) -> str:
+    """Return the brace-delimited body of the named function in the served JS
+    (including the outer braces), so scoped assertions can never bleed into a
+    later top-level function."""
+    m = re.search(
+        rf"(?:async\s+)?function\s+{re.escape(name)}\s*\([^)]*\)", source
+    )
+    assert m is not None, f"app.js must define {name}()"
+    return _js_block(source, source.index("{", m.end()))
+
+
+@pytest.mark.asyncio
+async def test_app_js_ships_world_island_runtime_wiring(client):
+    """app.js must define renderWorld(), destructure worldStage from
+    WeightFormat, keep the transient prevWorldStage read-diff state, and invoke
+    stageChanged inside the fulfilled /api/xp branch of loadQuestsAndXp() — the
+    stage-up celebration must be wired where successful XP reads land, not
+    merely anywhere in app.js (design §SPA; spec 'Stage-Up Celebration')."""
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "function renderWorld" in body, "app.js must define renderWorld()"
+    assert re.search(
+        r"\{[^}]*worldStage[^}]*\}\s*=\s*globalThis\.WeightFormat", body
+    ) is not None, "app.js must destructure worldStage from WeightFormat"
+    assert "let prevWorldStage = null" in body, (
+        "app.js must keep transient prevWorldStage read-diff state"
+    )
+    # The stageChanged read-diff must sit inside the fulfilled /api/xp branch
+    # of loadQuestsAndXp(), not merely somewhere in app.js: extract the
+    # function and check the call lands inside the xpRes fulfilled branch.
+    fn = _js_fn_body(body, "loadQuestsAndXp")
+    branch_at = re.search(r'if \(xpRes\.status === "fulfilled"\)\s*\{', fn)
+    assert branch_at is not None, (
+        "loadQuestsAndXp() must branch on xpRes.status === 'fulfilled'"
+    )
+    branch = _js_block(fn, branch_at.end() - 1)
+    assert "stageChanged(" in branch, (
+        "loadQuestsAndXp() must invoke stageChanged() inside the fulfilled "
+        "/api/xp branch"
+    )

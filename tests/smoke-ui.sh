@@ -178,6 +178,115 @@ assert_find "summary section visible" "Summary"
 assert_find "log-weight form visible" "Log weight"
 assert_find "logout button visible" "Log out"
 
+# ---- 2.75 fresh-account World island (r2-world-xp-island S3) --------------
+# A brand-new account (scratch DB, first user id=1) finishes onboarding with
+# 0 total XP: today's deterministic quests (mood_checkin / habit_checkin /
+# exercise_10) are none weight-triggered, so the wizard's weight entry
+# auto-completes nothing. Pin that zero-XP contract HERE — before section 5.16
+# manually completes a quest — in both themes: stage name, level-span progress
+# (0 / 100), exactly one visible stage group (computed display, not DOM count),
+# placeholder absent.
+echo "-- world island (fresh 0-XP account)"
+
+# 0-XP precondition: the chip must read exactly 0 XP and GET /api/xp must
+# agree (synchronous XHR rides the session cookie), so a stray auto-completed
+# quest fails the smoke before the island assertions run.
+CHIP_TOTAL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-total')?.textContent" 2>&1 | tr -d '"')"
+if [ "$CHIP_TOTAL" = "0 XP" ]; then
+  step_ok "XP chip reads 0 XP on a fresh account ($CHIP_TOTAL)"
+else
+  step_fail "XP chip reads 0 XP on a fresh account (got '$CHIP_TOTAL')"
+fi
+API_TOTAL="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/xp', false); x.send(); return String(JSON.parse(x.responseText).total_xp); })()" 2>&1 | tr -d '"')"
+if [ "$API_TOTAL" = "0" ]; then
+  step_ok "GET /api/xp reports total_xp 0 (got $API_TOTAL)"
+else
+  step_fail "GET /api/xp reports total_xp 0 (got '$API_TOTAL')"
+fi
+
+# Deterministic light theme via the Me-tab Appearance radio (same path section
+# 5.75 uses), then the island pins on the World tab.
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+sleep 1
+LIGHT_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+if [ "$LIGHT_THEME" = "light" ]; then
+  step_ok "light theme applied for world assertions (data-theme=light)"
+else
+  step_fail "light theme applied for world assertions (got '$LIGHT_THEME')"
+fi
+playwright-cli click "[data-tab=world]" >/dev/null 2>&1
+sleep 1
+assert_visibility "world panel visible" "#tab-world" "visible"
+
+WORLD_STAGE="$(playwright-cli --raw eval "document.querySelector('#world-stage-name')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ "$WORLD_STAGE" = "Sprout Isle" ]; then
+  step_ok "world shows Sprout Isle at 0 XP (light)"
+else
+  step_fail "world shows Sprout Isle at 0 XP (got '$WORLD_STAGE')"
+fi
+WORLD_PROGRESS="$(playwright-cli --raw eval "document.querySelector('#world-progress .progress-label')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ "$WORLD_PROGRESS" = "0 / 100" ]; then
+  step_ok "world shows level progress 0 / 100 (light)"
+else
+  step_fail "world shows level progress 0 / 100 (got '$WORLD_PROGRESS')"
+fi
+WORLD_VISIBLE_STAGES="$(playwright-cli --raw eval "(() => { const vis = [...document.querySelectorAll('#world-island .island-stage')].filter(s => getComputedStyle(s).display !== 'none'); return String(vis.length) + '|' + (vis[0]?.dataset.stage ?? 'none'); })()" 2>&1 | tr -d '"')"
+if [ "$WORLD_VISIBLE_STAGES" = "1|1" ]; then
+  step_ok "exactly one island stage visible, stage 1 (light, $WORLD_VISIBLE_STAGES)"
+else
+  step_fail "exactly one island stage visible, stage 1 (got '$WORLD_VISIBLE_STAGES')"
+fi
+PLACEHOLDER_GONE="$(playwright-cli --raw eval "!document.body.textContent.includes('Your adventure map is coming soon.')" 2>&1 | tr -d '"')"
+if [ "$PLACEHOLDER_GONE" = "true" ]; then
+  step_ok "world placeholder copy absent (light)"
+else
+  step_fail "world placeholder copy absent (got '$PLACEHOLDER_GONE')"
+fi
+
+# Dark theme: from the light pref the header toggle deterministically flips to
+# dark; re-run the same island assertions.
+playwright-cli click "#theme-toggle" >/dev/null 2>&1
+sleep 1
+DARK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+if [ "$DARK_THEME" = "dark" ]; then
+  step_ok "dark theme applied for world assertions (data-theme=dark)"
+else
+  step_fail "dark theme applied for world assertions (got '$DARK_THEME')"
+fi
+WORLD_STAGE_DARK="$(playwright-cli --raw eval "document.querySelector('#world-stage-name')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ "$WORLD_STAGE_DARK" = "Sprout Isle" ]; then
+  step_ok "world shows Sprout Isle at 0 XP (dark)"
+else
+  step_fail "world shows Sprout Isle at 0 XP (dark, got '$WORLD_STAGE_DARK')"
+fi
+WORLD_PROGRESS_DARK="$(playwright-cli --raw eval "document.querySelector('#world-progress .progress-label')?.textContent.trim()" 2>&1 | tr -d '"')"
+if [ "$WORLD_PROGRESS_DARK" = "0 / 100" ]; then
+  step_ok "world shows level progress 0 / 100 (dark)"
+else
+  step_fail "world shows level progress 0 / 100 (dark, got '$WORLD_PROGRESS_DARK')"
+fi
+WORLD_VISIBLE_STAGES_DARK="$(playwright-cli --raw eval "(() => { const vis = [...document.querySelectorAll('#world-island .island-stage')].filter(s => getComputedStyle(s).display !== 'none'); return String(vis.length) + '|' + (vis[0]?.dataset.stage ?? 'none'); })()" 2>&1 | tr -d '"')"
+if [ "$WORLD_VISIBLE_STAGES_DARK" = "1|1" ]; then
+  step_ok "exactly one island stage visible, stage 1 (dark, $WORLD_VISIBLE_STAGES_DARK)"
+else
+  step_fail "exactly one island stage visible, stage 1 (dark, got '$WORLD_VISIBLE_STAGES_DARK')"
+fi
+PLACEHOLDER_GONE_DARK="$(playwright-cli --raw eval "!document.body.textContent.includes('Your adventure map is coming soon.')" 2>&1 | tr -d '"')"
+if [ "$PLACEHOLDER_GONE_DARK" = "true" ]; then
+  step_ok "world placeholder copy absent (dark)"
+else
+  step_fail "world placeholder copy absent (dark, got '$PLACEHOLDER_GONE_DARK')"
+fi
+
+# Restore: a second toggle returns the pref to system (resolves to the OS
+# scheme — light in the headless browser) and back to the Today tab, so the
+# rest of the smoke (section 3 entry form) runs unchanged.
+playwright-cli click "#theme-toggle" >/dev/null 2>&1
+sleep 1
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
+sleep 1
+
 # ---- 3. add a weight entry (kg) --------------------------------------------
 
 echo "-- weight entry"
@@ -515,13 +624,13 @@ else
   step_fail "meals chart draws on journey tab (clientWidth=$MEALS_CHART_W)"
 fi
 
-# ---- 5.6 world tab: XP island visible, placeholder gone ---------------------
+# ---- 5.6 world tab: island still renders after live updates -----------------
 
 echo "-- world tab (island)"
 playwright-cli click "[data-tab=world]" >/dev/null 2>&1
-# Static island (Slice 2): the inline SVG renders visibly and the old
-# coming-soon placeholder copy is gone. Live stage labels/progress are
-# Slice 3's pins, not asserted here.
+# The inline SVG must still render visibly here (post-quest-complete, XP > 0).
+# Fresh-account stage pins (Sprout Isle, 0 / 100, one visible stage) and
+# placeholder absence are asserted in section 2.75 — not duplicated here.
 # NB: SVG elements expose no offsetWidth/clientWidth (HTMLElement-only), so
 # measure via getBoundingClientRect.
 ISLAND_VIS="$(playwright-cli --raw eval "!!document.querySelector('#world-island') && document.querySelector('#world-island').getBoundingClientRect().width > 0" 2>&1 | tr -d '"')"
@@ -529,12 +638,6 @@ if [ "$ISLAND_VIS" = "true" ]; then
   step_ok "world island svg visible"
 else
   step_fail "world island svg visible (got '$ISLAND_VIS')"
-fi
-PLACEHOLDER_GONE="$(playwright-cli --raw eval "!document.body.textContent.includes('Your adventure map is coming soon.')" 2>&1 | tr -d '"')"
-if [ "$PLACEHOLDER_GONE" = "true" ]; then
-  step_ok "world placeholder copy absent"
-else
-  step_fail "world placeholder copy absent (got '$PLACEHOLDER_GONE')"
 fi
 
 # ---- 5.75 theme toggle + Appearance radio (selector-only, no text pins) ----

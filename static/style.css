@@ -1015,3 +1015,39 @@ a:focus-visible,
     animation: none !important;
   }
 }
+
+/* World island progress (r2-world-xp-island S3): scoped #world-progress
+ * track/fill/label mirror the shared token language (track --border, fill
+ * fox→accent gradient, label --muted) so the live renderer never depends on
+ * the generic .progress-* rules. Width-only transition, neutralized for
+ * reduced-motion in the media block below. */
+#world-progress .progress-track {
+  height: 14px;
+  background: var(--border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+#world-progress .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--fox), var(--accent));
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+#world-progress .progress-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+/* reduced-motion neutralization for the World progress fill: appended AFTER
+ * the transition above so this block's cascade position (with !important)
+ * always neutralizes it, even though the earlier universal reduced-motion
+ * block sits before the appended rules. */
+@media (prefers-reduced-motion: reduce) {
+  #world-progress .progress-fill {
+    transition: none !important;
+  }
+}
