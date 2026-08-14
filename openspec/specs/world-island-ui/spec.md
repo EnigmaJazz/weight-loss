@@ -76,10 +76,22 @@ The client MUST compare consecutive successfully rendered stages and MUST fire c
 
 ### Requirement: Frontend-Only Regression Contract
 
-The World island MUST reuse the existing authenticated XP response. The tab set and order MUST remain unchanged, the former coming-soon placeholder MUST be absent, and no backend, schema, endpoint, collectible, economy, weekly objective, Coach integration, or new asset MAY be added. Automated stage-boundary, SPA-gate, and browser-smoke checks MUST cover the replacement.
+The World island MUST reuse the existing authenticated XP response for stage progression and MAY consume authenticated collectible state solely to show the most recently earned collectible as an accent. The tab set and order MUST remain unchanged, and the former coming-soon placeholder MUST remain absent. The contract MUST permit collectible and weekly-objective content, but this change MUST add no World expansion beyond the latest-earn accent and MUST add no World-specific backend, schema, asset, economy, Coach integration, or notification behavior. Automated stage-boundary, latest-accent, SPA-gate, and browser-smoke checks MUST cover the result.
 
 #### Scenario: Existing contracts remain intact
 
 - GIVEN the completed change
 - WHEN frontend unit, SPA-gate, smoke, and existing regression suites run
-- THEN the island checks MUST pass without backend or tab-contract changes
+- THEN island stage and tab contracts MUST pass without World-specific backend changes
+
+#### Scenario: Latest collectible accents the island
+
+- GIVEN a user has multiple earned collectibles with unlock dates
+- WHEN the World island renders
+- THEN the token with the latest unlock date MUST appear as the island accent
+
+#### Scenario: No collectible has been earned
+
+- GIVEN a user has no earned collectible
+- WHEN the World island renders
+- THEN no earned-token accent MUST be shown and XP stage presentation MUST remain unchanged

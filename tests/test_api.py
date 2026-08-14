@@ -1461,8 +1461,10 @@ async def test_weekly_met_flip_once_and_no_double_pay(auth_client, app):
 @pytest.mark.asyncio
 async def test_weekly_tenth_quest_pays_immediately(auth_client, app, monkeypatch):
     """R6 scenario: an eligible week at 9 done quests pays +40 the moment the
-    tenth quest becomes done (observed on the next weekly read), exactly once.
-    The clock is fixed to a Wednesday so the week is deterministic."""
+    tenth quest becomes done — the very next /api/xp read, with no /api/weekly
+    in between, already includes the award. Exactly once: one award row, no
+    double pay, and the next weekly read reports the goal met+awarded with no
+    new flip (payment happened up front)."""
     fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
 
     class _FixedDate(date):
@@ -1486,23 +1488,213 @@ async def test_weekly_tenth_quest_pays_immediately(auth_client, app, monkeypatch
         ["exercise_10", "log_meal", "streak_alive"],
     )
     xp_before = db.total_xp_for_user(user_id)
-    pre = (await auth_client.get("/api/weekly")).json()
-    assert pre["met_flips"] == []  # 9 < 10: not met, nothing paid
-    assert pre["current"]["exempt"] is False
     # The tenth quest becomes done through the API today.
     today_quests = (await auth_client.get("/api/quests")).json()["quests"]
     target = today_quests[0]
     assert (
         await auth_client.post(f"/api/quests/{target['id']}/complete")
     ).status_code == 200
+    # IMMEDIATE transition: the sequential /api/xp read (SPA contract) already
+    # shows quest XP plus the 40-XP award — no /api/weekly read in between.
+    xp = (await auth_client.get("/api/xp")).json()
+    assert xp["total_xp"] == xp_before + target["xp_value"] + 40
+    # The award row was persisted at completion: one row, exactly once.
+    with db._tx() as conn:
+        rows = conn.execute(
+            "SELECT goal, xp_awarded FROM weekly_awards WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    assert [(row["goal"], row["xp_awarded"]) for row in rows] == [("quests", 40)]
+    # The next weekly read reports the goal as met and awarded with no new
+    # flip: the payment happened up front, so the read has nothing to pay.
     post = (await auth_client.get("/api/weekly")).json()
-    assert post["met_flips"] == ["quests"]
-    # XP = quest XP (incl. the tenth) + the 40-XP award, paid exactly once.
+    assert post["met_flips"] == []
+    quests_goal = next(g for g in post["current"]["goals"] if g["goal"] == "quests")
+    assert quests_goal["met"] is True and quests_goal["awarded"] is True
+
+
+@pytest.mark.asyncio
+async def test_weekly_non_tenth_completion_pays_no_award(auth_client, app, monkeypatch):
+    """R6 triangulation: completing a NON-tenth quest (the week's first) adds
+    only that quest's XP — the quests objective (1 / 10) is not met, so no
+    weekly award is paid."""
+    fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(database_module, "date", _FixedDate)
+    monkeypatch.setattr(routes_module, "date", _FixedDate)
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(fixed)
+    db.stamp_weekly_activation(user_id, f"{monday.isoformat()} 09:00:00")
+    mark_done(db, user_id, monday, ["log_meal"])  # one done quest: 1 / 10
+    xp_before = db.total_xp_for_user(user_id)
+    today_quests = (await auth_client.get("/api/quests")).json()["quests"]
+    target = today_quests[0]
+    assert (
+        await auth_client.post(f"/api/quests/{target['id']}/complete")
+    ).status_code == 200
+    # Only the quest's own XP: the objective is still unmet, so no +40.
+    xp = (await auth_client.get("/api/xp")).json()
+    assert xp["total_xp"] == xp_before + target["xp_value"]
+    with db._tx() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM weekly_awards WHERE user_id = ?", (user_id,)
+        ).fetchone()[0]
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_weekly_detected_tenth_quest_pays_during_quest_read(
+    auth_client, app, monkeypatch
+):
+    """R6 detection path: a read-detected tenth completion pays the weekly
+    awards during that same GET /api/quests — the sequential /api/xp read
+    (SPA contract) shows them with no /api/weekly read in between."""
+    fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(database_module, "date", _FixedDate)
+    monkeypatch.setattr(routes_module, "date", _FixedDate)
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(fixed)
+    db.stamp_weekly_activation(user_id, f"{monday.isoformat()} 09:00:00")
+    mark_done(db, user_id, monday, [entry[0] for entry in QUEST_POOL])
+    mark_done(
+        db,
+        user_id,
+        monday + timedelta(days=1),
+        ["exercise_10", "log_meal", "streak_alive"],
+    )
+    xp_before = db.total_xp_for_user(user_id)
+    # First read generates today's quests with no facts: plain read, nothing
+    # detected, nothing paid.
+    first = (await auth_client.get("/api/quests")).json()["quests"]
+    mood = next(q for q in first if q["key"] == "mood_checkin")
+    assert mood["status"] == "open"
+    # A mood check-in today proves mood_checkin done: the next quest read
+    # detects it (source 'detected') and must pay the awards in that request.
+    resp = await auth_client.post(
+        "/api/mood", json={"mood": 4, "date": fixed.isoformat()}
+    )
+    assert resp.status_code == 201
+    second = (await auth_client.get("/api/quests")).json()["quests"]
+    mood_done = next(q for q in second if q["key"] == "mood_checkin")
+    assert mood_done["status"] == "done"
+    assert mood_done["source"] == "detected"
+    # IMMEDIATE payment: 10 done quests pay the quests award AND the mood log
+    # row makes Wednesday a Good day, so good_days (3) pays too — both paid
+    # during the quest read, visible on the immediate /api/xp read.
+    xp = (await auth_client.get("/api/xp")).json()
+    assert xp["total_xp"] == xp_before + mood_done["xp_value"] + 80
+
+
+@pytest.mark.asyncio
+async def test_weekly_mutation_award_exactly_once(auth_client, app, monkeypatch):
+    """R6 exactly-once on the mutation path: repeating the completion
+    (idempotent 200) and repeating the weekly read never double-pay — one
+    40-XP quests row at most (≤80/week), and the objective's awarded state
+    flips true exactly once."""
+    fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(database_module, "date", _FixedDate)
+    monkeypatch.setattr(routes_module, "date", _FixedDate)
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(fixed)
+    db.stamp_weekly_activation(user_id, f"{monday.isoformat()} 09:00:00")
+    mark_done(db, user_id, monday, [entry[0] for entry in QUEST_POOL])
+    mark_done(
+        db,
+        user_id,
+        monday + timedelta(days=1),
+        ["exercise_10", "log_meal", "streak_alive"],
+    )
+    xp_before = db.total_xp_for_user(user_id)
+    today_quests = (await auth_client.get("/api/quests")).json()["quests"]
+    target = today_quests[0]
+    first = await auth_client.post(f"/api/quests/{target['id']}/complete")
+    assert first.status_code == 200
     assert db.total_xp_for_user(user_id) == xp_before + target["xp_value"] + 40
-    # Repeat read: quiet, no second payment.
-    again = (await auth_client.get("/api/weekly")).json()
-    assert again["met_flips"] == []
+    # Idempotent repeat: 200 no-op, no second award, no level-up reported.
+    again = await auth_client.post(f"/api/quests/{target['id']}/complete")
+    assert again.status_code == 200
+    assert again.json()["level_up"] is None
     assert db.total_xp_for_user(user_id) == xp_before + target["xp_value"] + 40
+    # Repeated weekly reads stay quiet: no new flips, no new XP.
+    post = (await auth_client.get("/api/weekly")).json()
+    assert post["met_flips"] == []
+    assert db.total_xp_for_user(user_id) == xp_before + target["xp_value"] + 40
+    again_read = (await auth_client.get("/api/weekly")).json()
+    assert again_read["met_flips"] == []
+    assert db.total_xp_for_user(user_id) == xp_before + target["xp_value"] + 40
+    # Exactly one quests award row (at most 80 XP/week from weekly awards).
+    with db._tx() as conn:
+        rows = conn.execute(
+            "SELECT goal, xp_awarded FROM weekly_awards WHERE user_id = ?",
+            (user_id,),
+        ).fetchall()
+    assert [(row["goal"], row["xp_awarded"]) for row in rows] == [("quests", 40)]
+
+
+@pytest.mark.asyncio
+async def test_weekly_tenth_completion_level_up_includes_award(
+    auth_client, app, monkeypatch
+):
+    """R6 level-up correctness: the +40 award is what pushes the user across
+    the level boundary (220 + 20 quest XP = 240 stays level 2; +40 = 280
+    crosses into level 3), so complete_quest's level_up must reflect the
+    award-inclusive total — without the fix the crossing is missed."""
+    fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(database_module, "date", _FixedDate)
+    monkeypatch.setattr(routes_module, "date", _FixedDate)
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(fixed)
+    db.stamp_weekly_activation(user_id, f"{monday.isoformat()} 09:00:00")
+    mark_done(db, user_id, monday, [entry[0] for entry in QUEST_POOL])
+    mark_done(
+        db,
+        user_id,
+        monday + timedelta(days=1),
+        ["exercise_10", "log_meal", "streak_alive"],
+    )
+    # 9 seeded quests = 220 XP → level 2; the tenth is a 20-XP quest.
+    assert db.total_xp_for_user(user_id) == 220
+    today_quests = (await auth_client.get("/api/quests")).json()["quests"]
+    mood = next(q for q in today_quests if q["key"] == "mood_checkin")
+    assert mood["xp_value"] == 20
+    body = (await auth_client.post(f"/api/quests/{mood['id']}/complete")).json()
+    # Without the +40 the total would be 240 (still level 2); the award makes
+    # it 280 → level 3. level_up must report that award-inclusive crossing.
+    assert body["level_up"] == {"from": 2, "to": 3}
+    xp_state = (await auth_client.get("/api/xp")).json()
+    assert xp_state["total_xp"] == 280
+    assert xp_state["level"] == 3
 
 
 @pytest.mark.asyncio

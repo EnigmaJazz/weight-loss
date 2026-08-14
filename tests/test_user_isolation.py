@@ -12,8 +12,17 @@ import pytest
 
 from database import Database
 from main import create_app, init_app_state
+from constants import QUEST_POOL
+import database as database_module
+import routes as routes_module
 import weekly
-from tests.conftest import auth_user_id, make_user, register_user, seed_met_week
+from tests.conftest import (
+    auth_user_id,
+    make_user,
+    mark_done,
+    register_user,
+    seed_met_week,
+)
 
 SUBSCRIBE_BODY = {
     "endpoint": "https://push.example.com/v1/isolated",
@@ -467,6 +476,57 @@ async def test_weekly_state_and_awards_isolated_between_users(pair, app):
     )
     # The current week is the same calendar week for both users.
     assert alice_data["current"]["week_start"] == bob_data["current"]["week_start"]
+
+
+@pytest.mark.asyncio
+async def test_weekly_mutation_award_isolated_between_users(pair, app, monkeypatch):
+    """R6 isolation: alice's tenth-completion award pays alice only — bob's
+    weekly_awards and XP stay untouched by her mutation."""
+    fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(database_module, "date", _FixedDate)
+    monkeypatch.setattr(routes_module, "date", _FixedDate)
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    alice, bob = pair
+    db = app.state.db
+    alice_user = db.get_user_by_username("alice")
+    bob_user = db.get_user_by_username("bob")
+    assert alice_user is not None and bob_user is not None
+    monday = weekly.week_start(fixed)
+    db.stamp_weekly_activation(alice_user.id, f"{monday.isoformat()} 09:00:00")
+    mark_done(db, alice_user.id, monday, [entry[0] for entry in QUEST_POOL])
+    mark_done(
+        db,
+        alice_user.id,
+        monday + timedelta(days=1),
+        ["exercise_10", "log_meal", "streak_alive"],
+    )
+    mark_done(db, bob_user.id, monday, ["mood_checkin"])  # bob: 1 / 10
+    alice_xp_before = db.total_xp_for_user(alice_user.id)
+    bob_xp_before = db.total_xp_for_user(bob_user.id)
+    alice_quests = (await alice.get("/api/quests")).json()["quests"]
+    target = alice_quests[0]
+    assert (
+        await alice.post(f"/api/quests/{target['id']}/complete")
+    ).status_code == 200
+    # Alice's tenth completion pays alice's quests award immediately.
+    assert (
+        db.total_xp_for_user(alice_user.id)
+        == alice_xp_before + target["xp_value"] + 40
+    )
+    # Bob: no cross-user award, no XP change, no weekly_awards rows.
+    assert db.total_xp_for_user(bob_user.id) == bob_xp_before
+    with db._tx() as conn:
+        bob_rows = conn.execute(
+            "SELECT user_id, goal FROM weekly_awards WHERE user_id = ?",
+            (bob_user.id,),
+        ).fetchall()
+    assert bob_rows == []
 
 
 def test_db_startup_weekly_reconcile_pays_due_awards(tmp_path):

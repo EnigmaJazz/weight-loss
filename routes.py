@@ -1276,8 +1276,10 @@ async def _ensure_today_quests(
 ) -> tuple[list[Quest], str, AppSettings]:
     """Generate today's quests when absent, then reconcile open quests against
     the log tables and persist any read-detected completions (source
-    'detected'). Returns (today's rows, today's date string, the user's
-    settings) with the persisted state visible to the caller."""
+    'detected'). When a detection actually persists, the 40-XP weekly award
+    for any objective it completes is paid in this same request (R6) — plain
+    reads stay read-only. Returns (today's rows, today's date string, the
+    user's settings) with the persisted state visible to the caller."""
     today = date.today()
     today_str = today.isoformat()
     settings = await run_db(db.get_settings, user.id)
@@ -1292,6 +1294,7 @@ async def _ensure_today_quests(
     facts = await run_db(db.quest_detection_facts, user.id, today_str)
     reconciled = quests.reconcile(rows, facts)
     stored_by_id = {q.id: q for q in rows}
+    detection_persisted = False
     for candidate in reconciled:
         if (
             candidate.status == "done"
@@ -1305,6 +1308,11 @@ async def _ensure_today_quests(
                 "done",
                 source="detected",
             )
+            detection_persisted = True
+    if detection_persisted:
+        # R6: a read-detected completion pays the 40-XP weekly award at the
+        # moment the objective becomes met — before the caller's next XP read.
+        await run_db(db.reconcile_weekly_awards, user.id)
     rows = await run_db(db.list_quests_for_date, user.id, today_str)
     return rows, today_str, settings
 
@@ -1351,9 +1359,11 @@ async def complete_quest(
 ) -> dict[str, Any]:
     """Mark a quest done. Idempotent: completing a done quest is a 200 no-op;
     skipped/replaced quests are 409; foreign/missing 404; non-today 409.
-    Reports a level-up by diffing the level from XP immediately before and
-    after the idempotent transition (level_up:{from,to}|null, quiet on
-    repeat)."""
+    Pays the 40-XP weekly award the moment a met objective first becomes done
+    (R6): weekly reconciliation runs after the status write and before level
+    computation, so level_up reflects the award. Reports a level-up by diffing
+    the level from XP immediately before and after the idempotent transition
+    (level_up:{from,to}|null, quiet on repeat)."""
     quest_row = await _owned_today_quest(db, user, quest_id)
     if not quests.completion_allowed(quest_row):
         raise HTTPException(status_code=409, detail="quest cannot be completed")
@@ -1368,6 +1378,9 @@ async def complete_quest(
     )
     if updated is None:
         raise HTTPException(status_code=404, detail="quest not found")
+    # R6: pay the 40-XP weekly award at the moment the quest completes a met
+    # objective — before level computation, so level_up reflects the award.
+    await run_db(db.reconcile_weekly_awards, user.id)
     level_after = xp.level_from_xp(
         await run_db(db.total_xp_for_user, user.id)
     )
@@ -1437,9 +1450,10 @@ async def replace_quest(
 async def get_xp(
     user: User = Depends(require_user), db: Database = Depends(get_db)
 ) -> dict[str, Any]:
-    """Derived XP state: the SUM of the user's done quests mapped through the
-    level curve, plus the newest 10 completed quests. No ledger — every value
-    derives from the quests table on read."""
+    """Derived XP state: the SUM of the user's done quests plus persisted
+    weekly awards (total_xp_for_user), mapped through the level curve, plus
+    the newest 10 completed quests. No ledger — every value derives from the
+    quests and weekly_awards tables on read."""
     total = await run_db(db.total_xp_for_user, user.id)
     level = xp.level_from_xp(total)
     xp_into_next, next_level_at = xp.level_progress(total)
