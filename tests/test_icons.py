@@ -77,3 +77,29 @@ def test_regenerated_icons_match_committed_artifacts(make_icons: ModuleType) -> 
         make_icons.write_png(generated, size, make_icons.render(size))
         committed = ICON_DIR / f"icon-{size}.png"
         assert _decode_png(generated) == _decode_png(committed)
+
+# ---- cartoon-fox rework pins (r2-completion S1, spec R2) ------------------
+# Deterministic probes at both sizes pin the round cartoon face (bulging
+# cheeks, wide white muzzle, expressive eyes/nose/mouth); the old geometric
+# fox fails every probe (verified in the RED pass), so a regression cannot
+# pass silently. Palette constants unchanged.
+
+_FOX = (235, 137, 44)
+_WHITE = (252, 248, 240)
+_NOSE = (38, 32, 30)
+
+# 512-space probes -> (nx, ny, expected color), scaled by size/512.
+_CARTOON_FOX_PROBES = [
+    (130, 330, _FOX), (382, 330, _FOX), (96, 320, _FOX), (420, 320, _FOX),
+    (256, 200, _FOX), (256, 450, _WHITE), (220, 385, _WHITE), (330, 385, _WHITE),
+    (211, 295, _NOSE), (201, 291, _WHITE), (256, 420, _NOSE), (256, 456, _NOSE),
+]
+
+
+@pytest.mark.parametrize("size", (192, 512))
+def test_cartoon_fox_face_geometry(make_icons: ModuleType, size: int) -> None:
+    rgba = make_icons.render(size)
+    s = size / 512.0
+    for nx, ny, expected in _CARTOON_FOX_PROBES:
+        i = (int(ny * s) * size + int(nx * s)) * 4
+        assert (rgba[i], rgba[i + 1], rgba[i + 2]) == expected

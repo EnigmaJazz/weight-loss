@@ -378,6 +378,32 @@ else
   step_fail "quests card renders exactly 3 rows (count='$QUEST_ROWS')"
 fi
 
+# r2-completion S1: a visible quest row must lead with a decorative domain
+# icon — an inline SVG (never an external asset) hidden from the
+# accessibility tree (spec 'Quest Icons' R3/R4).
+QUEST_ICON_OK="$(playwright-cli --raw eval "(() => { const rows = [...document.querySelectorAll('#quests-card .quest-row')]; const icon = rows.map(r => r.querySelector('.quest-domain-icon')).find(i => i); return String(!!icon && icon.getAttribute('aria-hidden') === 'true' && !!icon.querySelector('svg') && icon.querySelector('svg').innerHTML.trim().length > 0); })()" 2>&1 | tr -d '"')"
+if [ "$QUEST_ICON_OK" = "true" ]; then
+  step_ok "quest rows lead with a decorative inline domain icon"
+else
+  step_fail "quest rows lead with a decorative inline domain icon (got '$QUEST_ICON_OK')"
+fi
+# The header mascot must be the cartoon fox — its round-head ellipse structure
+# (not merely .mascot existence) pins the r2-completion S1 rework (spec R2).
+MASCOT_CARTOON="$(playwright-cli --raw eval "(() => { const svg = document.querySelector('.header-row .mascot svg'); return String(!!svg && !!svg.querySelector('ellipse')); })()" 2>&1 | tr -d '"')"
+if [ "$MASCOT_CARTOON" = "true" ]; then
+  step_ok "header mascot is the cartoon fox (round-head ellipse)"
+else
+  step_fail "header mascot is the cartoon fox (got '$MASCOT_CARTOON')"
+fi
+# No World placeholder regression after the quest surface renders (the former
+# placeholder copy must stay absent end-to-end, spec R2 inline delivery).
+PLACEHOLDER_GONE_TODAY="$(playwright-cli --raw eval "!document.body.textContent.includes('Your adventure map is coming soon.')" 2>&1 | tr -d '"')"
+if [ "$PLACEHOLDER_GONE_TODAY" = "true" ]; then
+  step_ok "world placeholder copy absent after quest render"
+else
+  step_fail "world placeholder copy absent after quest render (got '$PLACEHOLDER_GONE_TODAY')"
+fi
+
 OPEN_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
 if [ "$OPEN_ROWS" -ge 1 ] 2>/dev/null; then
   step_ok "at least one open quest row renders ($OPEN_ROWS)"

@@ -243,7 +243,9 @@ main {
 .island-fox-cheek,
 .island-fox-muzzle { fill: var(--island-fox-face); }
 .island-fox-eye,
-.island-fox-nose { fill: var(--island-fox-eye); }
+.island-fox-nose,
+.island-fox-mouth { fill: var(--island-fox-eye); }
+.island-fox-eye-gleam { fill: var(--island-fox-face); }
 
 /* stage name + progress (static stage-1 defaults; Slice 3 renders live). */
 .island-stage-name {
@@ -716,6 +718,29 @@ button.link:hover { color: var(--accent); background: none; }
 .quest-status { font-size: 0.85rem; color: var(--muted); }
 .quest-status.is-done { color: var(--accent-dark); }
 
+/* quest domain icons (r2-completion S1, spec 'Quest Icons' R3/R4): the
+ * decorative inline-SVG glyph leads the quest title and each history row.
+ * Icons fill from currentColor tinted by --fox (token-only, no palette hex);
+ * they are static by design — no icon motion anywhere, and the reduced-motion
+ * block below keeps them visible without animation. */
+.quest-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.quest-domain-icon {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.quest-domain-icon svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  display: block;
+  color: var(--fox);
+}
+
 .quest-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1013,6 +1038,15 @@ a:focus-visible,
    * stage (spec 'Island Evolution and Appearance'). */
   .island-stage {
     animation: none !important;
+  }
+  /* r2-completion S1: quest domain icons and fox artwork stay static — the
+   * neutralizer keeps the same artwork visible without any icon/fox motion
+   * (spec 'Quest Icons' R4). */
+  .quest-domain-icon,
+  .mascot,
+  .island-fox {
+    animation: none !important;
+    transition: none !important;
   }
 }
 

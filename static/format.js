@@ -343,7 +343,39 @@
     return current > previous ? "fire" : "suppress";
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged };
+  /* ---- Quest domain icons (r2-completion S1, spec 'Quest Icons' R1) ----
+   * Decorative inline-SVG glyphs for the nine quest domains. Array-of-
+   * ["domain", "svg"] pairs so the SPA gate test can regex-extract and
+   * ast.literal_eval the exact literal (drift-guard mirror of the
+   * EXERCISE_TYPES/HABIT_TYPES convention): the SVG strings stay simple —
+   * no `]`, no backslashes, single-quoted attributes inside double-quoted
+   * strings. Icons fill from currentColor so the SPA's token CSS tints
+   * them; they are decorative (aria-hidden at the call site), never a
+   * substitute for the domain text. */
+  const QUEST_DOMAIN_ICONS = [
+    ["exercise", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M13 2 4 13h6l-2 9 9-11h-6l2-9z'/></svg>"],
+    ["nutrition", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><circle cx='12' cy='13.5' r='8'/><path d='M12 5.5c1.5-2.5 5-3 6.5-2-.5 2-2 3.5-4.5 3.5-1 0-1.8-.5-2-1.5z'/></svg>"],
+    ["movement", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><ellipse cx='9' cy='8.5' rx='4' ry='3'/><circle cx='4.5' cy='6.5' r='1.4'/><circle cx='4' cy='9.5' r='1.4'/><circle cx='5.7' cy='11.7' r='1.4'/><ellipse cx='13.5' cy='17' rx='2.6' ry='2.2'/></svg>"],
+    ["routine", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='4' y='5' width='16' height='15' rx='2' fill='none' stroke='currentColor' stroke-width='2'/><path d='M8 3v4M16 3v4' stroke='currentColor' stroke-width='2' stroke-linecap='round'/><path d='M9 14l2.2 2.2L15.5 11' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>"],
+    ["wellbeing", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M12 20.5S4.8 16 3 12.1C1.4 8.6 3.4 4.5 7 4.5c2 0 3.6 1.1 4.5 2.7l.5.8.5-.8c.9-1.6 2.5-2.7 4.5-2.7 3.6 0 5.6 4.1 4 7.6C19.2 16 12 20.5 12 20.5z'/></svg>"],
+    ["weight", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M12 3v14M5 6h14' stroke='currentColor' stroke-width='2' stroke-linecap='round'/><path d='M5 6 2.5 11h5zM19 6l2.5 5h-5zM8 17h8'/></svg>"],
+    ["strength", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M4 10h16v4H4z'/><path d='M2 8h3v8H2zM19 8h3v8h-3z'/></svg>"],
+    ["sleep", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z'/><path d='M18.5 5l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5.5-1.2z'/></svg>"],
+    ["recovery", "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M5 19C5 10 10 5 19 5c0 9-5 14-14 14z'/><path d='M5 19c3-6 7-10 12-12' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round'/></svg>"],
+  ];
+
+  /** Resolve the decorative inline SVG for a quest domain by EXACT lookup
+   * (spec 'Quest Icons' R1): the stored domain maps without translation or
+   * aliasing, and an unknown domain throws instead of falling back — a
+   * missing icon must fail loudly at render time, never substitute. */
+  function iconForDomain(domain) {
+    for (const [key, svg] of QUEST_DOMAIN_ICONS) {
+      if (key === domain) return svg;
+    }
+    throw new Error(`Unknown quest domain: ${domain}`);
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
