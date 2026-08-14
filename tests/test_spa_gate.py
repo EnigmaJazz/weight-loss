@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from constants import EXERCISE_TYPES, HABIT_TYPES
+from constants import EXERCISE_TYPES, HABIT_TYPES, QUEST_POOL
 
 
 @pytest.mark.asyncio
@@ -1434,3 +1434,49 @@ async def test_app_js_ships_world_island_runtime_wiring(client):
         "loadQuestsAndXp() must invoke stageChanged() inside the fulfilled "
         "/api/xp branch"
     )
+
+# ---- r2-completion S1 gate additions (quest-icons spec R1/R4) ------------
+# The format.js QUEST_DOMAIN_ICONS array-of-pairs literal (ast.literal_eval
+# drift-guard, mirroring the EXERCISE_TYPES/HABIT_TYPES convention) pins the
+# nine-domain catalogue and the six stored QUEST_POOL subset; the app.js
+# renderers place the decorative icon via iconForDomain with aria-hidden.
+
+_QUEST_ICON_DOMAINS = (
+    "exercise", "nutrition", "movement", "routine", "wellbeing",
+    "weight", "strength", "sleep", "recovery",
+)
+
+
+@pytest.mark.asyncio
+async def test_format_js_ships_quest_domain_icons_drift_guard(client):
+    resp = await client.get("/static/format.js")
+    assert resp.status_code == 200
+    body = resp.text
+    match = re.search(
+        r"QUEST_DOMAIN_ICONS\s*=\s*(\[\s*\[[^\]]*\]\s*(?:,\s*\[[^\]]*\]\s*)*(?:,)?\s*\])",
+        body,
+    )
+    assert match is not None, "format.js must embed the QUEST_DOMAIN_ICONS literal"
+    pairs = ast.literal_eval(match.group(1))
+    domains = [d for d, _ in pairs]
+    assert domains == list(_QUEST_ICON_DOMAINS), f"keys must pin the nine domains: {domains}"
+    assert all(svg.strip() and "<svg" in svg and "</svg>" in svg for _, svg in pairs)
+    stored = sorted({q[1] for q in QUEST_POOL})
+    assert sorted(set(domains) & set(stored)) == stored, (
+        f"icons must cover every stored QUEST_POOL domain: {stored}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_app_js_quest_renderers_use_decorative_domain_icons(client):
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    assert re.search(
+        r"\{[^}]*iconForDomain[^}]*\}\s*=\s*globalThis\.WeightFormat", body
+    ) is not None, "app.js must destructure iconForDomain from WeightFormat"
+    for fn_name in ("renderQuests", "renderQuestHistory"):
+        fn = _js_fn_body(body, fn_name)
+        assert "iconForDomain(" in fn
+        assert '"quest-domain-icon"' in fn
+        assert 'setAttribute("aria-hidden", "true")' in fn

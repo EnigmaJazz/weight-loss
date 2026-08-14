@@ -20,7 +20,7 @@ const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -1733,6 +1733,13 @@ function renderQuestHistory(questsPayload) {
   for (const q of history) {
     const li = document.createElement("li");
     li.className = "quest-history-row";
+    // Decorative domain icon leads the row; the domain text supplies the
+    // meaning, so the icon is hidden from the accessibility tree (spec
+    // 'Quest Icons' R4). Fail-loud unknown domains are intentional.
+    const icon = document.createElement("span");
+    icon.className = "quest-domain-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = iconForDomain(q.domain);
     const date = document.createElement("span");
     date.className = "quest-history-date";
     date.textContent = formatDate(q.date);
@@ -1746,7 +1753,7 @@ function renderQuestHistory(questsPayload) {
     awarded.className = "quest-history-xp";
     // Non-done statuses award zero XP (spec 'Journey Progress Cards').
     awarded.textContent = q.status === "done" ? `+${q.xp_value} XP` : "0 XP";
-    li.append(date, name, status, awarded);
+    li.append(icon, date, name, status, awarded);
     list.append(li);
   }
   el.append(list);
@@ -1778,7 +1785,15 @@ function renderQuests(data) {
     row.dataset.status = q.status;
     const label = document.createElement("div");
     label.className = "quest-title";
+    // Decorative domain icon leads the title; the domain text supplies the
+    // meaning, so the icon is hidden from the accessibility tree (spec
+    // 'Quest Icons' R4). Fail-loud unknown domains are intentional.
+    const icon = document.createElement("span");
+    icon.className = "quest-domain-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = iconForDomain(q.domain);
     label.textContent = q.title;
+    label.prepend(icon);
     const meta = document.createElement("div");
     meta.className = "quest-meta";
     const domain = document.createElement("span");

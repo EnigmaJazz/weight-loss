@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Generate PWA icons for the Weight Loss Tracker (pure stdlib, no deps).
 
-Draws a fox face on the app's green background: tall pointed ears with dark
-tips, white cheek patches, a white muzzle with a dark nose, and dark eyes.
+Draws a friendly cartoon fox face on the app's green background (r2-completion
+S1 cartoon rework): a ROUND head with bulging orange cheeks, a wide white
+muzzle reaching the chin, and an expressive face — low eyes with white
+catchlights, a dark nose, and a small mouth on the muzzle. Ears keep the
+coherent tall-triangle language with dark inner shading and white tufts.
 Writes a PNG with the stdlib zlib+struct writer (zero-dependency approach).
 
 Usage: python3 make_icons.py [output_dir]
@@ -71,43 +74,43 @@ def in_ellipse(
 
 
 def render(size: int) -> bytes:
-    """Return raw RGBA pixels for a fox-face icon at `size` square."""
+    """Return raw RGBA pixels for the cartoon-fox icon at `size` square.
+
+    Geometry lives in 512-space and scales with ``size / 512.0``, so the
+    same face renders identically at 192 and 512 (pinned by
+    tests/test_icons.py's cartoon-fox geometry probes). Palette constants
+    above are unchanged from the geometric fox.
+    """
     px = bytearray()
     s = size / 512.0
 
-    # Head: a clean triangle — top edge under the ears, sides tapering
-    # directly to the pointed chin (no cheek bulge).
-    head = [
-        (164 * s, 140 * s),   # left top
-        (348 * s, 140 * s),   # right top
-        (332 * s, 300 * s),   # right mid (pulled in)
-        (284 * s, 402 * s),   # lower right
-        (256 * s, 424 * s),   # pointed chin
-        (228 * s, 402 * s),   # lower left
-        (180 * s, 300 * s),   # left mid (pulled in)
-    ]
-    # Ears: tall triangles with a FLAT base below the head's top edge, so the
-    # base sits inside the head silhouette and there is no floating gap.
-    left_ear = [(118 * s, 26 * s), (160 * s, 165 * s), (250 * s, 165 * s)]
-    right_ear = [(394 * s, 26 * s), (262 * s, 165 * s), (352 * s, 165 * s)]
-    left_ear_tip = [(140 * s, 58 * s), (132 * s, 108 * s), (186 * s, 94 * s)]
-    right_ear_tip = [(372 * s, 58 * s), (380 * s, 108 * s), (326 * s, 94 * s)]
+    # Ears: tall triangles (coherent ear language kept from the geometric fox)
+    # with a flat base that sits inside the round head's silhouette.
+    left_ear = [(140 * s, 30 * s), (172 * s, 170 * s), (252 * s, 170 * s)]
+    right_ear = [(372 * s, 30 * s), (340 * s, 170 * s), (260 * s, 170 * s)]
+    left_ear_tip = [(150 * s, 50 * s), (142 * s, 98 * s), (196 * s, 84 * s)]
+    right_ear_tip = [(362 * s, 50 * s), (370 * s, 98 * s), (316 * s, 84 * s)]
     # Dark inner ear: smaller triangle inside each ear.
-    left_inner = [(172 * s, 132 * s), (160 * s, 86 * s), (206 * s, 106 * s)]
-    right_inner = [(340 * s, 132 * s), (352 * s, 86 * s), (306 * s, 106 * s)]
+    left_inner = [(200 * s, 160 * s), (168 * s, 104 * s), (214 * s, 124 * s)]
+    right_inner = [(312 * s, 160 * s), (344 * s, 104 * s), (298 * s, 124 * s)]
     # White ear tuft: a small light triangle at the base of each inner ear.
-    left_tuft = [(170 * s, 130 * s), (163 * s, 108 * s), (196 * s, 118 * s)]
-    right_tuft = [(342 * s, 130 * s), (349 * s, 108 * s), (316 * s, 118 * s)]
-    # White lower face: a clean triangle tapering to the pointed chin,
-    # wider at the top than before.
-    face = [(212 * s, 255 * s), (300 * s, 255 * s), (256 * s, 414 * s)]
-    # Eyes and nose.
-    eye_l = (212 * s, 196 * s)
-    eye_r = (300 * s, 196 * s)
-    eye_radius = 11 * s
-    nose = (256 * s, 356 * s)
-    nose_rx = 13 * s
-    nose_ry = 9 * s
+    left_tuft = [(196 * s, 158 * s), (180 * s, 130 * s), (214 * s, 140 * s)]
+    right_tuft = [(316 * s, 158 * s), (332 * s, 130 * s), (298 * s, 140 * s)]
+    # Round cartoon head: a big ellipse plus two bulging cheek circles — the
+    # cheeks push the silhouette out past the old triangle's taper.
+    head_cx, head_cy, head_rx, head_ry = (256 * s, 310 * s, 140 * s, 150 * s)
+    cheek_l = (160 * s, 320 * s, 72 * s)
+    cheek_r = (352 * s, 320 * s, 72 * s)
+    # Expressive white muzzle: a wide rounded ellipse reaching the chin.
+    muzzle = (256 * s, 385 * s, 95 * s, 78 * s)
+    # Eyes sit low on the face, each with a small white catchlight.
+    eye_l = (205 * s, 295 * s, 14 * s)
+    eye_r = (307 * s, 295 * s, 14 * s)
+    gleam_l = (201 * s, 291 * s, 5 * s)
+    gleam_r = (303 * s, 291 * s, 5 * s)
+    # Nose + small mouth on the muzzle.
+    nose = (256 * s, 420 * s, 16 * s, 11 * s)
+    mouth = (256 * s, 456 * s, 13 * s, 5 * s)
 
     for y in range(size):
         for x in range(size):
@@ -128,15 +131,25 @@ def render(size: int) -> bytes:
                 color = WHITE
             if point_in_triangle(x, y, *right_tuft):
                 color = WHITE
-            if point_in_polygon(x, y, head):
+            if in_ellipse(x, y, head_cx, head_cy, head_rx, head_ry):
                 color = FOX
-            if point_in_polygon(x, y, face):
+            if in_circle(x, y, cheek_l[0], cheek_l[1], cheek_l[2]):
+                color = FOX
+            if in_circle(x, y, cheek_r[0], cheek_r[1], cheek_r[2]):
+                color = FOX
+            if in_ellipse(x, y, muzzle[0], muzzle[1], muzzle[2], muzzle[3]):
                 color = WHITE
-            if in_circle(x, y, eye_l[0], eye_l[1], eye_radius):
+            if in_ellipse(x, y, mouth[0], mouth[1], mouth[2], mouth[3]):
                 color = NOSE
-            if in_circle(x, y, eye_r[0], eye_r[1], eye_radius):
+            if in_circle(x, y, eye_l[0], eye_l[1], eye_l[2]):
                 color = NOSE
-            if in_ellipse(x, y, nose[0], nose[1], nose_rx, nose_ry):
+            if in_circle(x, y, eye_r[0], eye_r[1], eye_r[2]):
+                color = NOSE
+            if in_circle(x, y, gleam_l[0], gleam_l[1], gleam_l[2]):
+                color = WHITE
+            if in_circle(x, y, gleam_r[0], gleam_r[1], gleam_r[2]):
+                color = WHITE
+            if in_ellipse(x, y, nose[0], nose[1], nose[2], nose[3]):
                 color = NOSE
             px += bytes(color) + b"\xff"
     return bytes(px)
