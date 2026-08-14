@@ -1,7 +1,7 @@
 """Dataclasses for the weight-loss tracker's structured state."""
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -287,3 +287,39 @@ class AchievementState:
     title: str
     earned: bool
     unlocked_at: Optional[str] = None
+
+
+@dataclass
+class WeeklySnapshot:
+    """One user's per-week facts gathered in a single transaction (never
+    persisted): done quests, successful days, and goals already paid."""
+
+    week: str  # ISO date of the week's Monday
+    done_quests: int = 0
+    good_days: int = 0
+    awarded: set[str] = field(default_factory=set)
+
+
+@dataclass
+class WeeklyGoalState:
+    """One weekly objective's derived status for the API surface."""
+
+    goal: str
+    current: int
+    target: int
+    met: bool
+    awarded: bool
+
+
+@dataclass
+class WeeklyState:
+    """The full GET /api/weekly response state for one user (never persisted):
+    activation stamp, current-week progress, bounded 12-week history, and the
+    goals newly paid by the read that produced it."""
+
+    activation: Optional[str]
+    current_week: str
+    exempt: bool
+    goals: list[WeeklyGoalState]
+    history: list[dict[str, Any]]
+    met_flips: list[str]

@@ -6,11 +6,14 @@ contract for unauthenticated access. Every Database method takes a leading
 user_id; any missed scoping shows up here as a leaked or mutated row.
 """
 
+from datetime import date, timedelta
+
 import pytest
 
 from database import Database
 from main import create_app, init_app_state
-from tests.conftest import auth_user_id, make_user, register_user
+import weekly
+from tests.conftest import auth_user_id, make_user, register_user, seed_met_week
 
 SUBSCRIBE_BODY = {
     "endpoint": "https://push.example.com/v1/isolated",
@@ -426,5 +429,68 @@ def test_db_upsert_reconciles_only_own_rewards(tmp_path):
         assert (10, 98.0) in alice_rows  # target 80
         assert (10, 99.0) in bob_rows  # target 90
         assert alice_rows != bob_rows
+    finally:
+        db.close()
+
+
+# ---- weekly objectives (r2-completion · S2) --------------------------------
+
+
+@pytest.mark.asyncio
+async def test_401_on_weekly(client):
+    assert (await client.get("/api/weekly")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_weekly_state_and_awards_isolated_between_users(pair, app):
+    """A user's activation, paid awards, and weekly history never leak into
+    another user's state or XP."""
+    alice, bob = pair
+    db = app.state.db
+    alice_user = db.get_user_by_username("alice")
+    bob_user = db.get_user_by_username("bob")
+    assert alice_user is not None and bob_user is not None
+    monday = weekly.week_start(date.today())
+    prev = monday - timedelta(days=7)
+    db.stamp_weekly_activation(alice_user.id, f"{prev.isoformat()} 09:00:00")
+    seed_met_week(db, alice_user.id, prev)
+    xp_before = db.total_xp_for_user(alice_user.id)
+    alice_data = (await alice.get("/api/weekly")).json()
+    assert alice_data["met_flips"] == ["quests", "good_days"]
+    assert db.total_xp_for_user(alice_user.id) == xp_before + 80
+    # Bob's weekly state shows no flips and none of alice's paid weeks.
+    bob_data = (await bob.get("/api/weekly")).json()
+    assert bob_data["met_flips"] == []
+    assert db.total_xp_for_user(bob_user.id) == 0
+    assert all(
+        not goal["awarded"] for entry in bob_data["history"] for goal in entry["goals"]
+    )
+    # The current week is the same calendar week for both users.
+    assert alice_data["current"]["week_start"] == bob_data["current"]["week_start"]
+
+
+def test_db_startup_weekly_reconcile_pays_due_awards(tmp_path):
+    """Startup reconciliation (reconcile_all_weekly_awards — the init_app_state
+    entry point) pays due awards for activated users only, idempotently."""
+    db = Database(str(tmp_path / "weekly.db"))
+    db.init_schema()
+    try:
+        alice = make_user(db, "alice-weekly")
+        bob = make_user(db, "bob-weekly")
+        monday = weekly.week_start(date.today())
+        prev = monday - timedelta(days=7)
+        db.stamp_weekly_activation(alice.id, f"{prev.isoformat()} 09:00:00")
+        seed_met_week(db, alice.id, prev)
+        # Bob is never activated: startup reconciliation must skip him even
+        # though his week is met.
+        seed_met_week(db, bob.id, prev)
+        alice_before = db.total_xp_for_user(alice.id)
+        bob_before = db.total_xp_for_user(bob.id)
+        db.reconcile_all_weekly_awards()
+        assert db.total_xp_for_user(alice.id) == alice_before + 80
+        assert db.total_xp_for_user(bob.id) == bob_before
+        # A second run is a no-op (exactly-once persistence).
+        db.reconcile_all_weekly_awards()
+        assert db.total_xp_for_user(alice.id) == alice_before + 80
     finally:
         db.close()

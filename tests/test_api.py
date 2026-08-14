@@ -1,6 +1,7 @@
 """API tests: weight summary, settings roundtrip, push endpoints, rewards."""
 
-from datetime import date
+import sqlite3
+from datetime import date, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -9,7 +10,16 @@ from constants import QUEST_POOL
 import database as database_module
 import quests
 from models import AppSettings
-from tests.conftest import ONBOARDED_USERNAME, auth_user_id, make_user, pair
+import routes as routes_module
+import weekly
+from tests.conftest import (
+    ONBOARDED_USERNAME,
+    auth_user_id,
+    make_user,
+    mark_done,
+    pair,
+    seed_met_week,
+)
 
 SUBSCRIBE_BODY = {
     "endpoint": "https://push.example.com/v1/abcd1234",
@@ -1388,3 +1398,226 @@ async def test_achievements_api_gather_isolation_per_user_sums(app, pair):
     assert bob_by_key["personal_best"]["unlocked_at"] == "2026-07-02"
     assert alice_by_key["getting_started"]["earned"] is False
     assert bob_by_key["getting_started"]["earned"] is False
+
+
+# ---- weekly objectives API (r2-completion · S2) ----------------------------
+
+
+@pytest.mark.asyncio
+async def test_weekly_first_read_stamps_activation(auth_client, app, monkeypatch):
+    """R7: the first weekly read persists the activation stamp; later reads
+    keep the original stamp (first read wins, exactly once)."""
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    data = (await auth_client.get("/api/weekly")).json()
+    assert data["activation"] == "2026-08-05 09:00:00"
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-09 09:00:00")
+    again = (await auth_client.get("/api/weekly")).json()
+    assert again["activation"] == "2026-08-05 09:00:00"
+
+
+@pytest.mark.asyncio
+async def test_weekly_met_flip_once_and_no_double_pay(auth_client, app):
+    """R6: a week with 10 done quests and 3 good days pays both 40-XP awards
+    (at most 80/week) exactly once; repeat reads emit no new met flips and add
+    no XP (reconciliation is idempotent)."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(date.today())
+    prev = monday - timedelta(days=7)
+    # Activation on the previous Monday: the previous week is the first counted
+    # week (fully in the past, so the test is weekday-independent).
+    db.stamp_weekly_activation(user_id, f"{prev.isoformat()} 09:00:00")
+    seed_met_week(db, user_id, prev)
+    xp_before = db.total_xp_for_user(user_id)
+    first = (await auth_client.get("/api/weekly")).json()
+    assert first["met_flips"] == ["quests", "good_days"]
+    assert db.total_xp_for_user(user_id) == xp_before + 80
+    with db._tx() as conn:
+        rows = conn.execute(
+            "SELECT goal FROM weekly_awards WHERE user_id = ? ORDER BY goal",
+            (user_id,),
+        ).fetchall()
+    assert [row["goal"] for row in rows] == ["good_days", "quests"]
+    # Repeated reads stay quiet: no flips, no new XP, no new rows.
+    second = (await auth_client.get("/api/weekly")).json()
+    assert second["met_flips"] == []
+    assert db.total_xp_for_user(user_id) == xp_before + 80
+    # The paid week appears in history as met and awarded; the current week is
+    # counted but neither met nor paid.
+    history = {h["week_start"]: h for h in second["history"]}
+    paid = history[prev.isoformat()]
+    assert paid["exempt"] is False
+    paid_goals = {g["goal"]: g for g in paid["goals"]}
+    assert paid_goals["quests"]["met"] is True
+    assert paid_goals["quests"]["awarded"] is True
+    assert paid_goals["good_days"]["met"] is True
+    assert paid_goals["good_days"]["awarded"] is True
+    assert second["current"]["exempt"] is False
+    current_goals = {g["goal"]: g for g in second["current"]["goals"]}
+    assert current_goals["quests"]["met"] is False
+    assert current_goals["quests"]["awarded"] is False
+
+
+@pytest.mark.asyncio
+async def test_weekly_tenth_quest_pays_immediately(auth_client, app, monkeypatch):
+    """R6 scenario: an eligible week at 9 done quests pays +40 the moment the
+    tenth quest becomes done (observed on the next weekly read), exactly once.
+    The clock is fixed to a Wednesday so the week is deterministic."""
+    fixed = date(2026, 8, 5)  # Wednesday; week starts Mon 2026-08-03
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return fixed
+
+    monkeypatch.setattr(database_module, "date", _FixedDate)
+    monkeypatch.setattr(routes_module, "date", _FixedDate)
+    monkeypatch.setattr(database_module, "_local_now", lambda: "2026-08-05 09:00:00")
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(fixed)
+    # Activation on the week's Monday: the current week is the first counted one.
+    db.stamp_weekly_activation(user_id, f"{monday.isoformat()} 09:00:00")
+    mark_done(db, user_id, monday, [entry[0] for entry in QUEST_POOL])
+    mark_done(
+        db,
+        user_id,
+        monday + timedelta(days=1),
+        ["exercise_10", "log_meal", "streak_alive"],
+    )
+    xp_before = db.total_xp_for_user(user_id)
+    pre = (await auth_client.get("/api/weekly")).json()
+    assert pre["met_flips"] == []  # 9 < 10: not met, nothing paid
+    assert pre["current"]["exempt"] is False
+    # The tenth quest becomes done through the API today.
+    today_quests = (await auth_client.get("/api/quests")).json()["quests"]
+    target = today_quests[0]
+    assert (
+        await auth_client.post(f"/api/quests/{target['id']}/complete")
+    ).status_code == 200
+    post = (await auth_client.get("/api/weekly")).json()
+    assert post["met_flips"] == ["quests"]
+    # XP = quest XP (incl. the tenth) + the 40-XP award, paid exactly once.
+    assert db.total_xp_for_user(user_id) == xp_before + target["xp_value"] + 40
+    # Repeat read: quiet, no second payment.
+    again = (await auth_client.get("/api/weekly")).json()
+    assert again["met_flips"] == []
+    assert db.total_xp_for_user(user_id) == xp_before + target["xp_value"] + 40
+
+
+@pytest.mark.asyncio
+async def test_weekly_activation_independent_between_users(pair, app, monkeypatch):
+    """R7 scenario: each user's counted weeks derive only from their own
+    activation stamp — a mid-week activation exempts the partial week while an
+    earlier Monday activation counts the current week."""
+    alice, bob = pair
+    db = app.state.db
+    monday = weekly.week_start(date.today())
+    alice_stamp = (monday + timedelta(days=2)).isoformat() + " 09:00:00"
+    bob_stamp = (monday - timedelta(days=7)).isoformat() + " 09:00:00"
+    monkeypatch.setattr(database_module, "_local_now", lambda: alice_stamp)
+    alice_data = (await alice.get("/api/weekly")).json()
+    monkeypatch.setattr(database_module, "_local_now", lambda: bob_stamp)
+    bob_data = (await bob.get("/api/weekly")).json()
+    assert alice_data["activation"] == alice_stamp
+    assert bob_data["activation"] == bob_stamp
+    assert alice_data["current"]["exempt"] is True  # partial activation week
+    assert bob_data["current"]["exempt"] is False  # counted from last Monday
+
+
+@pytest.mark.asyncio
+async def test_weekly_history_capped_at_twelve(auth_client, app):
+    """History is bounded to the newest 12 completed weeks, newest first."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(date.today())
+    db.stamp_weekly_activation(
+        user_id, f"{(monday - timedelta(days=7)).isoformat()} 09:00:00"
+    )
+    for offset in range(1, 15):  # 14 previous weeks with one done quest each
+        day = monday - timedelta(days=7 * offset)
+        mark_done(db, user_id, day, ["mood_checkin"])
+    data = (await auth_client.get("/api/weekly")).json()
+    assert len(data["history"]) == 12
+    assert data["history"][0]["week_start"] == (
+        monday - timedelta(days=7)
+    ).isoformat()
+    assert data["history"][-1]["week_start"] == (
+        monday - timedelta(days=7 * 12)
+    ).isoformat()
+
+
+def test_weekly_snapshot_gather(tmp_path):
+    """weekly_snapshot counts done quests and Good/Great days week-bounded and
+    reports the week's already-awarded goals (Spark and out-of-week rows never
+    count)."""
+    db = database_module.Database(str(tmp_path / "weekly.db"))
+    db.init_schema()
+    try:
+        user = make_user(db, "snapshot-user")
+        monday = weekly.week_start(date.today())
+        prev = monday - timedelta(days=7)
+        seed_met_week(db, user.id, prev)
+        # A done quest OUTSIDE the week must not count toward it.
+        mark_done(db, user.id, monday, ["mood_checkin"])
+        snap = db.weekly_snapshot(user.id, prev)
+        assert snap.week == prev.isoformat()
+        assert snap.done_quests == 11
+        assert snap.good_days == 3  # the Spark day never counts
+        assert snap.awarded == set()
+        # Week-bounded: the current week's rows are excluded from the past one.
+        current = db.weekly_snapshot(user.id, monday)
+        assert current.done_quests == 1
+        assert current.good_days == 1  # one done quest is a Great Day
+        # Already-awarded goals are reported.
+        with db._tx() as conn:
+            conn.execute(
+                "INSERT INTO weekly_awards (user_id, week_start, goal, xp_awarded)"
+                " VALUES (?, ?, 'quests', 40)",
+                (user.id, prev.isoformat()),
+            )
+        paid = db.weekly_snapshot(user.id, prev)
+        assert paid.awarded == {"quests"}
+    finally:
+        db.close()
+
+
+def test_weekly_awards_schema_constraints(tmp_path):
+    """weekly_awards enforces its contract at the schema: composite PK
+    (user_id, week_start, goal), the goal allowlist, and exactly 40 XP."""
+    db = database_module.Database(str(tmp_path / "weekly.db"))
+    db.init_schema()
+    try:
+        user = make_user(db, "schema-user")
+        with db._tx() as conn:
+            conn.execute(
+                "INSERT INTO weekly_awards (user_id, week_start, goal, xp_awarded)"
+                " VALUES (?, '2026-08-03', 'quests', 40)",
+                (user.id,),
+            )
+        with pytest.raises(sqlite3.IntegrityError):  # duplicate PK
+            with db._tx() as conn:
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded)"
+                    " VALUES (?, '2026-08-03', 'quests', 40)",
+                    (user.id,),
+                )
+        with pytest.raises(sqlite3.IntegrityError):  # unknown goal
+            with db._tx() as conn:
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded)"
+                    " VALUES (?, '2026-08-03', 'streaks', 40)",
+                    (user.id,),
+                )
+        with pytest.raises(sqlite3.IntegrityError):  # wrong award value
+            with db._tx() as conn:
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded)"
+                    " VALUES (?, '2026-08-03', 'quests', 20)",
+                    (user.id,),
+                )
+    finally:
+        db.close()
