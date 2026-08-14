@@ -934,6 +934,22 @@ fi
 playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
 playwright-cli click 'input[name="accent"][value="purple"]' >/dev/null 2>&1
 sleep 1
+# The attribute alone proves nothing about the CSS: assert the resolved token
+# actually changed from the brand green (a wrong hex in the purple block would
+# pass every static pin), and that the server persisted the choice (the
+# debounced save path is invisible to attribute checks).
+ACCENT_TOKEN="$(playwright-cli --raw eval "getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()" 2>&1 | tr -d '"')"
+if [ "$ACCENT_TOKEN" != "#2f7d54" ] && [ -n "$ACCENT_TOKEN" ]; then
+  step_ok "purple resolves a non-brand --accent token ($ACCENT_TOKEN)"
+else
+  step_fail "purple resolves a non-brand --accent token (got '$ACCENT_TOKEN')"
+fi
+SETTINGS_ACCENT="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/settings', false); x.send(); return String(JSON.parse(x.responseText).accent); })()" 2>&1 | tr -d '"')"
+if [ "$SETTINGS_ACCENT" = "purple" ]; then
+  step_ok "server persisted the accent choice ($SETTINGS_ACCENT)"
+else
+  step_fail "server persisted the accent choice (got '$SETTINGS_ACCENT')"
+fi
 mkdir -p artifacts/accent-colour
 for tab in today journey world me; do
   playwright-cli click "[data-tab=$tab]" >/dev/null 2>&1

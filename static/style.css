@@ -128,11 +128,13 @@
 
 /* Accent colour swatch previews — each swatch uses its own CSS token so the
  * preview circle always shows the correct colour regardless of the selected
- * accent. Green's swatch consumes --accent (the :root default). */
+ * accent. Green's swatch consumes --accent (the :root default), and the
+ * non-default swatch hexes are pinned equal to their [data-accent] tokens by
+ * tests/test_palette_lockstep.py. */
 .swatch-purple { --swatch: #7352a3; }
 .swatch-teal   { --swatch: #207c78; }
 .swatch-blue   { --swatch: #376fa8; }
-.swatch-green  { --swatch: #2f7d54; }
+.swatch-green  { --swatch: var(--accent); }
 .swatch-orange { --swatch: #b45f26; }
 
 * { box-sizing: border-box; }

@@ -68,8 +68,9 @@ ACTIVITY_LEVELS: tuple[str, ...] = (
 
 # Accent colour allowlist (r2b-accent-colour): drives server validation
 # (routes.py) exactly like PRIMARY_GOALS. Purple is an explicit user request;
-# the curated set rides the existing --accent token system. Mirrored literals
-# land in the SPA with Unit 2.
+# the curated set rides the existing --accent token system. SPA mirror pinned
+# by tests/test_spa_gate.py (app.js literal + FOUC bootstrap) and
+# tests/test_palette_lockstep.py (NON_DEFAULT_ACCENTS derivation).
 ACCENT_COLORS: tuple[str, ...] = (
     "purple",
     "teal",

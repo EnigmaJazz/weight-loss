@@ -284,7 +284,9 @@
    * Known colours: purple, teal, blue, green, orange. Green is the default.
    * Null, empty, or unknown values resolve to "green" (the default — no CSS
    * override needed). Pure mirror of the server-side accent validation.
-   * Used by the FOUC bootstrap and the SPA to keep HTML/JS hex-free. */
+   * Used by the SPA post-login (loadData/renderSettings/applyAccent); the
+   * head FOUC bootstrap mirrors this logic inline (pinned by
+   * tests/test_spa_gate.py) because format.js loads after first paint. */
   function resolveAccent(pref) {
     if (pref === "purple" || pref === "teal" || pref === "blue" ||
         pref === "green" || pref === "orange") {

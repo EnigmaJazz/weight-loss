@@ -669,11 +669,26 @@ async def test_accent_lifecycle_and_server_mirror_ship(client):
     assert 'localStorage.getItem("accent")' in head
     assert "documentElement.dataset.accent" in head
 
+    # The FOUC bootstrap's inline allowlist must equal the server allowlist
+    # minus the default (green) — a 6th accent that passes every other gate
+    # must not silently flash-to-default pre-paint.
+    bootstrap = re.search(r'var accent = null;[^<]*?\["([a-z", ]+)"\]\.includes\(accent\)', head)
+    assert bootstrap is not None, "FOUC bootstrap must gate data-accent on an allowlist"
+    assert [
+        token.strip('" ') for token in bootstrap.group(1).split(",")
+    ] == [a for a in ACCENT_COLORS if a != "green"]
+
     body = (await client.get("/static/app.js")).text
     assert "function applyAccent" in body
     match = re.search(r"ACCENT_COLORS\s*=\s*(\[[^\]]*\])", body)
     assert match is not None, "app.js must embed the ACCENT_COLORS literal"
     assert ast.literal_eval(match.group(1)) == list(ACCENT_COLORS)
+    # applyAccent must re-read the tokens and redraw visible charts (the
+    # attribute alone would leave canvas colours stale until reload).
+    fn = body[body.index("function applyAccent") :]
+    fn = fn[: fn.index("\nfunction ", 1) if "\nfunction " in fn[1:] else len(fn)]
+    assert "refreshChartColors()" in fn, "applyAccent must refresh chart colors"
+    assert "tab-journey" in fn, "applyAccent must redraw visible charts"
 
 
 # ---- R0 navigation restructure gate additions (feat/r0-nav) ---------------
