@@ -27,5 +27,6 @@ Shipped:
 - [x] **Journey screen (R1)** — quest history, XP/level, successful-day momentum and XP stats beyond the Today dashboard. PRs #43–#51.
 
 Backlog:
+- [ ] **Island theme polish (R2A)** — fresh pass on the mascot icon (cartoon fox) and collectibles as unique island plants matching the World scene; presentation-only (collectible catalogue/API/engine unchanged, R10); strategy §RELEASE 2A. **Blocked on maintainer reference images.**
 - [ ] Mascot personality pass — reuse the fox from `static/icons/`; reaction states on milestones/streaks (strategy: World/Coach surfaces, later releases).
 - [ ] Coach + World screens (R3+) — personalised recommendations and progression maps per strategy.
