@@ -840,6 +840,75 @@ button.link:hover { color: var(--accent); background: none; }
   font-weight: 600;
 }
 
+/* collectibles shelf (r2-completion S5): compact 'field guide' rows — earned
+ * fox/gold medallion + unlock date, locked muted silhouette. Token-only, rows
+ * wrap at 480px, card/art/accent static under reduced-motion. */
+.collectibles-card { transition: background-color 0.15s ease; }
+
+.collectible-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+.collectible-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.collectible-row:last-child { border-bottom: none; }
+.collectible-title { font-weight: 600; }
+.collectible-state { margin-left: auto; color: var(--muted); }
+.collectible-row[data-state="earned"] .collectible-state {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* medallion art: fox/gold disc + CSS-only ::after mark (earned) vs muted
+ * silhouette disc (locked); no text glyphs, tokens only. */
+.collectible-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-pill);
+  flex: none;
+}
+.collectible-art::after {
+  content: "";
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: var(--radius-pill);
+}
+.collectible-row[data-state="earned"] .collectible-art {
+  background: var(--gold);
+  box-shadow: var(--shadow-1);
+}
+.collectible-row[data-state="earned"] .collectible-art::after { background: var(--fox-dark); }
+.collectible-row[data-state="locked"] .collectible-art { background: var(--border); }
+.collectible-row[data-state="locked"] .collectible-art::after { background: var(--muted); }
+
+/* World island latest-earn accent (r2-completion S5): a small medallion
+ * pinned inside the island SVG marking the most recent earn. Hidden by
+ * default; app.js reveals it with the latest earned key. */
+.world-latest-earn-ring {
+  fill: var(--gold);
+  stroke: var(--fox-dark);
+  stroke-width: 1.5;
+}
+.world-latest-earn-glyph {
+  fill: var(--fox-dark);
+}
+
+/* mobile: the shelf rows wrap instead of clipping at the right edge. */
+@media (max-width: 480px) {
+  .collectible-row { flex-wrap: wrap; }
+}
+
 /* weekly objectives (r2-completion S3): Today #weekly-card + Journey
  * #weekly-journey-card. Token-only (no palette hex); bars reuse the shared
  * .progress-track/.progress-fill, mobile wraps the row header at 480px, and
@@ -1075,7 +1144,8 @@ a:focus-visible,
   .quest-history-card,
   .achievements-card,
   .weekly-card,
-  .weekly-journey-card {
+  .weekly-journey-card,
+  .collectibles-card {
     transition: none !important;
   }
   /* motion-gate additions (Phase 3): confetti never spawns visibly and the
@@ -1096,7 +1166,9 @@ a:focus-visible,
    * (spec 'Quest Icons' R4). */
   .quest-domain-icon,
   .mascot,
-  .island-fox {
+  .island-fox,
+  .collectible-art,
+  .world-latest-earn {
     animation: none !important;
     transition: none !important;
   }

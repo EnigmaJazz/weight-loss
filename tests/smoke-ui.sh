@@ -661,6 +661,139 @@ BACK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme'
 [ "$BACK_THEME" = "light" ] && step_ok "theme restored after weekly assertions" || step_fail "theme restored after weekly assertions (got '$BACK_THEME')"
 playwright-cli unroute "**/api/weekly" >/dev/null 2>&1
 
+# ---- 5.19 collectibles shelf + World accent (r2-completion S5) -----------
+# Mock /api/collectibles for the deterministic 16-entry catalogue (same keys
+# as constants.COLLECTIBLE_CATALOG); assert exact row order, earned
+# medallions + DD/MM/YY dates, locked silhouettes, the chronological World
+# accent, empty-accent clear, failure-scoped shelf preservation, the
+# first-earn signal seam, no toast/confetti, both themes; unroute afterwards.
+echo "-- collectibles (mocked /api/collectibles)"
+mkdir -p artifacts/r2-completion-s5
+COLLECTIBLE_KEYS=(
+  "getting_started|Getting Started|05/08/26"
+  "moving_forward|Moving Forward|31/07/26"
+  "consistency|Consistency|"
+  "comeback|Comeback|"
+  "explorer|Explorer|"
+  "personal_best|Personal Best|"
+  "checkpoint_10|10% Checkpoint|"
+  "checkpoint_25|25% Checkpoint|"
+  "checkpoint_50|50% Checkpoint|"
+  "checkpoint_75|75% Checkpoint|"
+  "checkpoint_100|100% Checkpoint|"
+  "meal_7|7-Day Meal Streak|"
+  "meal_30|30-Day Meal Streak|"
+  "meal_100|100-Day Meal Streak|"
+  "weekly_quests|Weekly Quests|"
+  "weekly_good_days|Weekly Good Days|"
+)
+# Mock builders: earned keysets gs+mf (mock), none (empty), +consistency (new);
+# 05/08/26 (latest) sits FIRST in the catalogue over 31/07/26 — accent by date.
+collectible_items() {
+  local variant="$1" entry key title date e
+  COLLECTIBLE_ITEMS=()
+  for entry in "${COLLECTIBLE_KEYS[@]}"; do
+    IFS='|' read -r key title date <<< "$entry"
+    e=false
+    case "$key" in
+      getting_started|moving_forward) [ "$variant" != "empty" ] && e=true ;;
+      consistency) [ "$variant" = "new" ] && e=true ;;
+    esac
+    if [ "$e" = "true" ] && [ "$key" = "consistency" ]; then
+      COLLECTIBLE_ITEMS+=("{\"key\":\"$key\",\"title\":\"$title\",\"earned\":true,\"unlocked_at\":\"10/08/26\"}")
+    elif [ "$e" = "true" ]; then
+      COLLECTIBLE_ITEMS+=("{\"key\":\"$key\",\"title\":\"$title\",\"earned\":true,\"unlocked_at\":\"$date\"}")
+    else
+      COLLECTIBLE_ITEMS+=("{\"key\":\"$key\",\"title\":\"$title\",\"earned\":false,\"unlocked_at\":null}")
+    fi
+  done
+  printf '{"collectibles":[%s]}' "$(IFS=,; printf '%s' "${COLLECTIBLE_ITEMS[*]}")"
+}
+COLLECTIBLE_MOCK="$(collectible_items mock)"
+COLLECTIBLE_EMPTY_MOCK="$(collectible_items empty)"
+COLLECTIBLE_NEW_MOCK="$(collectible_items new)"
+COLLECTIBLE_EXPECTED=""
+for entry in "${COLLECTIBLE_KEYS[@]}"; do
+  COLLECTIBLE_EXPECTED+="${entry%%|*}|"
+done
+COLLECTIBLE_EXPECTED="${COLLECTIBLE_EXPECTED%|}"
+
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+sleep 1
+playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_MOCK" --content-type=application/json >/dev/null 2>&1
+playwright-cli reload >/dev/null 2>&1
+sleep 1
+# First fulfilled read must not emit a first-earn signal.
+COLLECTIBLE_SIGNALS0="$(playwright-cli --raw eval "collectibleSignals.length" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_SIGNALS0" = "0" ] && step_ok "first fulfilled collectibles read emits no signal" || step_fail "first fulfilled collectibles read emits no signal (got '$COLLECTIBLE_SIGNALS0')"
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
+sleep 1
+COLLECTIBLE_ORDER="$(playwright-cli --raw eval "[...document.querySelectorAll('#collectibles-card .collectible-row')].map(r => r.dataset.key).join('|')" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_ORDER" = "$COLLECTIBLE_EXPECTED" ] && step_ok "collectibles shelf renders the exact 16-row catalogue order" || step_fail "collectibles shelf renders the exact 16-row catalogue order (got '$COLLECTIBLE_ORDER')"
+COLLECTIBLE_STATES="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row[data-state=\"earned\"]').length + '|' + document.querySelectorAll('#collectibles-card .collectible-row[data-state=\"locked\"]').length" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_STATES" = "2|14" ] && step_ok "collectibles shows two earned + fourteen locked rows ($COLLECTIBLE_STATES)" || step_fail "collectibles shows two earned + fourteen locked rows (got '$COLLECTIBLE_STATES')"
+COLLECTIBLE_STATE_TEXT="$(playwright-cli --raw eval "document.querySelector('#collectibles-card .collectible-row[data-key=\"getting_started\"] .collectible-state')?.textContent.trim() + '|' + document.querySelector('#collectibles-card .collectible-row[data-key=\"consistency\"] .collectible-state')?.textContent.trim()" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_STATE_TEXT" = "Unlocked 05/08/26|Locked" ] && step_ok "earned row shows exact Unlocked DD/MM/YY, locked row reads Locked" || step_fail "earned row shows exact Unlocked DD/MM/YY, locked row reads Locked (got '$COLLECTIBLE_STATE_TEXT')"
+COLLECTIBLE_ART_DIFFERS="$(playwright-cli --raw eval "(() => { const e = document.querySelector('#collectibles-card .collectible-row[data-state=\"earned\"] .collectible-art'); const l = document.querySelector('#collectibles-card .collectible-row[data-state=\"locked\"] .collectible-art'); const eb = getComputedStyle(e).backgroundColor; const lb = getComputedStyle(l).backgroundColor; const em = getComputedStyle(e, '::after').backgroundColor; const lm = getComputedStyle(l, '::after').backgroundColor; return String(!!e && !!l && e.getAttribute('aria-hidden') === 'true' && e.textContent.trim() === '' && eb !== lb && em !== lm); })()" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_ART_DIFFERS" = "true" ] && step_ok "earned/locked art differ via computed styles, no text glyphs" || step_fail "earned/locked art differ via computed styles, no text glyphs (got '$COLLECTIBLE_ART_DIFFERS')"
+playwright-cli screenshot --filename="artifacts/r2-completion-s5/collectibles-journey-light.png" --full-page >/dev/null 2>&1
+# World accent: latest earn by date (05/08/26 crosses month over 31/07/26), not catalogue position.
+playwright-cli click "[data-tab=world]" >/dev/null 2>&1
+sleep 1
+WORLD_ACCENT="$(playwright-cli --raw eval "(() => { const a = document.querySelector('#world-latest-earn'); return String((a?.dataset.key ?? '') + '|' + (a?.getAttribute('aria-label') ?? '') + '|' + (!a.hasAttribute('hidden') && getComputedStyle(a).display !== 'none')); })()" 2>&1 | tr -d '"')"
+[ "$WORLD_ACCENT" = "getting_started|Latest collectible: Getting Started|true" ] && step_ok "world accent marks the chronologically latest earn (key|label|visible: $WORLD_ACCENT)" || step_fail "world accent marks the chronologically latest earn (got '$WORLD_ACCENT')"
+# Signal seam: swap in mock C and re-run loadData() WITHOUT a reload so the
+# module-level prev key set survives — consistency must emit exactly one signal.
+playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_NEW_MOCK" --content-type=application/json >/dev/null 2>&1
+playwright-cli --raw eval "loadData()" >/dev/null 2>&1
+sleep 1
+COLLECTIBLE_SIGNAL_COUNT="$(playwright-cli --raw eval "collectibleSignals.length" 2>&1 | tr -d '"')"
+COLLECTIBLE_SIGNAL_JSON="$(playwright-cli --raw eval "JSON.stringify(collectibleSignals)" 2>&1 | tr -d '"')"
+if [ "$COLLECTIBLE_SIGNAL_COUNT" = "1" ] && printf '%s' "$COLLECTIBLE_SIGNAL_JSON" | grep -q 'collectible_first_earn' && printf '%s' "$COLLECTIBLE_SIGNAL_JSON" | grep -q 'consistency'; then
+  step_ok "one newly earned key emits exactly one first-earn signal ($COLLECTIBLE_SIGNAL_JSON)"
+else
+  step_fail "one newly earned key emits exactly one first-earn signal (count='$COLLECTIBLE_SIGNAL_COUNT', got '$COLLECTIBLE_SIGNAL_JSON')"
+fi
+COLLECTIBLE_NO_CELEBRATION="$(playwright-cli --raw eval "document.querySelectorAll('.confetti-piece').length + document.querySelectorAll('.toast.is-visible').length" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_NO_CELEBRATION" = "0" ] && step_ok "first-earn signal queues without toast or confetti" || step_fail "first-earn signal queues without toast or confetti (count='$COLLECTIBLE_NO_CELEBRATION')"
+# Failed read: card-scoped error surfaces while the 16 shelf rows stay intact
+# (loadData without reload — no reload before the failure), and the seam never
+# advances (still exactly the one prior signal).
+playwright-cli route "**/api/collectibles" --status=500 --body='{"detail":"boom"}' >/dev/null 2>&1
+playwright-cli --raw eval "loadData()" >/dev/null 2>&1
+sleep 1
+COLLECTIBLE_FAIL="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row').length + '|' + (!document.querySelector('#collectibles-error').hidden) + '|' + collectibleSignals.length" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_FAIL" = "16|true|1" ] && step_ok "failed read preserves 16 rows, shows error, does not signal ($COLLECTIBLE_FAIL)" || step_fail "failed read preserves 16 rows, shows error, does not signal (got '$COLLECTIBLE_FAIL')"
+# All-locked fulfilled payload: 16 locked rows, accent hidden + key cleared.
+playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_EMPTY_MOCK" --content-type=application/json >/dev/null 2>&1
+playwright-cli --raw eval "loadData()" >/dev/null 2>&1
+sleep 1
+COLLECTIBLE_LOCKED_ALL="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row[data-state=\"locked\"]').length + '|' + document.querySelector('#world-latest-earn').hasAttribute('hidden') + '|' + (!document.querySelector('#world-latest-earn').hasAttribute('data-key'))" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_LOCKED_ALL" = "16|true|true" ] && step_ok "all-locked payload renders 16 locked rows and hides/clears the accent ($COLLECTIBLE_LOCKED_ALL)" || step_fail "all-locked payload renders 16 locked rows and hides/clears the accent (got '$COLLECTIBLE_LOCKED_ALL')"
+# Dark theme: reload the 2-earned mock, then flip the toggle so the same DOM
+# re-themes through the dark tokens (no reload — the pref save is debounced).
+playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_MOCK" --content-type=application/json >/dev/null 2>&1
+playwright-cli reload >/dev/null 2>&1
+sleep 1
+playwright-cli click "#theme-toggle" >/dev/null 2>&1
+sleep 1
+DARK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+[ "$DARK_THEME" = "dark" ] && step_ok "dark theme applied for collectibles assertions" || step_fail "dark theme applied for collectibles assertions (got '$DARK_THEME')"
+COLLECTIBLE_DARK="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row').length + '|' + document.querySelectorAll('#collectibles-card .collectible-row[data-state=\"earned\"]').length" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_DARK" = "16|2" ] && step_ok "collectibles renders 16 rows with 2 earned in dark theme ($COLLECTIBLE_DARK)" || step_fail "collectibles renders 16 rows with 2 earned in dark theme (got '$COLLECTIBLE_DARK')"
+playwright-cli click "[data-tab=world]" >/dev/null 2>&1
+sleep 1
+WORLD_ACCENT_DARK="$(playwright-cli --raw eval "(() => { const a = document.querySelector('#world-latest-earn'); return (a?.dataset.key ?? '') + '|' + (!a.hasAttribute('hidden') && getComputedStyle(a).display !== 'none'); })()" 2>&1 | tr -d '"')"
+[ "$WORLD_ACCENT_DARK" = "getting_started|true" ] && step_ok "world accent renders in dark theme ($WORLD_ACCENT_DARK)" || step_fail "world accent renders in dark theme (got '$WORLD_ACCENT_DARK')"
+playwright-cli resize 390 844 >/dev/null 2>&1 && playwright-cli screenshot --filename="artifacts/r2-completion-s5/collectibles-world-dark-mobile.png" --full-page >/dev/null 2>&1 && playwright-cli resize 1920 1080 >/dev/null 2>&1
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="system"]' >/dev/null 2>&1 && playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+sleep 1
+BACK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+[ "$BACK_THEME" = "light" ] && step_ok "theme restored after collectibles assertions" || step_fail "theme restored after collectibles assertions (got '$BACK_THEME')"
+playwright-cli unroute "**/api/collectibles" >/dev/null 2>&1
+
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
 
 echo "-- weight-display radio toggle"

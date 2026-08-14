@@ -432,6 +432,14 @@
             <div id="achievements-card-content"></div>
           </section>
 
+          <!-- collectibles shelf (r2-completion S5): data-driven rows + scoped
+               error slot; the shelf is Journey-only (spec R12). -->
+          <section class="card collectibles-card" id="collectibles-card" aria-label="Collectibles">
+            <h2>Collectibles</h2>
+            <p class="hint error" id="collectibles-error" hidden></p>
+            <ul class="collectible-list" id="collectibles-list"></ul>
+          </section>
+
           <section class="card quest-history-card" id="quest-history-card" aria-label="Quest history">
             <h2>Quest history</h2>
             <div id="quest-history-content"></div>
@@ -511,6 +519,13 @@
                   <ellipse class="island-fox-nose" cx="32" cy="52.5" rx="2" ry="1.375"/>
                   <ellipse class="island-fox-mouth" cx="32" cy="57" rx="1.625" ry="0.625"/>
                 </g>
+              </g>
+              <!-- latest-earn accent (r2-completion S5): small medallion pinned
+                   inside the island (not a floating badge), hidden/empty until
+                   app.js sets the latest earned key (spec R12). -->
+              <g id="world-latest-earn" class="world-latest-earn" data-key="" aria-label="" hidden>
+                <circle class="world-latest-earn-ring" cx="40" cy="112" r="9"/>
+                <path class="world-latest-earn-glyph" d="M40 108.5 L43.5 112 L40 115.5 L36.5 112 Z"/>
               </g>
             </svg>
             <p class="island-stage-name" id="world-stage-name">Sprout Isle</p>
