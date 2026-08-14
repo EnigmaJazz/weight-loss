@@ -1547,3 +1547,86 @@ async def test_style_css_ships_weekly_rules_token_only(client):
     assert re.search(r"\.weekly-card(?![\-\w])[^}]*transition\s*:\s*none", block)
     assert re.search(r"\.weekly-journey-card[^}]*transition\s*:\s*none", block)
     assert re.search(r"\.weekly-progress-row \.progress-fill[^}]*transition\s*:\s*none", block)
+
+
+# ---- r2-completion S5 gate additions (collectibles UI) ------------------
+# The collectibles shelf ships inside Journey after #achievements-card (before
+# #quest-history-card), Journey-only (R12) — data-driven rows + scoped error
+# slot; the World island SVG ships a hidden default latest-earn accent. app.js
+# fetches /api/collectibles in loadJourneyCards' allSettled, keeps
+# prevCollectibleKeys, queues collectibleSignals (collectible_first_earn) on
+# fulfilled reads, and never clears the shelf on failure. CSS token-only.
+
+
+@pytest.mark.asyncio
+async def test_journey_collectibles_surface(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    journey = html[html.index('id="tab-journey"') : html.index('id="tab-world"')]
+    world = html[html.index('id="tab-world"') : html.index('id="tab-me"')]
+    # The shelf ships inside Journey, after achievements and before quest
+    # history (design: insert after #achievements-card).
+    assert 'id="collectibles-card"' in journey
+    assert (
+        journey.index('id="achievements-card"')
+        < journey.index('id="collectibles-card"')
+        < journey.index('id="quest-history-card"')
+    ), "#collectibles-card must sit between #achievements-card and #quest-history-card"
+    assert 'aria-label="Collectibles"' in journey
+    # Data-driven rows container + scoped error slot inside the card.
+    card = journey[
+        journey.index('id="collectibles-card"') : journey.index('id="quest-history-card"')
+    ]
+    assert 'id="collectibles-list"' in card
+    assert 'id="collectibles-error"' in card
+    # Shelf is Journey-only (R12): the World panel must not ship the card.
+    assert 'id="collectibles-card"' not in world
+    # World SVG latest-earn accent: present inside the island, hidden + empty
+    # (data-key/aria-label blank) by default.
+    island = world[world.index("<svg") : world.index("</svg>") + len("</svg>")]
+    assert 'id="world-latest-earn"' in island
+    assert re.search(r'id="world-latest-earn"[^>]*\shidden', island) is not None
+    assert re.search(r'id="world-latest-earn"[^>]*data-key=""', island) is not None
+
+    app = await client.get("/static/app.js")
+    assert app.status_code == 200
+    body = app.text
+    fn = _js_fn_body(body, "loadJourneyCards")
+    assert "Promise.allSettled" in fn and 'fetchJson("/api/collectibles")' in fn
+    assert "function renderCollectibles" in body
+    # Signal seam: module-level prior-key state + first-earn signal queue.
+    assert "let prevCollectibleKeys = null" in body
+    assert "let collectibleSignals = []" in body
+    assert '"collectible_first_earn"' in body
+    # Reuses the shared achievements read-diff helper.
+    assert "newAchievementKeys(" in body
+    # Card-scoped failure copy that preserves the shelf (static error slot).
+    assert "Could not load collectibles" in body
+    assert '$("collectibles-error")' in body
+
+    css = await client.get("/static/style.css")
+    assert css.status_code == 200
+    sheet = css.text
+    assert re.search(r"\.collectibles-card\s*\{", sheet) is not None
+    # Token-only: collectible + accent rules must not introduce palette hex
+    # (ghost-loop guard: materialize matches before asserting).
+    collectible_rules = list(re.finditer(r"\.collectible[a-z:-]*\s*\{[^}]*}", sheet))
+    assert len(collectible_rules) > 0, "style.css must declare collectible rules"
+    for rule in collectible_rules:
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
+            "collectible CSS must be token-only (no hex literals)"
+        )
+    accent_rules = list(re.finditer(r"\.world-latest-earn[a-z-]*\s*\{[^}]*}", sheet))
+    assert len(accent_rules) > 0, "style.css must declare World accent rules"
+    for rule in accent_rules:
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
+            "World accent CSS must be token-only (no hex literals)"
+        )
+    # Mobile (<=480px must not clip) + reduced-motion (card/art/accent static).
+    mobile = sheet[sheet.index("@media (max-width: 480px)"):]
+    assert re.search(r"\.collectible-row[^}]*flex-wrap", mobile) is not None
+    block = sheet[sheet.index("@media (prefers-reduced-motion: reduce)"):]
+    assert re.search(r"\.collectibles-card[^}]*transition\s*:\s*none", block) is not None
+    assert re.search(r"\.collectible-art[^}]*animation\s*:\s*none", block) is not None
+    assert re.search(r"\.world-latest-earn[^}]*animation\s*:\s*none", block) is not None

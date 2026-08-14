@@ -569,6 +569,16 @@ let prevAchievementKeys = null;
 // stage-up diff (design §SPA; spec 'Stage-Up Celebration').
 let prevWorldStage = null;
 
+// Last earned-collectible key set from a SUCCESSFUL read (null until the
+// first fulfilled read); only re-stored on success so a failed read cannot
+// reset the first-earn diff (spec 'Collectible First-Earn Signal').
+let prevCollectibleKeys = null;
+
+// Collectible first-earn signal seam (spec 'Collectible First-Earn Signal'):
+// newly earned keys since the previous successful read queue as minimal
+// pending signals for the S6 queue; S5 never consumes or celebrates them.
+let collectibleSignals = [];
+
 async function loadData() {
   const [weight, rewards, settings, me, exercise, meals, streaks] = await Promise.all([
     fetchJson("/api/weight"),
@@ -1593,10 +1603,11 @@ async function loadQuestsAndXp() {
  * (spec 'Journey Data Loading'). Weekly joins the same allSettled batch so it
  * refreshes after every relevant UI reload (r2-completion S3). */
 async function loadJourneyCards(questsPayload, xpPayload) {
-  const [momRes, achRes, weeklyRes] = await Promise.allSettled([
+  const [momRes, achRes, weeklyRes, collRes] = await Promise.allSettled([
     fetchJson("/api/momentum"),
     fetchJson("/api/achievements"),
     fetchJson("/api/weekly"),
+    fetchJson("/api/collectibles"),
   ]);
   renderJourneyXp(xpPayload);
   renderQuestHistory(questsPayload);
@@ -1612,6 +1623,7 @@ async function loadJourneyCards(questsPayload, xpPayload) {
   }
   renderAchievements(achRes);
   renderWeekly(weeklyRes);
+  renderCollectibles(collRes);
 }
 
 function renderJourneyXp(xp) {
@@ -1719,6 +1731,84 @@ function renderAchievements(achRes) {
     list.append(li);
   }
   el.append(list);
+}
+
+/* ---- collectibles shelf + World accent (r2-completion S5) -------------- */
+
+/* Card-scoped and recovery-safe: a rejected read surfaces the static
+ * #collectibles-error while prior shelf rows stay intact; success re-renders
+ * the shelf + World accent. */
+function renderCollectibles(collRes) {
+  const err = $("collectibles-error");
+  if (collRes.status !== "fulfilled") {
+    err.textContent = "Could not load collectibles";
+    err.hidden = false;
+    return;
+  }
+  err.hidden = true;
+  const collectibles = collRes.value?.collectibles ?? [];
+  const earned = collectibles.filter((c) => c.earned).map((c) => c.key);
+  // First-earn diff (S6 seam): only genuinely new keys after a successful
+  // read; first render and unchanged/lost sets stay quiet.
+  if (prevCollectibleKeys !== null) {
+    const fresh = newAchievementKeys(prevCollectibleKeys, earned);
+    if (fresh.length > 0) {
+      collectibleSignals.push({ type: "collectible_first_earn", keys: fresh });
+    }
+  }
+  prevCollectibleKeys = earned;
+  renderCollectibleShelf(collectibles);
+  renderWorldLatestEarn(collectibles);
+}
+
+function renderCollectibleShelf(collectibles) {
+  const list = $("collectibles-list");
+  list.innerHTML = "";
+  for (const c of collectibles) {
+    const li = document.createElement("li");
+    li.className = "collectible-row";
+    li.dataset.state = c.earned ? "earned" : "locked";
+    li.dataset.key = c.key;
+    // CSS-only medallion art (earned) vs muted silhouette (locked); aria-hidden.
+    const art = document.createElement("span");
+    art.className = "collectible-art";
+    art.setAttribute("aria-hidden", "true");
+    const title = document.createElement("span");
+    title.className = "collectible-title";
+    title.textContent = c.title;
+    const state = document.createElement("span");
+    state.className = "collectible-state";
+    state.textContent = c.earned ? `Unlocked ${formatDate(c.unlocked_at)}` : "Locked";
+    li.append(art, title, state);
+    list.append(li);
+  }
+}
+
+/* DD/MM/YY -> numeric YYMMDD key (31/07/26 < 05/08/26); unmatched -> 0. */
+function ddMmYyKey(dateStr) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec(String(dateStr));
+  return m ? Number(m[3] + m[2] + m[1]) : 0;
+}
+
+/* World accent (spec R12): most recent earn wins by DD/MM/YY chronology
+ * (numeric YYMMDD key); ties keep the earliest catalogue entry. */
+function renderWorldLatestEarn(collectibles) {
+  const accent = $("world-latest-earn");
+  if (!accent) return;
+  const earned = collectibles.filter((c) => c.earned && c.unlocked_at != null);
+  if (earned.length === 0) {
+    accent.setAttribute("hidden", "");
+    accent.removeAttribute("data-key");
+    accent.setAttribute("aria-label", "");
+    return;
+  }
+  let latest = earned[0];
+  for (const c of earned) {
+    if (ddMmYyKey(c.unlocked_at) > ddMmYyKey(latest.unlocked_at)) latest = c;
+  }
+  accent.removeAttribute("hidden");
+  accent.dataset.key = latest.key;
+  accent.setAttribute("aria-label", `Latest collectible: ${latest.title}`);
 }
 
 function renderQuestHistory(questsPayload) {
