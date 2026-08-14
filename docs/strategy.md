@@ -991,6 +991,30 @@ The World reads as one coherent living island: the mascot and every earned colle
 
 ---
 
+# RELEASE 2B — Accent colour selection
+
+## Objective
+
+Let users personalise the app's accent colour. A real user has asked for a purple option; ship purple plus a small curated set of colours so the choice is personal without becoming a design free-for-all.
+
+### Implement
+
+* per-user accent colour in Me/settings, extending the existing theme preference (`system`/`light`/`dark`) — one `accent` key alongside `theme`, defaulting to the current palette so nothing changes for existing users;
+* purple MUST be one of the options (explicit user request), alongside a small curated set (e.g. teal/blue/green/orange) — every option defined as design tokens so light and dark themes stay coherent;
+* token-only theming: accent colours flow through the existing token system; no hex literals in components (palette lockstep test); both themes, mobile, and reduced-motion unaffected (colour change is static theming);
+* API contract: `PUT /api/settings` accepts the new key, 422 on invalid values, per-user isolated, NOT part of `OnboardingIn` (same rules as `theme`);
+* gate and smoke pins updated: the chosen accent renders across Today/Journey/World/Me in both themes.
+
+### Sequencing
+
+Rides on the shipped theme-preference system (`dark-mode`); small standalone change, independent of R2A.
+
+### Exit condition
+
+A user can pick purple (or another shipped colour) in settings and see the accent applied consistently across all surfaces in both themes.
+
+---
+
 # RELEASE 3 — Improve personalisation
 
 ## Objective
