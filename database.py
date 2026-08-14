@@ -5,7 +5,8 @@ import contextlib
 import json
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from dataclasses import asdict
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterator, Optional, Sequence
 
 from constants import DEFAULT_SETTINGS, HABIT_TYPES, get_logger
@@ -25,9 +26,12 @@ from models import (
     ResetToken,
     Session,
     User,
+    WeeklySnapshot,
+    WeeklyState,
     WeightEntry,
 )
 from rewards import reward_state
+import weekly
 
 logger = get_logger("database")
 
@@ -138,6 +142,26 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     );
     """,
     "DELETE FROM settings WHERE key = 'milestone_step_kg';",
+    # Weekly objectives (r2-completion S2): a per-user activation stamp (one
+    # row, first read wins) and exactly-once 40-XP awards keyed by
+    # (user_id, week_start, goal). The name is NOT reward_events — that table
+    # is DROPPED by SCHEMA_STATEMENTS on every init and never used.
+    """
+    CREATE TABLE IF NOT EXISTS weekly_activation (
+        user_id INTEGER PRIMARY KEY,
+        activated_at TEXT NOT NULL
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS weekly_awards (
+        user_id INTEGER NOT NULL,
+        week_start TEXT NOT NULL,
+        goal TEXT NOT NULL CHECK (goal IN ('quests', 'good_days')),
+        xp_awarded INTEGER NOT NULL CHECK (xp_awarded = 40),
+        awarded_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (user_id, week_start, goal)
+    );
+    """,
     # Daily quests (r1-quests-xp): per-user rows with NO per-date uniqueness —
     # a replacement adds a row, and another user MAY hold the same key+date.
     # Status transitions are validated in quests.py, not by the schema.
@@ -1348,16 +1372,23 @@ class Database:
         )
 
     def total_xp_for_user(self, user_id: int) -> int:
-        """Derived XP: the SUM of xp_value across the user's done quests.
-        Open, skipped, and replaced quests contribute zero; no ledger is ever
-        written (reward_events is dropped on every schema init)."""
+        """Derived XP: the SUM of xp_value across the user's done quests plus
+        the SUM of xp_awarded across the user's weekly_awards rows. Open,
+        skipped, and replaced quests contribute zero; weekly_awards is the only
+        award table (reward_events is dropped on every schema init)."""
         with self._tx() as conn:
             row = conn.execute(
                 "SELECT COALESCE(SUM(xp_value), 0) AS total FROM quests"
                 " WHERE user_id = ? AND status = 'done'",
                 (user_id,),
             ).fetchone()
-        return int(row["total"])
+            quest_total = int(row["total"])
+            row = conn.execute(
+                "SELECT COALESCE(SUM(xp_awarded), 0) AS total FROM weekly_awards"
+                " WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return quest_total + int(row["total"])
 
     def list_recent_done_quests(
         self, user_id: int, limit: int = 10
@@ -1385,21 +1416,7 @@ class Database:
         tables."""
         with self._tx() as conn:
             quest_rows, log_rows = _momentum_day_rows(conn, user_id, start, end)
-        facts: dict[str, MomentumDayFacts] = {}
-        for row in quest_rows:
-            facts[row["date"]] = MomentumDayFacts(
-                date=row["date"],
-                assigned_quests=int(row["assigned"]),
-                done_quests=int(row["done_n"]),
-            )
-        for row in log_rows:
-            day = row["date"]
-            day_facts = facts.get(day)
-            if day_facts is None:
-                day_facts = MomentumDayFacts(date=day)
-                facts[day] = day_facts
-            day_facts.log_rows += int(row["n"])
-        return sorted(facts.values(), key=lambda fact: fact.date)
+        return _merge_momentum_day_facts(quest_rows, log_rows)
 
     def achievement_facts(self, user_id: int) -> AchievementFacts:
         """One ownership-scoped snapshot for the achievements engine: done
@@ -1425,29 +1442,225 @@ class Database:
             )
             for row in done_rows
         ]
-        by_date: dict[str, MomentumDayFacts] = {}
-        for row in quest_rows:
-            by_date[row["date"]] = MomentumDayFacts(
-                date=row["date"],
-                assigned_quests=int(row["assigned"]),
-                done_quests=int(row["done_n"]),
-            )
-        for row in log_rows:
-            day = row["date"]
-            day_facts = by_date.get(day)
-            if day_facts is None:
-                day_facts = MomentumDayFacts(date=day)
-                by_date[day] = day_facts
-            day_facts.log_rows += int(row["n"])
+        momentum_days = _merge_momentum_day_facts(quest_rows, log_rows)
         exercise_days = [
             ExerciseDayFacts(date=row["date"], duration_min=int(row["duration_min"]))
             for row in exercise_rows
         ]
         return AchievementFacts(
             done_quests=done_quests,
-            momentum_days=sorted(by_date.values(), key=lambda fact: fact.date),
+            momentum_days=momentum_days,
             exercise_days=sorted(exercise_days, key=lambda entry: entry.date),
         )
+
+    # ---- weekly objectives (r2-completion · S2) ----
+
+    def weekly_snapshot(self, user_id: int, week: date) -> WeeklySnapshot:
+        """One ownership-scoped per-week gather (done quests, Good/Great days,
+        already-awarded goals) in a single transaction."""
+        with self._tx() as conn:
+            return self._weekly_snapshot_conn(conn, user_id, week)
+
+    def _weekly_snapshot_conn(
+        self, conn: sqlite3.Connection, user_id: int, week: date
+    ) -> WeeklySnapshot:
+        """Gather one user's per-week facts using the caller's transaction
+        (shared by weekly_state and the reconcile entry points)."""
+        start = week.isoformat()
+        end = (week + timedelta(days=6)).isoformat()
+        done_row = conn.execute(
+            "SELECT COUNT(*) AS n FROM quests"
+            " WHERE user_id = ? AND status = 'done' AND date BETWEEN ? AND ?",
+            (user_id, start, end),
+        ).fetchone()
+        quest_rows, log_rows = _momentum_day_rows(conn, user_id, start, end)
+        awarded_rows = conn.execute(
+            "SELECT goal FROM weekly_awards WHERE user_id = ? AND week_start = ?",
+            (user_id, start),
+        ).fetchall()
+        return WeeklySnapshot(
+            week=start,
+            done_quests=int(done_row["n"]),
+            good_days=weekly.good_day_count(_merge_momentum_day_facts(quest_rows, log_rows), week),
+            awarded={row["goal"] for row in awarded_rows},
+        )
+
+    def _reconcile_weekly_awards(
+        self, conn: sqlite3.Connection, user_id: int, snapshot: WeeklySnapshot
+    ) -> list[str]:
+        """Transactional core: pay the 40-XP award for every met, unpaid goal
+        of one week using the caller's open transaction. Returns the goals
+        newly paid (met flips); the (user_id, week_start, goal) PK makes a
+        repeat call a no-op."""
+        flips: list[str] = []
+        for goal in weekly.WEEK_GOALS:
+            if goal in snapshot.awarded:
+                continue
+            if weekly.goal_met(goal, weekly.week_count(snapshot, goal)):
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded, awarded_at)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (user_id, snapshot.week, goal, weekly.WEEK_AWARD_XP, _local_now()),
+                )
+                flips.append(goal)
+        return flips
+
+    def stamp_weekly_activation(
+        self, user_id: int, activated_at: Optional[str] = None
+    ) -> str:
+        """Persist the per-user activation stamp; the first write wins and is
+        returned (later reads never move it). Defaults to the local clock."""
+        stamp = activated_at or _local_now()
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO weekly_activation (user_id, activated_at)"
+                " VALUES (?, ?)",
+                (user_id, stamp),
+            )
+            row = conn.execute(
+                "SELECT activated_at FROM weekly_activation WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            raise RuntimeError("weekly activation insert produced no row")
+        return row["activated_at"]
+
+    def weekly_state(self, user_id: int, today: Optional[date] = None) -> WeeklyState:
+        """One-transaction weekly read: stamps activation when absent, pays
+        every due award exactly once, and returns the full response state with
+        the goals newly paid by this read (met_flips). History is capped at the
+        newest 12 completed weeks, newest first."""
+        now = today or date.today()
+        current_week = weekly.week_start(now)
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT activated_at FROM weekly_activation WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                conn.execute(
+                    "INSERT OR IGNORE INTO weekly_activation"
+                    " (user_id, activated_at) VALUES (?, ?)",
+                    (user_id, _local_now()),
+                )
+                row = conn.execute(
+                    "SELECT activated_at FROM weekly_activation WHERE user_id = ?",
+                    (user_id,),
+                ).fetchone()
+            if row is None:
+                raise RuntimeError("weekly activation write produced no row")
+            activation_ts = row["activated_at"]
+            activation = date.fromisoformat(activation_ts[:10])
+            first = weekly.first_counted_week(activation)
+            window_start = min(first, current_week - timedelta(days=7 * 12))
+            snapshots: dict[str, WeeklySnapshot] = {}
+            met_flips: list[str] = []
+            week = window_start
+            while week <= current_week:
+                snapshot = self._weekly_snapshot_conn(conn, user_id, week)
+                snapshots[week.isoformat()] = snapshot
+                if week >= first:
+                    met_flips.extend(
+                        self._reconcile_weekly_awards(conn, user_id, snapshot)
+                    )
+                week += timedelta(days=7)
+        history: list[dict[str, Any]] = []
+        week = current_week - timedelta(days=7)
+        while len(history) < 12 and week >= window_start:
+            snapshot = snapshots[week.isoformat()]
+            history.append(
+                {
+                    "week_start": week.isoformat(),
+                    "exempt": week < first,
+                    "goals": [
+                        asdict(
+                            weekly.goal_state(
+                                goal,
+                                weekly.week_count(snapshot, goal),
+                                goal in snapshot.awarded,
+                            )
+                        )
+                        for goal in weekly.WEEK_GOALS
+                    ],
+                }
+            )
+            week -= timedelta(days=7)
+        current_snapshot = snapshots[current_week.isoformat()]
+        return WeeklyState(
+            activation=activation_ts,
+            current_week=current_week.isoformat(),
+            exempt=not weekly.is_counted_week(current_week, activation),
+            goals=[
+                weekly.goal_state(
+                    goal,
+                    weekly.week_count(current_snapshot, goal),
+                    goal in current_snapshot.awarded,
+                )
+                for goal in weekly.WEEK_GOALS
+            ],
+            history=history,
+            met_flips=met_flips,
+        )
+
+    def reconcile_weekly_awards(
+        self, user_id: int, today: Optional[date] = None
+    ) -> list[str]:
+        """Pay due weekly awards for one activated user across every counted
+        week up to ``today``; returns the goals newly paid. Idempotent — the
+        composite PK makes repeats no-ops. No-op for never-activated users."""
+        now = today or date.today()
+        current_week = weekly.week_start(now)
+        with self._tx() as conn:
+            row = conn.execute(
+                "SELECT activated_at FROM weekly_activation WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if row is None:
+                return []
+            activation = date.fromisoformat(row["activated_at"][:10])
+            met_flips: list[str] = []
+            week = weekly.first_counted_week(activation)
+            while week <= current_week:
+                snapshot = self._weekly_snapshot_conn(conn, user_id, week)
+                met_flips.extend(
+                    self._reconcile_weekly_awards(conn, user_id, snapshot)
+                )
+                week += timedelta(days=7)
+            return met_flips
+
+    def reconcile_all_weekly_awards(self, today: Optional[date] = None) -> None:
+        """Startup entry point: pay due weekly awards for every activated user,
+        each in its own transaction (same pattern as reconcile_active_rewards)."""
+        with self._tx() as conn:
+            rows = conn.execute(
+                "SELECT user_id FROM weekly_activation ORDER BY user_id"
+            ).fetchall()
+        for row in rows:
+            self.reconcile_weekly_awards(int(row["user_id"]), today)
+
+
+def _merge_momentum_day_facts(
+    quest_rows: Sequence[sqlite3.Row], log_rows: Sequence[sqlite3.Row]
+) -> list[MomentumDayFacts]:
+    """Merge bounded quest/log day-row counts into per-date MomentumDayFacts,
+    ascending by date. Shared by momentum_facts, achievement_facts, and the
+    weekly snapshot gather."""
+    by_date: dict[str, MomentumDayFacts] = {}
+    for row in quest_rows:
+        by_date[row["date"]] = MomentumDayFacts(
+            date=row["date"],
+            assigned_quests=int(row["assigned"]),
+            done_quests=int(row["done_n"]),
+        )
+    for row in log_rows:
+        day = row["date"]
+        day_facts = by_date.get(day)
+        if day_facts is None:
+            day_facts = MomentumDayFacts(date=day)
+            by_date[day] = day_facts
+        day_facts.log_rows += int(row["n"])
+    return sorted(by_date.values(), key=lambda fact: fact.date)
 
 
 def _momentum_day_rows(

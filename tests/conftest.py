@@ -11,12 +11,16 @@ from typing import Iterable, Optional
 # deterministic.
 os.environ["WEIGHT_LOSS_COOKIE_SECURE"] = ""
 
+from datetime import date, timedelta
+
 import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 
+from constants import QUEST_POOL
 import notifications as notifications_module
+import quests
 from database import Database
 from main import create_app, init_app_state
 from models import PushSubscription, User
@@ -145,6 +149,36 @@ def auth_user_id(app: FastAPI) -> int:
 def make_user(db: Database, username: str = "user") -> User:
     """Create a user directly in the DB (no API, no scrypt); returns the User."""
     return db.create_user(username, "hash", "salt")
+
+
+def mark_done(db: Database, user_id: int, day: date, keys: list[str]) -> None:
+    """Insert one quest per key for ``day`` and mark each done (test seeding)."""
+    rows = db.insert_quests(
+        user_id, day.isoformat(), [quests.draft_for_key(key, day) for key in keys]
+    )
+    for row in rows:
+        db.update_quest_status(user_id, row.id, "done")
+
+
+def seed_met_week(db: Database, user_id: int, monday: date) -> None:
+    """Seed a fully-met week starting at ``monday``: 10+ done quests with three
+    Great days (Mon/Tue/Wed), plus a Spark day that must NOT count toward the
+    good-days objective. Weekly award and isolation tests reuse this."""
+    mark_done(db, user_id, monday, [entry[0] for entry in QUEST_POOL])
+    mark_done(
+        db,
+        user_id,
+        monday + timedelta(days=1),
+        ["exercise_10", "log_meal", "streak_alive"],
+    )
+    mark_done(db, user_id, monday + timedelta(days=2), ["habit_checkin"])
+    spark_day = monday + timedelta(days=3)
+    rows = db.insert_quests(
+        user_id,
+        spark_day.isoformat(),
+        [quests.draft_for_key(key, spark_day) for key in ("mood_checkin", "log_weight")],
+    )
+    db.update_quest_status(user_id, rows[0].id, "done")
 
 
 @pytest.fixture(autouse=True)

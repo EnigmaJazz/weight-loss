@@ -1455,6 +1455,30 @@ async def get_xp(
     }
 
 
+# ---- weekly objectives (r2-completion · S2) --------------------------------
+
+
+@router.get("/api/weekly")
+async def get_weekly(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Per-user weekly objectives: stamps activation on the first read, pays
+    the 40-XP award exactly once per met (user, week, goal), and returns the
+    current week's progress, a 12-week bounded history, and this read's
+    met_flips (goals newly paid, one signal per award)."""
+    state = await run_db(db.weekly_state, user.id)
+    return {
+        "activation": state.activation,
+        "current": {
+            "week_start": state.current_week,
+            "exempt": state.exempt,
+            "goals": [asdict(goal) for goal in state.goals],
+        },
+        "history": state.history,
+        "met_flips": state.met_flips,
+    }
+
+
 # ---- momentum (r1-quests-xp · S2b) ----------------------------------------
 
 

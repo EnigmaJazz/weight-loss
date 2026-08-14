@@ -73,6 +73,7 @@ def init_app_state(
     db = Database(db_path)
     db.init_schema()
     db.reconcile_active_rewards()
+    db.reconcile_all_weekly_awards()
     app.state.db = db
     app.state.db_path = db_path
     vapid, public_key = load_or_generate_vapid(vapid_path)

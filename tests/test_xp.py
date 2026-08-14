@@ -196,3 +196,44 @@ class TestXpPersistence:
             assert len(db.list_recent_done_quests(alice.id, limit=5)) == 5
         finally:
             db.close()
+
+    def test_total_xp_includes_weekly_awards(self, tmp_path) -> None:
+        """Spec scenario: done quests worth 20 and 40 plus one 40-XP weekly
+        award → total XP is 100; awards stay isolated per user and both
+        objectives add at most 80 per week."""
+        db = Database(str(tmp_path / "xp.db"))
+        db.init_schema()
+        try:
+            alice = make_user(db, "alice-weekly-xp")
+            bob = make_user(db, "bob-weekly-xp")
+            _mark_done(db, alice.id, MONDAY, ["log_meal", "exercise_10"])  # 20 + 40
+            with db._tx() as conn:
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded)"
+                    " VALUES (?, '2026-08-03', 'quests', 40)",
+                    (alice.id,),
+                )
+            assert db.total_xp_for_user(alice.id) == 100
+            # Per-user isolation: bob's quests and awards never cross into alice.
+            _mark_done(db, bob.id, MONDAY, ["exercise_10"])
+            with db._tx() as conn:
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded)"
+                    " VALUES (?, '2026-08-03', 'good_days', 40)",
+                    (bob.id,),
+                )
+            assert db.total_xp_for_user(bob.id) == 80  # 40 quest + 40 award
+            assert db.total_xp_for_user(alice.id) == 100
+            # Both objectives paid in one week add 80 to the quest sum.
+            with db._tx() as conn:
+                conn.execute(
+                    "INSERT INTO weekly_awards"
+                    " (user_id, week_start, goal, xp_awarded)"
+                    " VALUES (?, '2026-08-03', 'good_days', 40)",
+                    (alice.id,),
+                )
+            assert db.total_xp_for_user(alice.id) == 140
+        finally:
+            db.close()

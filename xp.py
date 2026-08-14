@@ -4,8 +4,9 @@ quests.py/rewards.py).
 Levels follow the normative xp-progression curve: level 1 starts at 0 XP and
 advancing from level n costs ``LEVEL_XP_PER_LEVEL + (n-1)*LEVEL_XP_STEP``, so
 level L starts at T(L) = 25*(L-1)*(L+2) XP (cumulative). Totals are derived
-solely from done quests (SUM in database.py); this module never writes or
-reads a ledger.
+from done quests plus persisted weekly_awards values (SUM in database.py);
+weekly_awards is the only award table and this module never writes or reads a
+ledger.
 """
 
 from math import isqrt
