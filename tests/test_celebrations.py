@@ -239,6 +239,21 @@ async def test_settings_theme_only_no_fire(auth_client, stub_push):
     assert len(stub_push) == 1
 
 
+@pytest.mark.asyncio
+async def test_settings_accent_only_no_fire(auth_client, stub_push):
+    # Spec: an accent-only settings update fires zero pushes even when
+    # checkpoints are active and the user is subscribed.
+    await _put_settings(auth_client, target_weight=80.0)
+    await _post_weight(auth_client, "2026-08-01", 100.0)
+    await _subscribe(auth_client)
+    await _post_weight(auth_client, "2026-08-02", 90.0)
+    assert len(stub_push) == 1
+
+    await _put_settings(auth_client, accent="purple")
+
+    assert len(stub_push) == 1
+
+
 # ---- onboarding earn -------------------------------------------------------
 
 

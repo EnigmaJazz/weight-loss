@@ -24,6 +24,7 @@ from auth import (
     verify_password,
 )
 from constants import (
+    ACCENT_COLORS,
     ACHIEVEMENTS,
     ACTIVITY_LEVELS,
     COLLECTIBLE_CATALOG,
@@ -459,6 +460,12 @@ def _valid_theme(value: Optional[str]) -> Optional[str]:
     return value
 
 
+def _valid_accent(value: Optional[str]) -> Optional[str]:
+    if value is not None and value not in ACCENT_COLORS:
+        raise ValueError(f"accent must be one of {', '.join(ACCENT_COLORS)}")
+    return value
+
+
 def _valid_primary_goal(value: Optional[str]) -> Optional[str]:
     if value is not None and value not in PRIMARY_GOALS:
         raise ValueError(f"primary_goal must be one of {', '.join(PRIMARY_GOALS)}")
@@ -489,6 +496,7 @@ class SettingsIn(BaseModel):
     target_unit: Optional[str] = None  # "kg" | "st-lb"
     weight_display: Optional[str] = None  # "lb" | "st-lb"
     theme: Optional[str] = None  # "system" | "light" | "dark"
+    accent: Optional[str] = None  # "purple" | "teal" | "blue" | "green" | "orange"
     # Goals & lifestyle (user-onboarding): all optional; lists are JSON lists.
     primary_goal: Optional[str] = None
     secondary_goals: list[str] = Field(default_factory=list)
@@ -519,6 +527,11 @@ class SettingsIn(BaseModel):
     @classmethod
     def validate_theme(cls, value: Optional[str]) -> Optional[str]:
         return _valid_theme(value)
+
+    @field_validator("accent")
+    @classmethod
+    def validate_accent(cls, value: Optional[str]) -> Optional[str]:
+        return _valid_accent(value)
 
     @field_validator("primary_goal")
     @classmethod

@@ -40,6 +40,7 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "target_unit": "kg",  # per-user target input preference: "kg" | "st-lb"
     "weight_display": "lb",  # display preference: "lb" | "st-lb"
     "theme": "system",  # per-user theme: "system" | "light" | "dark"
+    "accent": "green",  # per-user accent: "purple" | "teal" | "blue" | "green" | "orange"
     "onboarding_complete": False,  # wizard finished (flag lands Phase 3)
     # Goals & lifestyle (user-onboarding): all optional; lists persist as JSON.
     "primary_goal": None,
@@ -63,6 +64,18 @@ ACTIVITY_LEVELS: tuple[str, ...] = (
     "light",
     "moderate",
     "active",
+)
+
+# Accent colour allowlist (r2b-accent-colour): drives server validation
+# (routes.py) exactly like PRIMARY_GOALS. Purple is an explicit user request;
+# the curated set rides the existing --accent token system. Mirrored literals
+# land in the SPA with Unit 2.
+ACCENT_COLORS: tuple[str, ...] = (
+    "purple",
+    "teal",
+    "blue",
+    "green",
+    "orange",
 )
 
 # Notification types and whether each fires daily or weekly (fixed weekday).

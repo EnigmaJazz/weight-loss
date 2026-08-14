@@ -158,6 +158,7 @@ class AppSettings:
     target_unit: str = "kg"  # preferred target input unit: "kg" | "st-lb"
     weight_display: str = "lb"  # display preference: "lb" | "st-lb"
     theme: str = "system"  # per-user theme: "system" | "light" | "dark"
+    accent: str = "green"  # per-user accent: "purple" | "teal" | "blue" | "green" | "orange"
     onboarding_complete: bool = False  # wizard finished (flag lands Phase 3)
     # Goals & lifestyle (user-onboarding): all optional. Lists round-trip as
     # JSON (order preserved); primary_goal and activity_level are allowlisted
