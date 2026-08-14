@@ -323,3 +323,23 @@ class WeeklyState:
     goals: list[WeeklyGoalState]
     history: list[dict[str, Any]]
     met_flips: list[str]
+
+
+@dataclass
+class CollectibleFacts:
+    """Facts the pure collectibles engine consumes (never persisted): the
+    achievements snapshot plus weight history, settings, meal-day dates."""
+
+    achievement: AchievementFacts = field(default_factory=AchievementFacts)
+    weights: list[WeightEntry] = field(default_factory=list)
+    settings: Optional[AppSettings] = None
+    meal_days: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CollectibleState:
+    """One derived collectible token (never persisted)."""
+    key: str
+    title: str
+    earned: bool
+    unlocked_at: Optional[str] = None

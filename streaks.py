@@ -98,6 +98,29 @@ def meal_streak(entries: Sequence[MealEntry], today: date) -> int:
     return _run_backward(counts, today, lambda d: d - timedelta(days=1), 1)
 
 
+def first_run_milestones(
+    days: Sequence[str], milestones: Sequence[int]
+) -> dict[int, str]:
+    """Earliest date each consecutive-day run first reaches a milestone
+    length, keyed by milestone day-count (r2-completion · S4). Walks
+    chronologically; a run is a maximal span of consecutive logged days and a
+    missing day breaks it. The FIRST run reaching a milestone wins, so a
+    29-day break before a later 30-day run earns the 30-day token on the later
+    run's day 30, and later breaks never remove it (R13); only the given days
+    count (weight/exercise streaks never feed meal milestones, R11)."""
+    result: dict[int, str] = {}
+    ordered = sorted({date.fromisoformat(day) for day in days})
+    run_start = 0
+    for index, day in enumerate(ordered):
+        if index > run_start and (day - ordered[index - 1]).days != 1:
+            run_start = index
+        run_length = index - run_start + 1
+        for milestone in milestones:
+            if milestone not in result and run_length == milestone:
+                result[milestone] = day.isoformat()
+    return result
+
+
 def streak_state(
     exercise: Sequence[ExerciseEntry],
     meals: Sequence[MealEntry],

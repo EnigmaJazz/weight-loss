@@ -6,7 +6,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi import FastAPI
 
-from constants import QUEST_POOL
+from constants import COLLECTIBLE_CATALOG, QUEST_POOL
 import database as database_module
 import quests
 from models import AppSettings
@@ -1621,3 +1621,36 @@ def test_weekly_awards_schema_constraints(tmp_path):
                 )
     finally:
         db.close()
+
+
+# ---- collectibles API (r2-completion · S4) ----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_collectibles_shape_and_catalogue_order(auth_client, app):
+    """R10/R11: the 16-token shelf returns in catalogue order with the exact
+    {key,title,earned,unlocked_at} shape, and the read never changes XP."""
+    db = app.state.db
+    user_id = auth_user_id(app)
+    monday = weekly.week_start(date.today())
+    await auth_client.put("/api/settings", json={"target_weight": 80.0, "height_cm": 175.0})
+    db.upsert_entry(user_id, (monday - timedelta(days=1)).isoformat(), 100.0)
+    db.upsert_entry(user_id, monday.isoformat(), 90.0)
+    for offset in range(7):
+        db.insert_meal(user_id, (monday + timedelta(days=offset)).isoformat(), 500.0)
+    seed_met_week(db, user_id, monday)
+    xp_before = db.total_xp_for_user(user_id)
+    items = (await auth_client.get("/api/collectibles")).json()["collectibles"]
+    assert [i["key"] for i in items] == [k for k, _ in COLLECTIBLE_CATALOG]
+    assert [i["title"] for i in items] == [t for _, t in COLLECTIBLE_CATALOG]
+    assert all(set(i) == {"key", "title", "earned", "unlocked_at"} for i in items)
+    by_key = {i["key"]: i for i in items}
+    # Seeded week: first done quest, three checkpoint crosses, 7-day meal run,
+    # and both weekly objectives unlock at their seeded dates.
+    assert by_key["getting_started"]["unlocked_at"] == monday.isoformat()
+    assert by_key["checkpoint_50"]["unlocked_at"] == monday.isoformat()
+    assert by_key["meal_7"]["unlocked_at"] == (monday + timedelta(days=6)).isoformat()
+    assert by_key["weekly_quests"]["unlocked_at"] == monday.isoformat()
+    assert by_key["weekly_good_days"]["unlocked_at"] == monday.isoformat()
+    assert all(by_key[k]["earned"] is False and by_key[k]["unlocked_at"] is None for k in ("moving_forward", "checkpoint_75", "meal_30", "meal_100"))
+    assert db.total_xp_for_user(user_id) == xp_before  # R10: cosmetic-only read

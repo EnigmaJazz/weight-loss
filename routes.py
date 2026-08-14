@@ -26,6 +26,7 @@ from auth import (
 from constants import (
     ACHIEVEMENTS,
     ACTIVITY_LEVELS,
+    COLLECTIBLE_CATALOG,
     EXERCISE_TYPES,
     HABIT_TYPES,
     NOTIFICATION_TYPES,
@@ -60,6 +61,7 @@ from models import (
     XpState,
 )
 import achievements
+import collectibles
 import momentum
 import notifications
 import quests
@@ -1477,6 +1479,17 @@ async def get_weekly(
         "history": state.history,
         "met_flips": state.met_flips,
     }
+
+
+@router.get("/api/collectibles")
+async def get_collectibles(
+    user: User = Depends(require_user), db: Database = Depends(get_db)
+) -> dict[str, Any]:
+    """Derived cosmetic token shelf in catalogue order (R10: no XP/economy
+    impact; R13: derived on read)."""
+    facts = await run_db(db.collectible_facts, user.id)
+    states = collectibles.states(facts, COLLECTIBLE_CATALOG)
+    return {"collectibles": [asdict(state) for state in states]}
 
 
 # ---- momentum (r1-quests-xp · S2b) ----------------------------------------

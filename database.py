@@ -14,6 +14,7 @@ from models import (
     AchievementFacts,
     AchievementQuestFact,
     AppSettings,
+    CollectibleFacts,
     ExerciseDayFacts,
     ExerciseEntry,
     HabitEntry,
@@ -1638,6 +1639,52 @@ class Database:
             ).fetchall()
         for row in rows:
             self.reconcile_weekly_awards(int(row["user_id"]), today)
+
+    # ---- collectibles (r2-completion · S4) ----
+
+    def collectible_facts(self, user_id: int) -> CollectibleFacts:
+        """One ownership-scoped snapshot for the collectibles engine: rows
+        achievements consumes plus weights, settings, meal dates, one _tx."""
+        with self._tx() as conn:
+            done_rows = conn.execute(
+                "SELECT date, quest_key, domain FROM quests WHERE user_id = ? AND status = 'done' ORDER BY date, id",
+                (user_id,),
+            ).fetchall()
+            quest_rows, log_rows = _momentum_day_rows(conn, user_id)
+            exercise_rows = conn.execute(
+                "SELECT date, SUM(duration_min) AS duration_min FROM exercise_entries WHERE user_id = ? GROUP BY date",
+                (user_id,),
+            ).fetchall()
+            weight_rows = conn.execute(
+                "SELECT id, date, time, weight_kg, created_at FROM weight_entries WHERE user_id = ? ORDER BY date",
+                (user_id,),
+            ).fetchall()
+            meal_rows = conn.execute(
+                "SELECT DISTINCT date FROM meal_entries WHERE user_id = ? ORDER BY date",
+                (user_id,),
+            ).fetchall()
+            settings = self._settings_from_conn(user_id, conn)
+        done_quests = [
+            AchievementQuestFact(
+                date=row["date"], quest_key=row["quest_key"], domain=row["domain"]
+            )
+            for row in done_rows
+        ]
+        return CollectibleFacts(
+            achievement=AchievementFacts(
+                done_quests=done_quests,
+                momentum_days=_merge_momentum_day_facts(quest_rows, log_rows),
+                exercise_days=[
+                    ExerciseDayFacts(
+                        date=row["date"], duration_min=int(row["duration_min"])
+                    )
+                    for row in exercise_rows
+                ],
+            ),
+            weights=[_weight_from_row(row) for row in weight_rows],
+            settings=settings,
+            meal_days=[row["date"] for row in meal_rows],
+        )
 
 
 def _merge_momentum_day_facts(
