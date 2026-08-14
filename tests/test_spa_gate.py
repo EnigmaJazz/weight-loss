@@ -1480,3 +1480,70 @@ async def test_app_js_quest_renderers_use_decorative_domain_icons(client):
         assert "iconForDomain(" in fn
         assert '"quest-domain-icon"' in fn
         assert 'setAttribute("aria-hidden", "true")' in fn
+
+# ---- r2-completion S3 gate additions (weekly objectives UI) -------------
+# Compact slice-3 gates (PR 3): Today #weekly-card (two container-first rows +
+# recovery-safe #weekly-error), Journey #weekly-journey-card (status/history),
+# app.js weekly allSettled fetch + render hooks + signal seam + no XP copy,
+# token-only weekly CSS with mobile + reduced-motion (behavior via smoke).
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_weekly_surfaces(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    today = html[html.index('id="tab-today"') : html.index('id="tab-journey"')]
+    assert 'id="weekly-card"' in today
+    assert today.index('id="quests-card"') < today.index('id="weekly-card"')
+    card = today[today.index('id="weekly-card"') : today.index("</section>", today.index('id="weekly-card"'))]
+    assert "<h2>Weekly objectives</h2>" in card
+    assert card.count('class="weekly-progress-row"') == 2
+    assert all(g in card for g in ('data-goal="quests"', 'data-goal="good_days"'))
+    assert card.count('role="progressbar"') == 2 and card.count("progress-fill") == 2
+    assert 'id="weekly-error"' in card
+    journey = html[html.index('id="tab-journey"') : html.index('id="tab-world"')]
+    assert 'id="weekly-journey-card"' in journey
+    assert (journey.index('id="momentum-card"')
+            < journey.index('id="weekly-journey-card"')
+            < journey.index('id="achievements-card"'))
+    assert 'id="weekly-current-status"' in journey and 'id="weekly-history"' in journey
+
+
+@pytest.mark.asyncio
+async def test_app_js_ships_weekly_loading_and_render_hooks(client):
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    fn = _js_fn_body(body, "loadJourneyCards")
+    assert "Promise.allSettled" in fn and 'fetchJson("/api/weekly")' in fn
+    assert all(f"function {h}" in body for h in ("renderWeekly", "renderWeeklyToday", "renderWeeklyJourney"))
+    rw = _js_fn_body(body, "renderWeekly")
+    assert "weeklyMetSignals.push(" in rw
+    assert '$("weekly-error")' in rw and "err.hidden = false" in rw and "err.hidden = true" in rw
+    assert "Could not load weekly objectives" in body
+    rt = _js_fn_body(body, "renderWeeklyToday")
+    assert re.search(r"Math\.min\(100,\s*Math\.max\(0,", rt) and 'setAttribute("role", "progressbar")' in rt and '"Met"' in rt
+    assert "Exempt this week" in rt and "starts Monday in" in rt
+    rj = _js_fn_body(body, "renderWeeklyJourney")
+    assert re.search(r"exempt \? \"Exempt\"", rj)
+    assert "week_start" in rj and re.search(r"\.\.\.[^;]*\.sort\(", rj)
+    assert "No completed weeks yet." in rj and all("XP" not in s for s in (rt, rj))
+    assert "let weeklyMetSignals = []" in body and '"weekly_met"' in body
+    assert "Math.max(0" in _js_fn_body(body, "weeklyDaysUntilMonday")
+
+
+@pytest.mark.asyncio
+async def test_style_css_ships_weekly_rules_token_only(client):
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    sheet = resp.text
+    for selector in (".weekly-card", ".weekly-journey-card", ".weekly-progress-row"):
+        assert selector in sheet
+    rules = list(re.finditer(r"\.weekly-[a-z-]+\s*\{[^}]*}", sheet))
+    assert rules and all(re.search(r"#[0-9a-fA-F]{3,8}\b", r.group(0)) is None for r in rules)
+    assert re.search(r"\.weekly-progress-header\s*\{[^}]*flex-wrap", sheet[sheet.index("@media (max-width: 480px)"):])
+    block = sheet[sheet.index("@media (prefers-reduced-motion: reduce)"):]
+    assert re.search(r"\.weekly-card(?![\-\w])[^}]*transition\s*:\s*none", block)
+    assert re.search(r"\.weekly-journey-card[^}]*transition\s*:\s*none", block)
+    assert re.search(r"\.weekly-progress-row \.progress-fill[^}]*transition\s*:\s*none", block)

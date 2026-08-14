@@ -840,6 +840,56 @@ button.link:hover { color: var(--accent); background: none; }
   font-weight: 600;
 }
 
+/* weekly objectives (r2-completion S3): Today #weekly-card + Journey
+ * #weekly-journey-card. Token-only (no palette hex); bars reuse the shared
+ * .progress-track/.progress-fill, mobile wraps the row header at 480px, and
+ * the reduced-motion blocks below render final widths statically. */
+.weekly-card,
+.weekly-journey-card { transition: background-color 0.15s ease; }
+
+.weekly-progress-row {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.weekly-progress-row:last-child { border-bottom: none; }
+
+.weekly-progress-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+}
+.weekly-progress-label { font-weight: 600; }
+.weekly-progress-count { color: var(--muted); }
+.weekly-progress-status { margin-left: auto; color: var(--accent-dark); font-weight: 600; }
+
+.weekly-status-list,
+.weekly-history-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+.weekly-status-row,
+.weekly-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+.weekly-status-row:last-child,
+.weekly-history-row:last-child { border-bottom: none; }
+.weekly-status-row[data-met="true"] { color: var(--accent-dark); font-weight: 600; }
+.weekly-history-date { color: var(--muted); }
+.weekly-history-goals { color: var(--muted); }
+
+/* mobile: wrap the Today row header instead of clipping the status at the
+ * right edge on narrow screens (spec 'Weekly Objectives UI'). */
+@media (max-width: 480px) {
+  .weekly-progress-header { flex-wrap: wrap; }
+}
+
 .quest-history-row {
   display: flex;
   flex-wrap: wrap;
@@ -1023,7 +1073,9 @@ a:focus-visible,
   .xp-card,
   .momentum-card,
   .quest-history-card,
-  .achievements-card {
+  .achievements-card,
+  .weekly-card,
+  .weekly-journey-card {
     transition: none !important;
   }
   /* motion-gate additions (Phase 3): confetti never spawns visibly and the
@@ -1082,6 +1134,15 @@ a:focus-visible,
  * block sits before the appended rules. */
 @media (prefers-reduced-motion: reduce) {
   #world-progress .progress-fill {
+    transition: none !important;
+  }
+}
+
+/* reduced-motion neutralization for the weekly progress fills (r2-completion
+ * S3): appended AFTER the base .progress-fill transition so final bar widths
+ * render statically (spec 'Weekly Objectives UI'). */
+@media (prefers-reduced-motion: reduce) {
+  .weekly-progress-row .progress-fill {
     transition: none !important;
   }
 }

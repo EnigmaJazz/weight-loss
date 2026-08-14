@@ -282,6 +282,38 @@
             <p class="hint error" id="quests-error" role="alert" hidden></p>
           </section>
 
+          <!-- weekly objectives (r2-completion S3): container-first two progress
+               rows exist in the shipped source; app.js updates counts/met bars
+               and the exemption countdown after each weekly read (spec 'Weekly
+               Objectives UI'). -->
+          <section class="card weekly-card" id="weekly-card" aria-label="Weekly objectives">
+            <h2>Weekly objectives</h2>
+            <div id="weekly-content">
+              <div class="weekly-progress-row" data-goal="quests">
+                <div class="weekly-progress-header">
+                  <span class="weekly-progress-label">Quests</span>
+                  <span class="weekly-progress-count">0 / 10</span>
+                  <span class="weekly-progress-status"></span>
+                </div>
+                <div class="progress-track" role="progressbar" aria-label="Quests progress" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">
+                  <div class="progress-fill" style="width:0%"></div>
+                </div>
+              </div>
+              <div class="weekly-progress-row" data-goal="good_days">
+                <div class="weekly-progress-header">
+                  <span class="weekly-progress-label">Good days</span>
+                  <span class="weekly-progress-count">0 / 3</span>
+                  <span class="weekly-progress-status"></span>
+                </div>
+                <div class="progress-track" role="progressbar" aria-label="Good days progress" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
+                  <div class="progress-fill" style="width:0%"></div>
+                </div>
+              </div>
+            </div>
+            <p class="hint error" id="weekly-error" role="alert" hidden></p>
+            <p class="hint" id="weekly-exempt" hidden></p>
+          </section>
+
           <section class="card">
             <h2>Log weight</h2>
             <form id="entry-form" autocomplete="off">
@@ -384,6 +416,15 @@
           <section class="card momentum-card" id="momentum-card" aria-label="Momentum">
             <h2>Momentum</h2>
             <div id="momentum-card-content"></div>
+          </section>
+
+          <!-- weekly objectives journey card (r2-completion S3): current/latest
+               status + newest-first history containers (spec 'Weekly Objectives
+               UI'). -->
+          <section class="card weekly-journey-card" id="weekly-journey-card" aria-label="Weekly objectives">
+            <h2>Weekly objectives</h2>
+            <div id="weekly-current-status"></div>
+            <div id="weekly-history"></div>
           </section>
 
           <section class="card achievements-card" id="achievements-card" aria-label="Achievements">
