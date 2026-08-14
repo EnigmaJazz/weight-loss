@@ -1630,3 +1630,39 @@ async def test_journey_collectibles_surface(client):
     assert re.search(r"\.collectibles-card[^}]*transition\s*:\s*none", block) is not None
     assert re.search(r"\.collectible-art[^}]*animation\s*:\s*none", block) is not None
     assert re.search(r"\.world-latest-earn[^}]*animation\s*:\s*none", block) is not None
+# ---- r2-completion S6 celebration queue gate (R14-R18) ----------------
+
+
+@pytest.mark.asyncio
+async def test_celebration_queue_surfaces(client):
+    html = (await client.get("/")).text
+    assert re.search(r'id="celebration-banner"[^>]*\shidden', html)
+    fmt = (await client.get("/static/format.js")).text
+    for fn in ("questStatusChanged", "weeklyMetDiff", "collectibleKeysetDiff", "enqueueCelebrations"):
+        assert f"function {fn}" in fmt
+    assert "enqueueCelebrations" in fmt.split("const api =")[1]
+    body = (await client.get("/static/app.js")).text
+    assert "let prevLevel = null" in body
+    # Producers only stage; loadJourneyCards flushes the queue once (R18).
+    enq = _js_fn_body(body, "enqueueCelebrationEvents")
+    assert "push" in enq and "flushCelebrationQueue" not in enq
+    assert "flushCelebrationQueue();" in _js_fn_body(body, "loadJourneyCards")
+    fq = _js_fn_body(body, "flushCelebrationQueue")
+    assert "enqueueCelebrations(" in fq and "shift()" in fq
+    mq = _js_fn_body(body, "mutateQuest")
+    assert "res.level_up" in mq
+    lq = _js_fn_body(body, "loadQuestsAndXp")
+    assert 'xpRes.status === "fulfilled"' in lq and "level_up" in lq
+    ra = _js_fn_body(body, "renderAchievements")
+    assert "fireConfetti(" not in ra and "enqueueCelebrationEvents(" in ra
+    sc = _js_fn_body(body, "showCelebration")
+    assert "reducedMotion()" in sc
+    assert "show();" in sc  # non-level celebrations must render before their delay
+    assert 'matchMedia("(prefers-reduced-motion: reduce)")' in body
+    sheet = (await client.get("/static/style.css")).text
+    for rule in re.finditer(r"\.celebration-banner[a-z-]*\s*\{[^}]*}", sheet):
+        assert not re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0))
+    assert re.search(r"\.quest-delight\s*\{", sheet)
+    block = sheet[sheet.index("@media (prefers-reduced-motion: reduce)"):]
+    assert re.search(r"\.celebration-banner[^}]*transition\s*:\s*none", block)
+    assert re.search(r"\.quest-delight[^}]*animation\s*:\s*none", block)

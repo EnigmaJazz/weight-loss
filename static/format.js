@@ -375,7 +375,34 @@
     throw new Error(`Unknown quest domain: ${domain}`);
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain };
+  /* Celebration queue (S6): pure once-per-transition diffs + R18 priority.
+   * First render (previous == null) and failed reads stay quiet; events are
+   * plain serializable data in current order. */
+  function questStatusChanged(previous, current) {
+    if (previous == null) return [];
+    const prev = Object.fromEntries(previous.map((q) => [q.id, q.status]));
+    return (current ?? [])
+      .filter((q) => q.id in prev && q.status === "done" && prev[q.id] !== "done")
+      .map((q) => ({ questId: q.id }));
+  }
+  function weeklyMetDiff(previous, current) {
+    if (previous == null) return [];
+    const prev = new Set(previous);
+    return (current ?? []).filter((goal) => !prev.has(goal)).map((goal) => ({ goal }));
+  }
+  function collectibleKeysetDiff(previous, current) {
+    if (previous == null) return [];
+    const prev = new Set(previous);
+    return (current ?? []).filter((key) => !prev.has(key));
+  }
+  const CELEBRATION_PRIORITY = { level_up: 1, achievement: 2, weekly_met: 3, collectible_first_earn: 3, quest_delight: 4 };
+  function enqueueCelebrations(events) {
+    return (events ?? [])
+      .filter((ev) => ev && typeof ev.type === "string" && CELEBRATION_PRIORITY[ev.type] !== undefined)
+      .sort((a, b) => CELEBRATION_PRIORITY[a.type] - CELEBRATION_PRIORITY[b.type]);
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
