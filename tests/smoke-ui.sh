@@ -623,6 +623,8 @@ sleep 1
 playwright-cli route "**/api/weekly" --body="$WEEKLY_MOCK" >/dev/null 2>&1
 playwright-cli reload >/dev/null 2>&1
 sleep 1
+WEEKLY_SEAM="$(playwright-cli --raw eval "weeklyMetSignals.length + '|' + (document.querySelector('.toast.is-visible')?.textContent.trim() ?? '')" 2>&1 | tr -d '"')"
+[ "${WEEKLY_SEAM%%|*}" = "0" ] && printf '%s' "$WEEKLY_SEAM" | grep -q 'Weekly quests met' && step_ok "weekly met_flips consumed once into a toast" || step_fail "weekly met_flips consumed once into a toast (got '$WEEKLY_SEAM')"
 WEEKLY_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#weekly-card .weekly-progress-row').length" 2>&1 | tr -d '"')"
 [ "$WEEKLY_ROWS" = "2" ] && step_ok "weekly Today card renders two progress rows" || step_fail "weekly Today card renders two progress rows (count='$WEEKLY_ROWS')"
 WEEKLY_QUESTS_STATUS="$(playwright-cli --raw eval "document.querySelector('#weekly-card .weekly-progress-row[data-goal=\"quests\"] .weekly-progress-status')?.textContent.trim()" 2>&1 | tr -d '"')"
@@ -633,8 +635,6 @@ WEEKLY_EXEMPT="$(playwright-cli --raw eval "document.querySelector('#weekly-exem
 printf '%s' "$WEEKLY_EXEMPT" | grep -Eq '^Exempt this week - starts Monday in [1-7] days?$' && step_ok "weekly exemption countdown renders ($WEEKLY_EXEMPT)" || step_fail "weekly exemption countdown renders (got '$WEEKLY_EXEMPT')"
 WEEKLY_TODAY_COPY="$(playwright-cli --raw eval "document.querySelector('#weekly-card')?.textContent" 2>&1 | tr -d '"')"
 printf '%s' "$WEEKLY_TODAY_COPY" | grep -Eq 'XP' && step_fail "weekly Today scope has no XP award copy" || step_ok "weekly Today scope has no XP award copy"
-WEEKLY_SIGNALS="$(playwright-cli --raw eval "weeklyMetSignals.map(s => s.type + ':' + s.goal).join('|')" 2>&1)"
-printf '%s' "$WEEKLY_SIGNALS" | grep -Eq '^"?weekly_met:quests"?$' && step_ok "weekly met_flips captured as pending signals" || step_fail "weekly met_flips captured as pending signals (got '$WEEKLY_SIGNALS')"
 playwright-cli screenshot --filename="artifacts/r2-completion-s3/weekly-light.png" --full-page >/dev/null 2>&1
 playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
 sleep 1
@@ -666,7 +666,7 @@ playwright-cli unroute "**/api/weekly" >/dev/null 2>&1
 # as constants.COLLECTIBLE_CATALOG); assert exact row order, earned
 # medallions + DD/MM/YY dates, locked silhouettes, the chronological World
 # accent, empty-accent clear, failure-scoped shelf preservation, the
-# first-earn signal seam, no toast/confetti, both themes; unroute afterwards.
+# first-earn signal seam consumed once into a toast (S6), no confetti; unroute.
 echo "-- collectibles (mocked /api/collectibles)"
 mkdir -p artifacts/r2-completion-s5
 COLLECTIBLE_KEYS=(
@@ -743,28 +743,20 @@ playwright-cli click "[data-tab=world]" >/dev/null 2>&1
 sleep 1
 WORLD_ACCENT="$(playwright-cli --raw eval "(() => { const a = document.querySelector('#world-latest-earn'); return String((a?.dataset.key ?? '') + '|' + (a?.getAttribute('aria-label') ?? '') + '|' + (!a.hasAttribute('hidden') && getComputedStyle(a).display !== 'none')); })()" 2>&1 | tr -d '"')"
 [ "$WORLD_ACCENT" = "getting_started|Latest collectible: Getting Started|true" ] && step_ok "world accent marks the chronologically latest earn (key|label|visible: $WORLD_ACCENT)" || step_fail "world accent marks the chronologically latest earn (got '$WORLD_ACCENT')"
-# Signal seam: swap in mock C and re-run loadData() WITHOUT a reload so the
-# module-level prev key set survives — consistency must emit exactly one signal.
+# Signal seam + queue: swap mock C + loadData() WITHOUT reload (prev set survives).
 playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_NEW_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli --raw eval "loadData()" >/dev/null 2>&1
 sleep 1
-COLLECTIBLE_SIGNAL_COUNT="$(playwright-cli --raw eval "collectibleSignals.length" 2>&1 | tr -d '"')"
-COLLECTIBLE_SIGNAL_JSON="$(playwright-cli --raw eval "JSON.stringify(collectibleSignals)" 2>&1 | tr -d '"')"
-if [ "$COLLECTIBLE_SIGNAL_COUNT" = "1" ] && printf '%s' "$COLLECTIBLE_SIGNAL_JSON" | grep -q 'collectible_first_earn' && printf '%s' "$COLLECTIBLE_SIGNAL_JSON" | grep -q 'consistency'; then
-  step_ok "one newly earned key emits exactly one first-earn signal ($COLLECTIBLE_SIGNAL_JSON)"
-else
-  step_fail "one newly earned key emits exactly one first-earn signal (count='$COLLECTIBLE_SIGNAL_COUNT', got '$COLLECTIBLE_SIGNAL_JSON')"
-fi
-COLLECTIBLE_NO_CELEBRATION="$(playwright-cli --raw eval "document.querySelectorAll('.confetti-piece').length + document.querySelectorAll('.toast.is-visible').length" 2>&1 | tr -d '"')"
-[ "$COLLECTIBLE_NO_CELEBRATION" = "0" ] && step_ok "first-earn signal queues without toast or confetti" || step_fail "first-earn signal queues without toast or confetti (count='$COLLECTIBLE_NO_CELEBRATION')"
+COLLECTIBLE_SEAM="$(playwright-cli --raw eval "collectibleSignals.length + '|' + (document.querySelector('.toast.is-visible')?.textContent.trim() ?? '') + '|' + document.querySelectorAll('.confetti-piece').length" 2>&1 | tr -d '"')"
+[ "${COLLECTIBLE_SEAM%%|*}" = "0" ] && printf '%s' "$COLLECTIBLE_SEAM" | grep -q 'Consistency' && printf '%s' "$COLLECTIBLE_SEAM" | grep -Eq '\|0$' && step_ok "first-earn key consumed once into a collectible toast, no confetti" || step_fail "first-earn key consumed once into a collectible toast (got '$COLLECTIBLE_SEAM')"
 # Failed read: card-scoped error surfaces while the 16 shelf rows stay intact
-# (loadData without reload — no reload before the failure), and the seam never
-# advances (still exactly the one prior signal).
+# (loadData without reload — no reload before the failure), and the consumed
+# seam never re-signals (drained once, failed read adds nothing).
 playwright-cli route "**/api/collectibles" --status=500 --body='{"detail":"boom"}' >/dev/null 2>&1
 playwright-cli --raw eval "loadData()" >/dev/null 2>&1
 sleep 1
 COLLECTIBLE_FAIL="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row').length + '|' + (!document.querySelector('#collectibles-error').hidden) + '|' + collectibleSignals.length" 2>&1 | tr -d '"')"
-[ "$COLLECTIBLE_FAIL" = "16|true|1" ] && step_ok "failed read preserves 16 rows, shows error, does not signal ($COLLECTIBLE_FAIL)" || step_fail "failed read preserves 16 rows, shows error, does not signal (got '$COLLECTIBLE_FAIL')"
+[ "$COLLECTIBLE_FAIL" = "16|true|0" ] && step_ok "failed read preserves 16 rows, shows error, does not re-signal ($COLLECTIBLE_FAIL)" || step_fail "failed read preserves 16 rows, shows error, does not re-signal (got '$COLLECTIBLE_FAIL')"
 # All-locked fulfilled payload: 16 locked rows, accent hidden + key cleared.
 playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_EMPTY_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli --raw eval "loadData()" >/dev/null 2>&1
@@ -794,6 +786,42 @@ BACK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme'
 [ "$BACK_THEME" = "light" ] && step_ok "theme restored after collectibles assertions" || step_fail "theme restored after collectibles assertions (got '$BACK_THEME')"
 playwright-cli unroute "**/api/collectibles" >/dev/null 2>&1
 
+# ---- 5.20 celebration queue (S6): level-up banner -> achievement toast in
+# R18 order, once each, no reload replay; reduced-motion shows the banner
+# statically with zero confetti (R17). One poll loop proves the handoff.
+echo "-- celebration queue (mocked level crossing)"; mkdir -p artifacts/r2-completion-s6
+XP_MOCK='{"level":3,"title":"Trailblazer","total_xp":300,"xp_into_next":50,"next_level_at":450,"recent_completions":[]}'
+TODAY_DMY="$(date +%d/%m/%y)"
+ACH_MOCK='{"achievements":[{"key":"getting_started","title":"Getting Started","earned":true,"unlocked_at":"'"$TODAY_DMY"'"},{"key":"moving_forward","title":"Moving Forward","earned":true,"unlocked_at":"'"$TODAY_DMY"'"},{"key":"consistency","title":"Consistency","earned":false,"unlocked_at":null},{"key":"comeback","title":"Comeback","earned":false,"unlocked_at":null},{"key":"explorer","title":"Explorer","earned":false,"unlocked_at":null},{"key":"personal_best","title":"Personal Best","earned":false,"unlocked_at":null}]}'
+playwright-cli route "**/api/xp" --body="$XP_MOCK" --content-type=application/json >/dev/null 2>&1
+playwright-cli route "**/api/achievements" --body="$ACH_MOCK" --content-type=application/json >/dev/null 2>&1
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1; sleep 1
+playwright-cli --raw eval "(async () => { const row = document.querySelector('#quests-card .quest-row[data-status=\"open\"]'); await mutateQuest(Number(row.dataset.questId), 'complete'); })()" >/dev/null 2>&1
+S6_BANNER=""; S6_TOAST=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  sleep 1
+  S6="$(playwright-cli --raw eval "(() => { const b = document.querySelector('#celebration-banner'); const t = document.querySelector('.toast'); return (b.hidden ? 'H' : 'V:' + b.textContent.trim()) + '|' + (t?.textContent.trim() ?? ''); })()" 2>&1 | tr -d '"')"
+  printf '%s' "$S6" | grep -q '^V:Level 3 · Trailblazer' && [ -z "$S6_BANNER" ] && { S6_BANNER="seen"; playwright-cli screenshot --filename="artifacts/r2-completion-s6/banner-today-light.png" --full-page >/dev/null 2>&1; }
+  [ -n "$S6_BANNER" ] && printf '%s' "$S6" | grep -Eq '^H\|.*Moving Forward' && { S6_TOAST="seen"; break; }
+done
+[ -n "$S6_BANNER" ] && [ -n "$S6_TOAST" ] && step_ok "banner (Level 3 · Trailblazer) then achievement toast, R18 order" || step_fail "banner then achievement toast in R18 order (last='$S6')"
+playwright-cli reload >/dev/null 2>&1; sleep 1
+S6_NO="$(playwright-cli --raw eval "document.querySelector('#celebration-banner').hidden + '|' + document.querySelectorAll('.toast.is-visible').length" 2>&1 | tr -d '"')"
+[ "$S6_NO" = "true|0" ] && step_ok "reload does not replay the level-up banner or achievement toast" || step_fail "reload does not replay the level-up banner or achievement toast (got '$S6_NO')"
+# Reduced motion: level-3 read (prevLevel 2 still live) -> static banner, zero confetti.
+XP_MOCK3='{"level":4,"title":"Trailblazer","total_xp":500,"xp_into_next":50,"next_level_at":700,"recent_completions":[]}'
+playwright-cli run-code "async page => await page.emulateMedia({ reducedMotion: 'reduce' })" >/dev/null 2>&1
+playwright-cli route "**/api/xp" --body="$XP_MOCK3" --content-type=application/json >/dev/null 2>&1
+playwright-cli --raw eval "(async () => { await loadData(); })()" >/dev/null 2>&1
+for i in 1 2 3 4 5 6 7 8; do
+  sleep 1
+  RM="$(playwright-cli --raw eval "(() => { const b = document.querySelector('#celebration-banner'); return (b.hidden ? '' : b.textContent.trim()) + '|' + document.querySelectorAll('.confetti-piece').length; })()" 2>&1 | tr -d '"')"
+  [ -n "${RM%%|*}" ] && break
+done
+printf '%s' "$RM" | grep -Eq '^Level 4 · Trailblazer\|0$' && step_ok "reduced-motion banner static, zero confetti" || step_fail "reduced-motion banner static, zero confetti (got '$RM')"
+playwright-cli run-code "async page => await page.emulateMedia({ reducedMotion: 'no-preference' })" >/dev/null 2>&1
+playwright-cli unroute "**/api/xp" >/dev/null 2>&1; playwright-cli unroute "**/api/achievements" >/dev/null 2>&1
+playwright-cli reload >/dev/null 2>&1; sleep 1
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
 
 echo "-- weight-display radio toggle"

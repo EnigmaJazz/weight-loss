@@ -20,7 +20,7 @@ const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -38,17 +38,114 @@ function bmiLabel(bmi) {
   return bmi == null ? "—" : fmt1(bmi);
 }
 
+function reducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.hidden = false;
   // Class-swap reveal: paint the base state first so the .is-visible
   // opacity/transform transition actually animates (no @starting-style).
-  requestAnimationFrame(() => toastEl.classList.add("is-visible"));
+  if (reducedMotion()) toastEl.classList.add("is-visible");
+  else requestAnimationFrame(() => toastEl.classList.add("is-visible"));
   clearTimeout(toast._t);
   toast._t = setTimeout(() => {
     toastEl.classList.remove("is-visible");
     toastEl.hidden = true;
   }, 3000);
+}
+
+/* Celebration queue (S6): producers stage, one flush per load plays level >
+ * achievement > weekly/collectible > quest (R18); reduced motion in show layer. */
+
+let celebrationQueue = [];
+let celebrationProcessing = false;
+let bannerResolve = null;
+let bannerTimer = null;
+
+function enqueueCelebrationEvents(events) {
+  celebrationQueue.push(...(events ?? []));
+}
+
+async function flushCelebrationQueue() {
+  if (celebrationProcessing) return;
+  celebrationProcessing = true;
+  try {
+    while (celebrationQueue.length) {
+      celebrationQueue = enqueueCelebrations(celebrationQueue);
+      await showCelebration(celebrationQueue.shift());
+    }
+  } finally {
+    celebrationProcessing = false;
+  }
+}
+
+const wait = (ms = 3000) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function showCelebration(ev) {
+  const show = {
+    level_up: () => showCelebrationBanner(`Level ${ev.to} · ${ev.title}`),
+    achievement: () => { if (!reducedMotion()) fireConfetti(); toast(`Achievement unlocked: ${ev.title}`); },
+    weekly_met: () => toast(ev.goal === "quests" ? "Weekly quests met! +40 XP" : "Good days met! +40 XP"),
+    collectible_first_earn: () => toast(`Collectible earned: ${(ev.titles ?? []).join(", ")}`),
+    quest_delight: () => showQuestDelight(ev.questId),
+  }[ev.type];
+  if (!show) return;
+  // level_up holds the queue until the banner dismisses (auto ~3s or tap).
+  if (ev.type === "level_up") return show();
+  show();
+  return wait(ev.type === "quest_delight" ? 1000 : 3000);
+}
+
+function drainCelebrationSignals() {
+  const events = weeklyMetSignals.splice(0).map((s) => ({ type: "weekly_met", goal: s.goal }));
+  for (const s of collectibleSignals.splice(0)) {
+    events.push({ type: "collectible_first_earn", keys: s.keys, titles: s.titles ?? [] });
+  }
+  return events;
+}
+
+function hideCelebrationBanner() {
+  const banner = $("celebration-banner");
+  banner.classList.remove("is-visible");
+  banner.hidden = true;
+  const done = bannerResolve;
+  bannerResolve = null;
+  if (done) done();
+}
+
+function showCelebrationBanner(text) {
+  const banner = $("celebration-banner");
+  banner.textContent = text;
+  banner.hidden = false;
+  if (reducedMotion()) banner.classList.add("is-visible");
+  else requestAnimationFrame(() => banner.classList.add("is-visible"));
+  return new Promise((resolve) => {
+    bannerResolve = resolve;
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(hideCelebrationBanner, 3000);
+  });
+}
+
+$("celebration-banner").addEventListener("click", () => {
+  clearTimeout(bannerTimer);
+  hideCelebrationBanner();
+});
+
+/* Quest-completion delight (R15): one brief checkmark; reduced-motion users
+ * get the same checkmark statically. */
+function showQuestDelight(questId) {
+  const row = document.querySelector(`#quests-card .quest-row[data-quest-id="${questId}"]`);
+  if (!row) return;
+  const mark = document.createElement("span");
+  mark.className = "quest-delight";
+  mark.setAttribute("aria-hidden", "true");
+  mark.textContent = "✓";
+  if (reducedMotion()) return row.append(mark);
+  mark.classList.add("is-animating");
+  mark.addEventListener("animationend", () => mark.remove());
+  row.append(mark);
 }
 
 async function fetchJson(url, options) {
@@ -563,6 +660,10 @@ let prevEarned = null;
 // §Celebration).
 let prevAchievementKeys = null;
 
+// Celebration read-diff state (S6): null until the first successful read.
+let prevLevel = null;
+let pendingLevelUp = null;
+let prevQuestStatus = null;
 // Last World island stage from a SUCCESSFUL render. null until the first
 // fulfilled /api/xp render, so the first render never celebrates; only
 // re-stored after a successful render, so a failed read cannot reset the
@@ -1582,6 +1683,14 @@ async function loadQuestsAndXp() {
       fireConfetti();
     }
     prevWorldStage = currentStage;
+    const level = xpRes.value.level;
+    if (prevLevel !== null && level > prevLevel) {
+      // Level-up banner (R14): stage on fulfilled read; the mutateQuest
+      // marker supplies the precise pre-transition level.
+      enqueueCelebrationEvents([{ type: "level_up", from: pendingLevelUp?.to === level ? pendingLevelUp.from : prevLevel, to: level, title: xpRes.value.title }]);
+    }
+    pendingLevelUp = null;
+    prevLevel = level;
   } else {
     const el = $("xp-chip-content");
     el.innerHTML = "";
@@ -1624,6 +1733,8 @@ async function loadJourneyCards(questsPayload, xpPayload) {
   renderAchievements(achRes);
   renderWeekly(weeklyRes);
   renderCollectibles(collRes);
+  enqueueCelebrationEvents(drainCelebrationSignals());
+  void flushCelebrationQueue();
 }
 
 function renderJourneyXp(xp) {
@@ -1704,13 +1815,9 @@ function renderAchievements(achRes) {
   }
   const achievements = achRes.value?.achievements ?? [];
   const earned = achievements.filter((a) => a.earned).map((a) => a.key);
-  // Read-diff celebration: only genuinely new earned keys fire, and only
-  // after a successful read; the first render and unchanged/lost sets stay
-  // quiet (design §Celebration, spec 'Achievement key-set diff').
+  // Read-diff celebration: genuinely new earned keys queue (R16).
   if (prevAchievementKeys !== null) {
-    if (newAchievementKeys(prevAchievementKeys, earned).length > 0) {
-      fireConfetti();
-    }
+    enqueueCelebrationEvents(newAchievementKeys(prevAchievementKeys, earned).map((key) => ({ type: "achievement", key, title: achievements.find((a) => a.key === key)?.title ?? key })));
   }
   prevAchievementKeys = earned;
   const list = document.createElement("ul");
@@ -1753,7 +1860,7 @@ function renderCollectibles(collRes) {
   if (prevCollectibleKeys !== null) {
     const fresh = newAchievementKeys(prevCollectibleKeys, earned);
     if (fresh.length > 0) {
-      collectibleSignals.push({ type: "collectible_first_earn", keys: fresh });
+      collectibleSignals.push({ type: "collectible_first_earn", keys: fresh, titles: fresh.map((key) => collectibles.find((c) => c.key === key)?.title ?? key) });
     }
   }
   prevCollectibleKeys = earned;
@@ -2067,6 +2174,8 @@ function renderQuests(data) {
     }
     list.append(row);
   }
+  enqueueCelebrationEvents(questStatusChanged(prevQuestStatus, data.quests).map((d) => ({ type: "quest_delight", questId: d.questId })));
+  prevQuestStatus = data.quests.map((q) => ({ id: q.id, status: q.status }));
 }
 
 function buildQuestActions(questId) {
@@ -2100,7 +2209,12 @@ async function mutateQuest(questId, action) {
   for (const btn of card.querySelectorAll(".quest-action")) btn.disabled = true;
   errorEl.hidden = true;
   try {
-    await fetchJson(`/api/quests/${questId}/${action}`, { method: "POST" });
+    const res = await fetchJson(`/api/quests/${questId}/${action}`, {
+      method: "POST",
+    });
+    // mutateQuest POST reports a level crossing; consumed by the next
+    // successful XP read so a failed read cannot lose it.
+    if (res.level_up) pendingLevelUp = { from: res.level_up.from, to: res.level_up.to };
     const r1 = await loadQuestsAndXp();
     await loadJourneyCards(r1.quests, r1.xp);
   } catch (err) {
