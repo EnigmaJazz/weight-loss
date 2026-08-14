@@ -180,28 +180,29 @@ assert_find "logout button visible" "Log out"
 
 # ---- 2.75 fresh-account World island (r2-world-xp-island S3) --------------
 # A brand-new account (scratch DB, first user id=1) finishes onboarding with
-# 0 total XP: today's deterministic quests (mood_checkin / habit_checkin /
-# exercise_10) are none weight-triggered, so the wizard's weight entry
-# auto-completes nothing. Pin that zero-XP contract HERE — before section 5.16
-# manually completes a quest — in both themes: stage name, level-span progress
-# (0 / 100), exactly one visible stage group (computed display, not DOM count),
-# placeholder absent.
-echo "-- world island (fresh 0-XP account)"
+# 0 or 20 total XP depending on the day's deterministic quest rotation: the
+# wizard's weight entry auto-completes any entry-triggered quest (e.g.
+# streak_alive) on rotation days that include one. The XP truth is the server's
+# GET /api/xp; this section pins the CONSISTENCY contract before section 5.16
+# manually completes a quest — in both themes: chip == API, stage name,
+# level-span progress (API_total / 100), exactly one visible stage group
+# (computed display, not DOM count), placeholder absent.
+echo "-- world island (fresh account)"
 
-# 0-XP precondition: the chip must read exactly 0 XP and GET /api/xp must
-# agree (synchronous XHR rides the session cookie), so a stray auto-completed
-# quest fails the smoke before the island assertions run.
-CHIP_TOTAL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-total')?.textContent" 2>&1 | tr -d '"')"
-if [ "$CHIP_TOTAL" = "0 XP" ]; then
-  step_ok "XP chip reads 0 XP on a fresh account ($CHIP_TOTAL)"
-else
-  step_fail "XP chip reads 0 XP on a fresh account (got '$CHIP_TOTAL')"
-fi
+# Server truth first (synchronous XHR rides the session cookie); every later
+# pin derives from it, so rotation-dependent auto-completions cannot flake.
 API_TOTAL="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/xp', false); x.send(); return String(JSON.parse(x.responseText).total_xp); })()" 2>&1 | tr -d '"')"
-if [ "$API_TOTAL" = "0" ]; then
-  step_ok "GET /api/xp reports total_xp 0 (got $API_TOTAL)"
+if printf '%s' "$API_TOTAL" | grep -Eq '^[0-9]+$' && [ "$API_TOTAL" -lt 100 ]; then
+  step_ok "GET /api/xp reports a sub-level-2 total (got $API_TOTAL)"
 else
-  step_fail "GET /api/xp reports total_xp 0 (got '$API_TOTAL')"
+  step_fail "GET /api/xp reports a sub-level-2 total (got '$API_TOTAL')"
+fi
+# Chip must mirror the server total exactly (rotation-independent invariant).
+CHIP_TOTAL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-total')?.textContent" 2>&1 | tr -d '"')"
+if [ "$CHIP_TOTAL" = "$API_TOTAL XP" ]; then
+  step_ok "XP chip mirrors server total ($CHIP_TOTAL)"
+else
+  step_fail "XP chip mirrors server total (got '$CHIP_TOTAL', API $API_TOTAL)"
 fi
 
 # Deterministic light theme via the Me-tab Appearance radio (same path section
@@ -221,15 +222,15 @@ assert_visibility "world panel visible" "#tab-world" "visible"
 
 WORLD_STAGE="$(playwright-cli --raw eval "document.querySelector('#world-stage-name')?.textContent.trim()" 2>&1 | tr -d '"')"
 if [ "$WORLD_STAGE" = "Sprout Isle" ]; then
-  step_ok "world shows Sprout Isle at 0 XP (light)"
+  step_ok "world shows Sprout Isle on a fresh account (light)"
 else
-  step_fail "world shows Sprout Isle at 0 XP (got '$WORLD_STAGE')"
+  step_fail "world shows Sprout Isle on a fresh account (got '$WORLD_STAGE')"
 fi
 WORLD_PROGRESS="$(playwright-cli --raw eval "document.querySelector('#world-progress .progress-label')?.textContent.trim()" 2>&1 | tr -d '"')"
-if [ "$WORLD_PROGRESS" = "0 / 100" ]; then
-  step_ok "world shows level progress 0 / 100 (light)"
+if [ "$WORLD_PROGRESS" = "$API_TOTAL / 100" ]; then
+  step_ok "world shows level progress $API_TOTAL / 100 (light)"
 else
-  step_fail "world shows level progress 0 / 100 (got '$WORLD_PROGRESS')"
+  step_fail "world shows level progress $API_TOTAL / 100 (got '$WORLD_PROGRESS')"
 fi
 WORLD_VISIBLE_STAGES="$(playwright-cli --raw eval "(() => { const vis = [...document.querySelectorAll('#world-island .island-stage')].filter(s => getComputedStyle(s).display !== 'none'); return String(vis.length) + '|' + (vis[0]?.dataset.stage ?? 'none'); })()" 2>&1 | tr -d '"')"
 if [ "$WORLD_VISIBLE_STAGES" = "1|1" ]; then
@@ -256,13 +257,13 @@ else
 fi
 WORLD_STAGE_DARK="$(playwright-cli --raw eval "document.querySelector('#world-stage-name')?.textContent.trim()" 2>&1 | tr -d '"')"
 if [ "$WORLD_STAGE_DARK" = "Sprout Isle" ]; then
-  step_ok "world shows Sprout Isle at 0 XP (dark)"
+  step_ok "world shows Sprout Isle on a fresh account (dark)"
 else
-  step_fail "world shows Sprout Isle at 0 XP (dark, got '$WORLD_STAGE_DARK')"
+  step_fail "world shows Sprout Isle on a fresh account (dark, got '$WORLD_STAGE_DARK')"
 fi
 WORLD_PROGRESS_DARK="$(playwright-cli --raw eval "document.querySelector('#world-progress .progress-label')?.textContent.trim()" 2>&1 | tr -d '"')"
-if [ "$WORLD_PROGRESS_DARK" = "0 / 100" ]; then
-  step_ok "world shows level progress 0 / 100 (dark)"
+if [ "$WORLD_PROGRESS_DARK" = "$API_TOTAL / 100" ]; then
+  step_ok "world shows level progress $API_TOTAL / 100 (dark)"
 else
   step_fail "world shows level progress 0 / 100 (dark, got '$WORLD_PROGRESS_DARK')"
 fi
