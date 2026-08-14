@@ -1586,14 +1586,17 @@ async function loadQuestsAndXp() {
 /* ---- journey progress cards (r1-quests-xp S4b) ------------------------- */
 
 /* Journey renders three progression cards from the S4a payloads (quests,
- * XP) plus momentum, all failure-scoped: loadJourneyCards renders XP and
- * quest history from the already-fetched quests/XP responses and fetches
- * /api/momentum separately so one failed Journey request never blanks the
- * others (spec 'Journey Data Loading'). */
+ * XP) plus momentum and weekly objectives, all failure-scoped:
+ * loadJourneyCards renders XP and quest history from the already-fetched
+ * quests/XP responses and fetches /api/momentum, /api/achievements, and
+ * /api/weekly together so one failed Journey request never blanks the others
+ * (spec 'Journey Data Loading'). Weekly joins the same allSettled batch so it
+ * refreshes after every relevant UI reload (r2-completion S3). */
 async function loadJourneyCards(questsPayload, xpPayload) {
-  const [momRes, achRes] = await Promise.allSettled([
+  const [momRes, achRes, weeklyRes] = await Promise.allSettled([
     fetchJson("/api/momentum"),
     fetchJson("/api/achievements"),
+    fetchJson("/api/weekly"),
   ]);
   renderJourneyXp(xpPayload);
   renderQuestHistory(questsPayload);
@@ -1608,6 +1611,7 @@ async function loadJourneyCards(questsPayload, xpPayload) {
     el.append(err);
   }
   renderAchievements(achRes);
+  renderWeekly(weeklyRes);
 }
 
 function renderJourneyXp(xp) {
@@ -1757,6 +1761,164 @@ function renderQuestHistory(questsPayload) {
     list.append(li);
   }
   el.append(list);
+}
+
+/* ---- weekly objectives (r2-completion S3) ------------------------------ */
+
+/* Weekly-met signal seam (spec 'Weekly-Met Signal'): on every SUCCESSFUL
+ * weekly read, each met_flips goal is queued as a minimal pending signal for
+ * the S6 celebration queue. S3 never consumes or celebrates it, and there is
+ * no replay logic — the server's exactly-once transient met_flips are trusted
+ * as-is. */
+let weeklyMetSignals = [];
+
+/* Deterministic exemption countdown: next Monday is week_start + 7; the delta
+ * derives from the local calendar date, floors at 0, and keeps singular/plural
+ * copy (spec 'Weekly Objectives UI'). */
+function weeklyDaysUntilMonday(weekStartIso) {
+  const nextMonday = new Date(`${weekStartIso}T00:00:00Z`);
+  nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.max(0, Math.round((nextMonday.getTime() - todayUtc) / 86400000));
+}
+
+function weeklyErrorNode() {
+  const err = document.createElement("p");
+  err.className = "hint error";
+  err.setAttribute("role", "alert");
+  err.textContent = "Could not load weekly objectives";
+  return err;
+}
+
+/* Failure is card-scoped and recovery-safe: a failed weekly read shows the
+ * static Today #weekly-error slot while the container-first rows stay intact;
+ * only the Journey status/history contents are replaced (rebuilt on success). */
+function renderWeekly(weeklyRes) {
+  const err = $("weekly-error");
+  if (weeklyRes.status !== "fulfilled") {
+    err.textContent = "Could not load weekly objectives";
+    err.hidden = false;
+    const status = $("weekly-current-status");
+    status.innerHTML = "";
+    status.append(weeklyErrorNode());
+    const history = $("weekly-history");
+    if (history) history.innerHTML = "";
+    return;
+  }
+  err.hidden = true;
+  const data = weeklyRes.value;
+  // S6 signal seam: met_flips only from a successful read (the queue is not
+  // consumed by S3).
+  for (const goal of data.met_flips ?? []) {
+    weeklyMetSignals.push({ type: "weekly_met", goal });
+  }
+  renderWeeklyToday(data);
+  renderWeeklyJourney(data);
+}
+
+function renderWeeklyToday(data) {
+  const exempt = $("weekly-exempt");
+  if (data.current?.exempt) {
+    const days = weeklyDaysUntilMonday(data.current.week_start);
+    exempt.textContent = `Exempt this week - starts Monday in ${days} day${days === 1 ? "" : "s"}`;
+    exempt.hidden = false;
+  } else {
+    exempt.textContent = "";
+    exempt.hidden = true;
+  }
+  for (const goal of data.current?.goals ?? []) {
+    const row = document.querySelector(`#weekly-content .weekly-progress-row[data-goal="${goal.goal}"]`);
+    if (!row) continue;
+    row.dataset.met = goal.met ? "true" : "false";
+    const count = row.querySelector(".weekly-progress-count");
+    if (count) count.textContent = `${goal.current} / ${goal.target}`;
+    const status = row.querySelector(".weekly-progress-status");
+    if (status) status.textContent = goal.met ? "Met" : `${goal.current} / ${goal.target}`;
+    const track = row.querySelector(".progress-track");
+    if (track) {
+      track.setAttribute("role", "progressbar");
+      track.setAttribute("aria-valuemin", "0");
+      track.setAttribute("aria-valuemax", String(goal.target));
+      track.setAttribute("aria-valuenow", String(goal.current));
+    }
+    const fill = row.querySelector(".progress-fill");
+    if (fill) {
+      const pct =
+        goal.target > 0
+          ? Math.min(100, Math.max(0, Math.round((goal.current / goal.target) * 100)))
+          : 0;
+      fill.style.width = `${pct}%`;
+    }
+  }
+}
+
+function renderWeeklyJourney(data) {
+  const statusEl = $("weekly-current-status");
+  const historyEl = $("weekly-history");
+  statusEl.innerHTML = "";
+  historyEl.innerHTML = "";
+  const exempt = Boolean(data.current?.exempt);
+  if (exempt) {
+    const days = weeklyDaysUntilMonday(data.current.week_start);
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = `Exempt this week - starts Monday in ${days} day${days === 1 ? "" : "s"}`;
+    statusEl.append(note);
+  }
+  const statusList = document.createElement("ul");
+  statusList.className = "weekly-status-list";
+  for (const goal of data.current?.goals ?? []) {
+    const li = document.createElement("li");
+    li.className = "weekly-status-row";
+    li.dataset.goal = goal.goal;
+    li.dataset.met = goal.met ? "true" : "false";
+    const name = document.createElement("span");
+    name.className = "weekly-status-name";
+    name.textContent = goal.goal === "quests" ? "Quests" : "Good days";
+    const state = document.createElement("span");
+    state.className = "weekly-status-state";
+    // Exempt overrides the per-goal state text so a partial week can never be
+    // misread as awarded/met; the countdown stays visible above (spec 'Weekly
+    // Objectives UI').
+    state.textContent = exempt ? "Exempt" : goal.met ? "Met" : `${goal.current} / ${goal.target}`;
+    li.append(name, state);
+    statusList.append(li);
+  }
+  statusEl.append(statusList);
+
+  // History stays newest-first: the API returns it that way, but the copy is
+  // defensively re-sorted descending by week_start so render order never
+  // depends on server order (spec 'Weekly Objectives UI').
+  const history = [...(data.history ?? [])].sort((a, b) =>
+    a.week_start < b.week_start ? 1 : a.week_start > b.week_start ? -1 : 0
+  );
+  if (history.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No completed weeks yet.";
+    historyEl.append(empty);
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "weekly-history-list";
+  for (const week of history) {
+    const li = document.createElement("li");
+    li.className = "weekly-history-row";
+    const date = document.createElement("span");
+    date.className = "weekly-history-date";
+    date.textContent = formatDate(week.week_start);
+    const goals = document.createElement("span");
+    goals.className = "weekly-history-goals";
+    goals.textContent = week.exempt
+      ? "Exempt"
+      : week.goals
+          .map((g) => `${g.goal === "quests" ? "Quests" : "Good days"}: ${g.met ? "Met" : "Not met"}`)
+          .join(" \u00b7 ");
+    li.append(date, goals);
+    list.append(li);
+  }
+  historyEl.append(list);
 }
 
 function showQuestsError(err) {

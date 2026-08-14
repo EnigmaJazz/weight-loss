@@ -605,6 +605,62 @@ else
   step_fail "achievements card shows no partial progress (count='$ACH_PROGRESS')"
 fi
 
+# ---- 5.18 weekly objectives (r2-completion S3) --------------------------
+# Mock /api/weekly for deterministic exemption + mixed met payloads; assert
+# Today rows (met + unmet), exempt countdown, Journey exempt override +
+# newest-first history, no XP award copy, signal seam, both themes; unroute
+# afterwards so later steps keep the real API.
+echo "-- weekly objectives (mocked /api/weekly)"
+mkdir -p artifacts/r2-completion-s3
+DOW="$(date +%u)"  # 1=Mon .. 7=Sun
+WEEK_MONDAY="$(date -d "today -$((DOW - 1)) days" +%F 2>/dev/null || date -v-"$((DOW - 1))d" +%F)"
+LAST_WEEK_MONDAY="$(date -d "today -$((DOW - 1 + 7)) days" +%F 2>/dev/null || date -v-"$((DOW - 1 + 7))d" +%F)"
+TWO_WEEKS_MONDAY="$(date -d "today -$((DOW - 1 + 14)) days" +%F 2>/dev/null || date -v-"$((DOW - 1 + 14))d" +%F)"
+WEEKLY_MOCK='{"activation":"2026-01-01 09:00:00","current":{"week_start":"'"$WEEK_MONDAY"'","exempt":true,"goals":[{"goal":"quests","current":10,"target":10,"met":true,"awarded":true},{"goal":"good_days","current":1,"target":3,"met":false,"awarded":false}]},"history":[{"week_start":"'"$LAST_WEEK_MONDAY"'","exempt":false,"goals":[{"goal":"quests","current":10,"target":10,"met":true,"awarded":true},{"goal":"good_days","current":3,"target":3,"met":true,"awarded":true}]},{"week_start":"'"$TWO_WEEKS_MONDAY"'","exempt":true,"goals":[{"goal":"quests","current":2,"target":10,"met":false,"awarded":false},{"goal":"good_days","current":0,"target":3,"met":false,"awarded":false}]}],"met_flips":["quests"]}'
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+sleep 1
+playwright-cli route "**/api/weekly" --body="$WEEKLY_MOCK" >/dev/null 2>&1
+playwright-cli reload >/dev/null 2>&1
+sleep 1
+WEEKLY_ROWS="$(playwright-cli --raw eval "document.querySelectorAll('#weekly-card .weekly-progress-row').length" 2>&1 | tr -d '"')"
+[ "$WEEKLY_ROWS" = "2" ] && step_ok "weekly Today card renders two progress rows" || step_fail "weekly Today card renders two progress rows (count='$WEEKLY_ROWS')"
+WEEKLY_QUESTS_STATUS="$(playwright-cli --raw eval "document.querySelector('#weekly-card .weekly-progress-row[data-goal=\"quests\"] .weekly-progress-status')?.textContent.trim()" 2>&1 | tr -d '"')"
+[ "$WEEKLY_QUESTS_STATUS" = "Met" ] && step_ok "weekly quests row shows Met" || step_fail "weekly quests row shows Met (got '$WEEKLY_QUESTS_STATUS')"
+WEEKLY_GOOD_STATUS="$(playwright-cli --raw eval "document.querySelector('#weekly-card .weekly-progress-row[data-goal=\"good_days\"] .weekly-progress-status')?.textContent.trim()" 2>&1 | tr -d '"')"
+[ "$WEEKLY_GOOD_STATUS" = "1 / 3" ] && step_ok "weekly good-days row shows the unmet count/target" || step_fail "weekly good-days row shows the unmet count/target (got '$WEEKLY_GOOD_STATUS')"
+WEEKLY_EXEMPT="$(playwright-cli --raw eval "document.querySelector('#weekly-exempt')?.textContent.trim()" 2>&1 | tr -d '"')"
+printf '%s' "$WEEKLY_EXEMPT" | grep -Eq '^Exempt this week - starts Monday in [1-7] days?$' && step_ok "weekly exemption countdown renders ($WEEKLY_EXEMPT)" || step_fail "weekly exemption countdown renders (got '$WEEKLY_EXEMPT')"
+WEEKLY_TODAY_COPY="$(playwright-cli --raw eval "document.querySelector('#weekly-card')?.textContent" 2>&1 | tr -d '"')"
+printf '%s' "$WEEKLY_TODAY_COPY" | grep -Eq 'XP' && step_fail "weekly Today scope has no XP award copy" || step_ok "weekly Today scope has no XP award copy"
+WEEKLY_SIGNALS="$(playwright-cli --raw eval "weeklyMetSignals.map(s => s.type + ':' + s.goal).join('|')" 2>&1)"
+printf '%s' "$WEEKLY_SIGNALS" | grep -Eq '^"?weekly_met:quests"?$' && step_ok "weekly met_flips captured as pending signals" || step_fail "weekly met_flips captured as pending signals (got '$WEEKLY_SIGNALS')"
+playwright-cli screenshot --filename="artifacts/r2-completion-s3/weekly-light.png" --full-page >/dev/null 2>&1
+playwright-cli click "[data-tab=journey]" >/dev/null 2>&1
+sleep 1
+WEEKLY_JOURNEY_STATES="$(playwright-cli --raw eval "[...document.querySelectorAll('#weekly-current-status .weekly-status-state')].map(e => e.textContent.trim()).join('|')" 2>&1)"
+printf '%s' "$WEEKLY_JOURNEY_STATES" | grep -Eq '^"?Exempt\|Exempt"?$' && step_ok "journey current status overrides both goals to Exempt" || step_fail "journey current status overrides both goals to Exempt (got '$WEEKLY_JOURNEY_STATES')"
+WEEKLY_HISTORY="$(playwright-cli --raw eval "[...document.querySelectorAll('#weekly-history .weekly-history-goals')].map(e => e.textContent.trim()).join('|')" 2>&1)"
+printf '%s' "$WEEKLY_HISTORY" | grep -Eq '^"?Quests: Met · Good days: Met\|Exempt"?$' && step_ok "journey history stays newest-first with the exempt override" || step_fail "journey history stays newest-first with the exempt override (got '$WEEKLY_HISTORY')"
+WEEKLY_JOURNEY_COPY="$(playwright-cli --raw eval "document.querySelector('#weekly-journey-card')?.textContent" 2>&1 | tr -d '"')"
+printf '%s' "$WEEKLY_JOURNEY_COPY" | grep -Eq 'XP' && step_fail "weekly Journey scope has no XP award copy" || step_ok "weekly Journey scope has no XP award copy"
+playwright-cli screenshot --filename="artifacts/r2-completion-s3/weekly-journey-light.png" --full-page >/dev/null 2>&1
+playwright-cli click "#theme-toggle" >/dev/null 2>&1
+sleep 1
+DARK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+[ "$DARK_THEME" = "dark" ] && step_ok "dark theme applied for weekly assertions" || step_fail "dark theme applied for weekly assertions (got '$DARK_THEME')"
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
+sleep 1
+WEEKLY_DARK_STATUS="$(playwright-cli --raw eval "document.querySelector('#weekly-card .weekly-progress-row[data-goal=\"quests\"] .weekly-progress-status')?.textContent.trim()" 2>&1 | tr -d '"')"
+[ "$WEEKLY_DARK_STATUS" = "Met" ] && step_ok "weekly Today card renders met state in dark theme" || step_fail "weekly Today card renders met state in dark theme (got '$WEEKLY_DARK_STATUS')"
+playwright-cli resize 390 844 >/dev/null 2>&1 && playwright-cli screenshot --filename="artifacts/r2-completion-s3/weekly-dark-mobile.png" --full-page >/dev/null 2>&1 && playwright-cli resize 1920 1080 >/dev/null 2>&1
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="system"]' >/dev/null 2>&1 && playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+sleep 1
+BACK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme' 2>&1 | tr -d '"')"
+[ "$BACK_THEME" = "light" ] && step_ok "theme restored after weekly assertions" || step_fail "theme restored after weekly assertions (got '$BACK_THEME')"
+playwright-cli unroute "**/api/weekly" >/dev/null 2>&1
+
 # ---- 5.25 weight-display radio toggle (auto-save, no Save button) -----------
 
 echo "-- weight-display radio toggle"
