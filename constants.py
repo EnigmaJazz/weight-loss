@@ -276,6 +276,25 @@ ACHIEVEMENTS: tuple[tuple[str, str], ...] = (
     ("personal_best", "Personal Best"),
 )
 
+# ---- collectibles (r2-completion · S4) ----
+
+# Collectible catalogue as ordered (key, title) pairs — six achievement
+# families (from ACHIEVEMENTS above), five checkpoints, three meal-day streak
+# milestones, two weekly objectives. Pinned by tests/test_collectibles.py.
+COLLECTIBLE_CATALOG: tuple[tuple[str, str], ...] = (
+    *ACHIEVEMENTS,
+    ("checkpoint_10", "10% Checkpoint"),
+    ("checkpoint_25", "25% Checkpoint"),
+    ("checkpoint_50", "50% Checkpoint"),
+    ("checkpoint_75", "75% Checkpoint"),
+    ("checkpoint_100", "100% Checkpoint"),
+    ("meal_7", "7-Day Meal Streak"),
+    ("meal_30", "30-Day Meal Streak"),
+    ("meal_100", "100-Day Meal Streak"),
+    ("weekly_quests", "Weekly Quests"),
+    ("weekly_good_days", "Weekly Good Days"),
+)
+
 # ---- XP level curve (r1-quests-xp) ----
 
 # Level curve (xp-progression spec): level 1 starts at 0 XP and advancing from

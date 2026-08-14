@@ -494,3 +494,31 @@ def test_db_startup_weekly_reconcile_pays_due_awards(tmp_path):
         assert db.total_xp_for_user(alice.id) == alice_before + 80
     finally:
         db.close()
+
+
+# ---- collectibles (r2-completion · S4) --------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_401_on_collectibles(client):
+    assert (await client.get("/api/collectibles")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_collectibles_isolated_between_users(pair, app):
+    """Alice's earned shelf never leaks into Bob's: Bob's collectibles stay
+    all locked even though Alice earned tokens (per-user derivation)."""
+    alice, bob = pair
+    db = app.state.db
+    alice_user = db.get_user_by_username("alice")
+    assert alice_user is not None
+    monday = weekly.week_start(date.today())
+    await alice.put("/api/settings", json={"target_weight": 80.0, "height_cm": 175.0})
+    db.upsert_entry(alice_user.id, (monday - timedelta(days=1)).isoformat(), 100.0)
+    db.upsert_entry(alice_user.id, monday.isoformat(), 90.0)
+    seed_met_week(db, alice_user.id, monday)
+    alice_by_key = {i["key"]: i for i in (await alice.get("/api/collectibles")).json()["collectibles"]}
+    bob_items = (await bob.get("/api/collectibles")).json()["collectibles"]
+    assert alice_by_key["checkpoint_10"]["earned"] is True
+    assert alice_by_key["weekly_quests"]["earned"] is True
+    assert all(not i["earned"] and i["unlocked_at"] is None for i in bob_items)
