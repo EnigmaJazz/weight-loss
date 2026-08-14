@@ -968,6 +968,29 @@ Opening and completing tasks feels rewarding even without AI.
 
 ---
 
+# RELEASE 2A — Island theme polish
+
+## Objective
+
+Unify the World/island scene into one coherent living picture: refresh the mascot icon and replace the generic collectible tokens with unique plants that match the island's theme.
+
+### Implement
+
+* fresh pass over the mascot icon (cartoon fox) — reference images to be provided by the maintainer; regenerate `static/icons/*.png` via `make_icons.py` in the same change (icons must stay token-only, R2);
+* collectibles become unique island plants — one recognisable plant per collectible (or per family, per the reference set), rendered on/in the island when earned; locked tokens stay silhouettes;
+* presentation-only (R10): the collectible catalogue/API contract and the engine are unchanged — no economy, XP, or progression impact;
+* both themes, mobile, reduced-motion static rendering; gate and smoke pins updated with the new artwork.
+
+### Sequencing
+
+Rides on the merged R2 stack: the island render (`r2-world-xp-island`) and the collectibles shelf/API (`r2-completion`). Implementation starts only after the maintainer provides reference images.
+
+### Exit condition
+
+The World reads as one coherent living island: the mascot and every earned collectible are recognisable parts of the same scene, and no gameplay value changed.
+
+---
+
 # RELEASE 3 — Improve personalisation
 
 ## Objective
