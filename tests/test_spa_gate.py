@@ -17,7 +17,7 @@ import re
 
 import pytest
 
-from constants import EXERCISE_TYPES, HABIT_TYPES, QUEST_POOL
+from constants import ACCENT_COLORS, EXERCISE_TYPES, HABIT_TYPES, QUEST_POOL
 
 
 @pytest.mark.asyncio
@@ -651,6 +651,29 @@ async def test_index_html_ships_appearance_radio_group(client):
     assert settings.index('name="weight-display"') < settings.index('name="appearance"'), (
         "Appearance card must come after the Units & display card"
     )
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_accent_picker_in_contract_order(client):
+    html = (await client.get("/")).text
+    start = html.index('id="appearance-form"')
+    appearance = html[start : html.index("</form>", start)]
+    assert re.findall(r'name="accent" value="([^"]+)"', appearance) == list(ACCENT_COLORS)
+    assert re.search(r'name="accent" value="green" checked', appearance)
+
+
+@pytest.mark.asyncio
+async def test_accent_lifecycle_and_server_mirror_ship(client):
+    html = (await client.get("/")).text
+    head = html[html.index("<head>") : html.index("</head>")]
+    assert 'localStorage.getItem("accent")' in head
+    assert "documentElement.dataset.accent" in head
+
+    body = (await client.get("/static/app.js")).text
+    assert "function applyAccent" in body
+    match = re.search(r"ACCENT_COLORS\s*=\s*(\[[^\]]*\])", body)
+    assert match is not None, "app.js must embed the ACCENT_COLORS literal"
+    assert ast.literal_eval(match.group(1)) == list(ACCENT_COLORS)
 
 
 # ---- R0 navigation restructure gate additions (feat/r0-nav) ---------------

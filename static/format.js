@@ -280,6 +280,19 @@
     return systemPref === "dark" ? "dark" : "light";
   }
 
+  /** Resolve an accent colour preference to a known value.
+   * Known colours: purple, teal, blue, green, orange. Green is the default.
+   * Null, empty, or unknown values resolve to "green" (the default — no CSS
+   * override needed). Pure mirror of the server-side accent validation.
+   * Used by the FOUC bootstrap and the SPA to keep HTML/JS hex-free. */
+  function resolveAccent(pref) {
+    if (pref === "purple" || pref === "teal" || pref === "blue" ||
+        pref === "green" || pref === "orange") {
+      return pref;
+    }
+    return "green";
+  }
+
   /* ---- XP level curve mirrors (r1-quests-xp S4a) ----
    * Pure mirrors of xp.py + constants.py (LEVEL_XP_PER_LEVEL/LEVEL_XP_STEP),
    * pinned by tests/frontend/xp.test.mjs against tests/test_xp.py so the XP
@@ -402,7 +415,7 @@
       .sort((a, b) => CELEBRATION_PRIORITY[a.type] - CELEBRATION_PRIORITY[b.type]);
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations };
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, resolveAccent, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

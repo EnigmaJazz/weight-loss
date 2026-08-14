@@ -17,6 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_ACCENT = "#2f7d54"
+NON_DEFAULT_ACCENTS = ("purple", "teal", "blue", "orange")
+HEX_LITERAL = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 
 
 def _normalize(hex_color: str) -> str:
@@ -70,3 +72,42 @@ def test_four_accent_locations_are_lockstep() -> None:
         _accent_from_icon_script(),
     }
     assert accents == {EXPECTED_ACCENT}
+
+
+def test_non_default_accent_tokens_ship_in_light_and_dark_contexts() -> None:
+    css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
+    for accent in NON_DEFAULT_ACCENTS:
+        light = re.search(
+            rf'\[data-accent="{accent}"\]\s*\{{([^}}]*)\}}', css
+        )
+        assert light is not None, f"missing light token block for {accent}"
+        assert re.search(r"--accent\s*:", light.group(1))
+        assert re.search(r"--accent-dark\s*:", light.group(1))
+
+        dark = re.search(
+            rf'\[data-theme="dark"\]\[data-accent="{accent}"\]\s*\{{([^}}]*)\}}',
+            css,
+        )
+        assert dark is not None, f"missing dark token block for {accent}"
+        assert re.search(r"--accent-dark\s*:", dark.group(1))
+
+
+def test_green_uses_default_palette_without_an_override_block() -> None:
+    css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
+    assert '[data-accent="green"]' not in css
+
+
+def test_component_files_do_not_carry_hex_colour_literals() -> None:
+    for relative in ("static/index.html", "static/app.js", "static/format.js"):
+        body = (ROOT / relative).read_text(encoding="utf-8")
+        if relative == "static/index.html":
+            # The pinned PWA theme-color and legacy inline fox mascot predate
+            # accent selection and are separately gate-locked brand assets.
+            body = body.replace(f'content="{EXPECTED_ACCENT}"', 'content="brand-accent"')
+            body = re.sub(
+                r'<span class="mascot"[^>]*>.*?</span>',
+                '<span class="mascot"></span>',
+                body,
+                flags=re.DOTALL,
+            )
+        assert HEX_LITERAL.search(body) is None, f"hex literal escaped into {relative}"

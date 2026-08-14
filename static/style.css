@@ -58,6 +58,43 @@
   --island-fox-eye: #26201e;
 }
 
+/* Accent colour overrides (r2b-accent-colour Unit 2).
+ * Green is the default — no override block; :root values apply as-is.
+ * Each non-default accent defines --accent and --accent-dark; dark-context
+ * --accent-dark is lightened for contrast (mirrors the green #58a97e pattern).
+ * All hex literals live here — no colour literals in HTML, JS, or tests. */
+[data-accent="purple"] {
+  --accent: #7352a3;
+  --accent-dark: #513579;
+}
+[data-accent="teal"] {
+  --accent: #207c78;
+  --accent-dark: #175a57;
+}
+[data-accent="blue"] {
+  --accent: #376fa8;
+  --accent-dark: #28527d;
+}
+[data-accent="orange"] {
+  --accent: #b45f26;
+  --accent-dark: #804318;
+}
+
+/* Dark-context accent-dark lightened for contrast (mirrors the green #58a97e
+ * treatment). Green has no accent override; the base dark-theme token applies. */
+[data-theme="dark"][data-accent="purple"] {
+  --accent-dark: #a98bd5;
+}
+[data-theme="dark"][data-accent="teal"] {
+  --accent-dark: #58aaa4;
+}
+[data-theme="dark"][data-accent="blue"] {
+  --accent-dark: #75a6d6;
+}
+[data-theme="dark"][data-accent="orange"] {
+  --accent-dark: #dc935f;
+}
+
 /* dark theme (design §CSS): [data-theme="dark"] redefines the semantic
  * tokens; --accent stays #2f7d54 in both themes (palette lockstep). The
  * bare-stripped selector never collides with the gate's `:root\s*\{` regex. */
@@ -88,6 +125,15 @@
   --island-fox-face: #f8f4ec;
   --island-fox-eye: #1c1a18;
 }
+
+/* Accent colour swatch previews — each swatch uses its own CSS token so the
+ * preview circle always shows the correct colour regardless of the selected
+ * accent. Green's swatch consumes --accent (the :root default). */
+.swatch-purple { --swatch: #7352a3; }
+.swatch-teal   { --swatch: #207c78; }
+.swatch-blue   { --swatch: #376fa8; }
+.swatch-green  { --swatch: #2f7d54; }
+.swatch-orange { --swatch: #b45f26; }
 
 * { box-sizing: border-box; }
 
@@ -303,6 +349,35 @@ label { display: block; margin: 0.55rem 0; font-size: 0.9rem; color: var(--muted
   gap: 6px;
   margin-right: 16px;
   flex-wrap: wrap;
+}
+
+/* Accent colour swatch radios (r2b-accent-colour Unit 2). */
+.accent-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.accent-swatch input[type="radio"] {
+  margin: 0;
+}
+.accent-group {
+  margin-top: var(--space-3);
+}
+.swatch-dot {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--swatch, var(--accent));
+  transition: border-color 0.15s;
+}
+.accent-swatch input[type="radio"]:checked + .swatch-dot {
+  border-color: var(--swatch, var(--accent));
 }
 
 .unit-group,
