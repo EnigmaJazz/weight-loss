@@ -907,7 +907,6 @@ button.link:hover { color: var(--accent); background: none; }
 /* mobile: the shelf rows wrap instead of clipping at the right edge. */
 @media (max-width: 480px) {
   .collectible-row { flex-wrap: wrap; }
-  .checkin-mood-row { flex-wrap: wrap; }
 }
 
 /* weekly objectives (r2-completion S3): Today #weekly-card + Journey

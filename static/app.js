@@ -2264,6 +2264,11 @@ function setMoodPending(pending) {
  * success and a habit success within 3s of each other hide independently — a
  * shared timer would let the first message stay visible forever. */
 const _checkinSuccessTimers = new Map();
+// In-flight guard for submitMood: the mood form's single text input allows
+// Enter-key implicit submission in Chrome/Firefox even while the submit
+// button is disabled, so a double-Enter would otherwise double-POST. The
+// flag is set before the first await and cleared in finally.
+let _moodPosting = false;
 
 function showCheckinSuccess(id, message) {
   const el = $(id);
@@ -2289,16 +2294,18 @@ function hideCheckinSuccess(id) {
 
 async function submitMood(ev) {
   ev.preventDefault();
+  if (_moodPosting) return;
   const mood = selectedMood();
   const note = $("mood-note").value.trim();
   const errorEl = $("mood-error");
   errorEl.hidden = true;
   hideCheckinSuccess("mood-success");
-  if (mood === null || !validateMood(mood)) {
+  if (!validateMood(mood)) {
     errorEl.textContent = "Choose a mood from 1 to 5.";
     errorEl.hidden = false;
     return;
   }
+  _moodPosting = true;
   setMoodPending(true);
   try {
     const payload = { mood };
@@ -2308,18 +2315,21 @@ async function submitMood(ev) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    // Success: clear the selection and note, then refresh quests + XP so an
-    // assigned mood_checkin flips to Auto-completed (source "detected").
+    // Success: clear the selection and note, then refresh quests + XP + the
+    // Journey cards so an assigned mood_checkin flips to Auto-completed
+    // (source "detected") everywhere, not just on Today.
     for (const btn of document.querySelectorAll(".checkin-mood")) btn.setAttribute("aria-pressed", "false");
     $("mood-note").value = "";
     $("mood-submit").disabled = true;
-    showCheckinSuccess("mood-success", "Mood logged. Quests refreshed.");
-    await loadQuestsAndXp();
+    showCheckinSuccess("mood-success", "Mood logged.");
+    const r1 = await loadQuestsAndXp();
+    await loadJourneyCards(r1.quests, r1.xp);
   } catch (err) {
     errorEl.textContent = `Could not log mood: ${err.message}`;
     errorEl.hidden = false;
   } finally {
     setMoodPending(false);
+    _moodPosting = false;
   }
 }
 
@@ -2336,10 +2346,11 @@ async function logHabit(habitType) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ habit_type: habitType }),
     });
-    // Success: quick-log needs no form state; refresh quests + XP so an
-    // assigned habit_checkin flips to Auto-completed on the next read.
-    showCheckinSuccess("habit-success", "Habit logged. Quests refreshed.");
-    await loadQuestsAndXp();
+    // Success: quick-log needs no form state; refresh quests + XP + Journey
+    // cards so an assigned habit_checkin flips to Auto-completed everywhere.
+    showCheckinSuccess("habit-success", "Habit logged.");
+    const r1 = await loadQuestsAndXp();
+    await loadJourneyCards(r1.quests, r1.xp);
   } catch (err) {
     errorEl.textContent = `Could not log habit: ${err.message}`;
     errorEl.hidden = false;

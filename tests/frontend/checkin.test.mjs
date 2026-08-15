@@ -100,14 +100,18 @@ test("validateMood rejects 0, 6, empty, and non-integers (no POST for invalid mo
 /* ---- check-in success hint contract (quicklog fixes) -------------------- */
 
 test("success messages use period punctuation, never an em dash", () => {
+  // The hint claims only the log itself (the refresh outcome is surfaced in
+  // the quest/XP regions); it must never overclaim a completed refresh.
   assert.ok(
-    appJs.includes('"Mood logged. Quests refreshed."'),
-    "mood success copy must be 'Mood logged. Quests refreshed.'"
+    appJs.includes('"Mood logged."'),
+    "mood success copy must be 'Mood logged.'"
   );
   assert.ok(
-    appJs.includes('"Habit logged. Quests refreshed."'),
-    "habit success copy must be 'Habit logged. Quests refreshed.'"
+    appJs.includes('"Habit logged."'),
+    "habit success copy must be 'Habit logged.'"
   );
+  assert.ok(!appJs.includes("Mood logged. Quests refreshed."), "mood hint must not overclaim the refresh");
+  assert.ok(!appJs.includes("Habit logged. Quests refreshed."), "habit hint must not overclaim the refresh");
   assert.ok(!appJs.includes("Mood logged \u2014"), "no em dash in mood success copy");
   assert.ok(!appJs.includes("Habit logged \u2014"), "no em dash in habit success copy");
 });

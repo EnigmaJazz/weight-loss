@@ -518,13 +518,42 @@ else
   step_ok "habit_checkin not assigned today — habit quick-log pin skipped (rotation)"
 fi
 
+# Error path (R2): a 422 from the server must show the accessible error hint
+# and preserve the user's selection + note (submit re-enables). Route /api/mood
+# to 422, then unroute so later sections hit the real server.
+playwright-cli route "**/api/mood" --status=422 --body='{"detail":"mood must be 1-5"}' --content-type=application/json >/dev/null 2>&1
+playwright-cli click '.checkin-mood[data-mood="3"]' >/dev/null 2>&1
+playwright-cli fill '#mood-note' 'kept after failure' >/dev/null 2>&1
+playwright-cli click '#mood-submit' >/dev/null 2>&1
+sleep 1
+MOOD_ERROR_VISIBLE="$(playwright-cli --raw eval "!document.querySelector('#mood-error').hidden && document.querySelector('#mood-error').textContent.includes('Could not log mood')" 2>&1 | tr -d '"')"
+MOOD_SELECTION_KEPT="$(playwright-cli --raw eval "document.querySelector('.checkin-mood[data-mood=\"3\"]').getAttribute('aria-pressed')" 2>&1 | tr -d '"')"
+MOOD_NOTE_KEPT="$(playwright-cli --raw eval "document.querySelector('#mood-note').value" 2>&1 | tr -d '"')"
+playwright-cli unroute "**/api/mood" >/dev/null 2>&1
+if [ "$MOOD_ERROR_VISIBLE" = "true" ] && [ "$MOOD_SELECTION_KEPT" = "true" ] && [ "$MOOD_NOTE_KEPT" = "kept after failure" ]; then
+  step_ok "422 shows the mood error hint and preserves selection + note"
+else
+  step_fail "422 shows the mood error hint and preserves selection + note (error='$MOOD_ERROR_VISIBLE', pressed='$MOOD_SELECTION_KEPT', note='$MOOD_NOTE_KEPT')"
+fi
+
 # ---- 5.16 quest actions: replace -> 409 -> complete (r1-quests-xp S4a) -----
 # Replace an open quest (one replacement per day): the replaced row disappears
 # and a fresh open row takes its place (still 3 current rows). A second
 # Replace must 409: accessible error feedback appears and the assignment is
 # unchanged. Then Complete must refresh the row to done (open count drops by
 # one) and raise the chip total by the quest's XP.
+#
+# Rotation-aware: on days the check-in section (5.155) plus the wizard's
+# weight entry auto-complete EVERY assigned quest (e.g. rotation
+# {mood_checkin, streak_alive, habit_checkin}), no open row exists and these
+# mutation pins are skipped with an explicit note — the same all-done state
+# the celebration fallback (5.20) already handles.
 echo "-- quest actions"
+OPEN_ROWS_5_16="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
+if [ "$OPEN_ROWS_5_16" = "0" ]; then
+  step_ok "no open quest rows today — quest action pins skipped (rotation all-done)"
+  return 0
+fi
 REPLACED_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
 playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-status=\"open\"] [data-action=\"replace\"]').click()" >/dev/null 2>&1
 sleep 1

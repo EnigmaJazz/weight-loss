@@ -1752,22 +1752,53 @@ async def test_app_js_wires_checkin_posts_and_refresh(client):
     resp = await client.get("/static/app.js")
     assert resp.status_code == 200
     body = resp.text
-    # Mood: client guard (validateMood before any fetch), POST /api/mood,
-    # pending-disable of mood controls + submit, quests/XP refresh on success.
+    # Mood: client guard (validateMood before any fetch, early return on
+    # invalid so a regression that validates-then-posts fails the pin), POST
+    # /api/mood, pending-disable set BEFORE the fetch (no double-tap window),
+    # in-flight guard against Enter-key implicit double-submission, quests/XP
+    # refresh on success, Journey refresh mirroring mutateQuest.
     mood = _js_fn_body(body, "submitMood")
     assert "validateMood(" in mood
     assert mood.index("validateMood(") < mood.index('fetchJson("/api/mood"')
+    guard = mood[mood.index("validateMood(") : mood.index('fetchJson("/api/mood"')]
+    assert "return" in guard, "invalid mood must early-return before any POST"
+    assert '_moodPosting' in mood, "in-flight guard must exist (Enter double-submit)"
+    assert "let _moodPosting = false" in body, "_moodPosting must be declared"
+    assert mood.index("_moodPosting = true") < mood.index('fetchJson("/api/mood"')
     assert 'fetchJson("/api/mood"' in mood
     assert "disabled = true" in mood
+    assert mood.index("setMoodPending(true)") < mood.index('fetchJson("/api/mood"')
     assert "loadQuestsAndXp()" in mood
+    assert "loadJourneyCards(" in mood, "check-in must refresh the Journey cards too"
     # Habit: one-tap POST /api/habits, chips disabled while in flight, refresh.
     habit = _js_fn_body(body, "logHabit")
     assert 'fetchJson("/api/habits"' in habit
     assert "disabled = true" in habit
+    assert habit.index("disabled = true") < habit.index('fetchJson("/api/habits"')
     assert "loadQuestsAndXp()" in habit
+    assert "loadJourneyCards(" in habit
     # Both endpoints use the shared same-origin fetch helper with JSON bodies.
     assert re.search(r"headers: \{\s*\"Content-Type\": \"application/json\"", mood) is not None
     assert re.search(r"headers: \{\s*\"Content-Type\": \"application/json\"", habit) is not None
+
+
+@pytest.mark.asyncio
+async def test_app_js_checkin_note_payload_and_success_copy(client):
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    # The optional note must be included in the POST payload when present and
+    # omitted when empty (server contract: note <= 500, optional).
+    mood = _js_fn_body(body, "submitMood")
+    assert "if (note) payload.note = note" in mood
+    # The success hint must not claim the refresh already happened while it is
+    # still in flight or may have failed (refresh errors surface in their own
+    # scoped regions).
+    assert "Mood logged." in mood
+    assert "Quests refreshed" not in mood
+    habit = _js_fn_body(body, "logHabit")
+    assert "Habit logged." in habit
+    assert "Quests refreshed" not in habit
 
 
 @pytest.mark.asyncio
@@ -1804,6 +1835,6 @@ async def test_style_css_checkin_rules_token_only(client):
     assert re.search(r"\.checkin-submit:disabled\s*\{[^}]*opacity", sheet) is not None
     assert re.search(r"\.checkin-submit:disabled\s*\{[^}]*cursor:\s*default", sheet) is not None
     assert re.search(r"\.checkin-submit:disabled:hover\s*\{[^}]*var\(--accent\)", sheet) is not None
-    # Mood row stays usable on narrow mobile (wrap, no clipping).
-    media_at = sheet.index("@media (max-width: 480px)")
-    assert re.search(r"\.checkin-mood-row[^}]*flex-wrap", sheet[media_at:]) is not None
+    # Mood row stays usable on narrow mobile: the base rule already wraps
+    # (.checkin-mood-row,.checkin-habit-row carries flex-wrap unconditionally).
+    assert re.search(r"\.checkin-mood-row\s*,\s*\.checkin-habit-row\s*\{[^}]*flex-wrap", sheet) is not None
