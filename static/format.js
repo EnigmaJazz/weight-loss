@@ -417,7 +417,37 @@
       .sort((a, b) => CELEBRATION_PRIORITY[a.type] - CELEBRATION_PRIORITY[b.type]);
   }
 
-  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, resolveAccent, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations };
+  /* ---- Check-in helpers (mood scale + habit quick-log) -------------------
+   * Pure mirrors for the Today check-in card: HABIT_LABELS is the display
+   * catalogue whose KEYS stay lockstep with the HABIT_TYPES literal in app.js
+   * (the SPA catalogue location, pinned by the drift-guard gate) — the node
+   * test parses app.js and pins this mirror against it. validateMood is the
+   * client-side guard that rejects empty/0/6/non-integers before any POST. */
+  const HABIT_LABELS = {
+    water: "Water",
+    fruit_veg: "Fruit & veg",
+    home_cooked: "Home-cooked",
+    sleep_routine: "Sleep routine",
+  };
+
+  /** Human-readable label for a habit type; unknown values fail loudly so a
+   * catalogue drift surfaces at render time, never as an empty chip. */
+  function habitLabel(type) {
+    const label = HABIT_LABELS[type];
+    if (!label) throw new Error(`Unknown habit type: ${type}`);
+    return label;
+  }
+
+  /** Mood scale validation: only the integers 1..5 are valid (matches the
+   * server contract). Numeric strings from the data-mood attribute are
+   * accepted; empty, zero, six, and non-integers are rejected. */
+  function validateMood(value) {
+    if (value === "" || value == null) return false;
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isInteger(n) && n >= 1 && n <= 5;
+  }
+
+  const api = { fmt1, weightLabel, summaryLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, resolveAccent, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, QUEST_DOMAIN_ICONS, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations, HABIT_LABELS, habitLabel, validateMood };
   if (typeof module === "object" && module.exports) module.exports = api;
   if (global) global.WeightFormat = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
