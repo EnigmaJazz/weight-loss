@@ -265,7 +265,7 @@ WORLD_PROGRESS_DARK="$(playwright-cli --raw eval "document.querySelector('#world
 if [ "$WORLD_PROGRESS_DARK" = "$API_TOTAL / 100" ]; then
   step_ok "world shows level progress $API_TOTAL / 100 (dark)"
 else
-  step_fail "world shows level progress 0 / 100 (dark, got '$WORLD_PROGRESS_DARK')"
+  step_fail "world shows level progress $API_TOTAL / 100 (dark, got '$WORLD_PROGRESS_DARK')"
 fi
 WORLD_VISIBLE_STAGES_DARK="$(playwright-cli --raw eval "(() => { const vis = [...document.querySelectorAll('#world-island .island-stage')].filter(s => getComputedStyle(s).display !== 'none'); return String(vis.length) + '|' + (vis[0]?.dataset.stage ?? 'none'); })()" 2>&1 | tr -d '"')"
 if [ "$WORLD_VISIBLE_STAGES_DARK" = "1|1" ]; then
