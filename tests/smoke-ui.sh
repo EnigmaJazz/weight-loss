@@ -552,8 +552,7 @@ echo "-- quest actions"
 OPEN_ROWS_5_16="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
 if [ "$OPEN_ROWS_5_16" = "0" ]; then
   step_ok "no open quest rows today — quest action pins skipped (rotation all-done)"
-  return 0
-fi
+else
 REPLACED_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
 playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-status=\"open\"] [data-action=\"replace\"]').click()" >/dev/null 2>&1
 sleep 1
@@ -595,6 +594,7 @@ if [ "$OPEN_AFTER_COMPLETE" = "$((OPEN_BEFORE_COMPLETE - 1))" ] && [ "$CHIP_AFTE
   step_ok "complete refreshes the row to done and adds XP to the chip ($CHIP_AFTER)"
 else
   step_fail "complete refreshes the row to done and adds XP to the chip (open $OPEN_BEFORE_COMPLETE -> $OPEN_AFTER_COMPLETE, chip $CHIP_BEFORE + $ROW_XP = $EXPECTED_CHIP, got $CHIP_AFTER)"
+fi
 fi
 
 # ---- 5.17 journey progress cards: XP / momentum / quest history (S4b) ----
