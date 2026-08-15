@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Generate PWA icons for the Weight Loss Tracker (pure stdlib, no deps).
 
-Draws a friendly cartoon fox face on the app's green background (r2-completion
-S1 cartoon rework): a ROUND head with bulging orange cheeks, a wide white
-muzzle reaching the chin, and an expressive face — low eyes with white
-catchlights, a dark nose, and a small mouth on the muzzle. Ears keep the
-coherent tall-triangle language with dark inner shading and white tufts.
+Draws the reference-style fox face on the app's green background
+(r2a-island-polish Unit 1, R-R2A-1/R-R2A-9): oversized pointed ears with
+dark inner shading, a broad rounded orange head, a wide cream muzzle/chin,
+a warm-brown contour around the whole fox, and an expressive face — dark
+eyes with cream gleams, a nose, and a simple smile. Colours mirror the CSS
+fox token family (`--fox`, `--fox-dark`, `--fox-outline`,
+`--island-fox-face`, `--island-fox-eye`); the brand background stays the
+lockstep-pinned `#2f7d54`. Flat fills, no gradients, no shading.
 Writes a PNG with the stdlib zlib+struct writer (zero-dependency approach).
 
 Usage: python3 make_icons.py [output_dir]
@@ -19,12 +22,14 @@ from pathlib import Path
 
 log = logging.getLogger("make_icons")
 
-# App palette (matches manifest theme_color)
-BG = (47, 125, 84)       # #2f7d54
-FOX = (235, 137, 44)     # #eb892c vivid fox orange
-FOX_DARK = (180, 92, 22)  # #b45c16 deeper orange for ear shading
-WHITE = (252, 248, 240)  # #fcf8f0 muzzle / cheek / eye whites
-NOSE = (38, 32, 30)      # #26201e near-black nose / eyes
+# Fox palette (mirrors the CSS tokens; the background stays the brand accent
+# #2f7d54 so the palette lockstep test keeps all four locations in agreement).
+BG = (47, 125, 84)          # #2f7d54 brand green (palette lockstep)
+FOX = (244, 124, 44)        # #f47c2c reference fox orange (--fox)
+FOX_DARK = (216, 102, 44)   # #d8662c deeper inner-ear orange (--fox-dark)
+OUTLINE = (120, 55, 31)     # #78371f warm-brown contour (--fox-outline)
+CREAM = (255, 240, 207)     # #fff0cf cream muzzle / gleams (--island-fox-face)
+EYE = (58, 34, 20)          # #3a2214 dark expressive eyes / nose (--island-fox-eye)
 
 
 def point_in_triangle(
@@ -73,84 +78,102 @@ def in_ellipse(
     return ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1.0
 
 
+def _in_mouth(x: float, y: float, s: float) -> bool:
+    """The fox's smile: a short connector under the nose plus a shallow arc
+    (512-space geometry scaled by ``s``), drawn in the warm-brown outline."""
+    half = max(1.0, 1.5 * s)
+    if abs(x - 256 * s) <= half and 431 * s <= y <= 452 * s:
+        return True
+    if 228 * s - half <= x <= 284 * s + half:
+        t = max(0.0, min(1.0, (x / s - 228.0) / 56.0))
+        y_arc = (452.0 + 36.0 * t * (1.0 - t)) * s
+        return abs(y - y_arc) <= half
+    return False
+
+
+def _on_outline(x: int, y: int, size: int, mask: bytearray) -> bool:
+    """True when a fox pixel touches a non-fox pixel (warm-brown contour)."""
+    for dy in (-1, 0, 1):
+        ny = y + dy
+        if ny < 0 or ny >= size:
+            return True
+        for dx in (-1, 0, 1):
+            nx = x + dx
+            if nx < 0 or nx >= size:
+                return True
+            if not mask[ny * size + nx]:
+                return True
+    return False
+
+
 def render(size: int) -> bytes:
-    """Return raw RGBA pixels for the cartoon-fox icon at `size` square.
+    """Return raw RGBA pixels for the reference-style fox icon at `size` square.
 
     Geometry lives in 512-space and scales with ``size / 512.0``, so the
     same face renders identically at 192 and 512 (pinned by
-    tests/test_icons.py's cartoon-fox geometry probes). Palette constants
-    above are unchanged from the geometric fox.
+    tests/test_icons.py's fox probes). A silhouette mask (ears + head +
+    cheeks + muzzle) drives a 1px warm-brown contour around the fox.
     """
-    px = bytearray()
     s = size / 512.0
 
-    # Ears: tall triangles (coherent ear language kept from the geometric fox)
-    # with a flat base that sits inside the round head's silhouette.
-    left_ear = [(140 * s, 30 * s), (172 * s, 170 * s), (252 * s, 170 * s)]
-    right_ear = [(372 * s, 30 * s), (340 * s, 170 * s), (260 * s, 170 * s)]
-    left_ear_tip = [(150 * s, 50 * s), (142 * s, 98 * s), (196 * s, 84 * s)]
-    right_ear_tip = [(362 * s, 50 * s), (370 * s, 98 * s), (316 * s, 84 * s)]
+    # Oversized pointed ears with a flat base that sits inside the head.
+    left_ear = [(120 * s, 26 * s), (170 * s, 175 * s), (262 * s, 175 * s)]
+    right_ear = [(392 * s, 26 * s), (342 * s, 175 * s), (250 * s, 175 * s)]
     # Dark inner ear: smaller triangle inside each ear.
-    left_inner = [(200 * s, 160 * s), (168 * s, 104 * s), (214 * s, 124 * s)]
-    right_inner = [(312 * s, 160 * s), (344 * s, 104 * s), (298 * s, 124 * s)]
-    # White ear tuft: a small light triangle at the base of each inner ear.
-    left_tuft = [(196 * s, 158 * s), (180 * s, 130 * s), (214 * s, 140 * s)]
-    right_tuft = [(316 * s, 158 * s), (332 * s, 130 * s), (298 * s, 140 * s)]
-    # Round cartoon head: a big ellipse plus two bulging cheek circles — the
-    # cheeks push the silhouette out past the old triangle's taper.
-    head_cx, head_cy, head_rx, head_ry = (256 * s, 310 * s, 140 * s, 150 * s)
-    cheek_l = (160 * s, 320 * s, 72 * s)
-    cheek_r = (352 * s, 320 * s, 72 * s)
-    # Expressive white muzzle: a wide rounded ellipse reaching the chin.
-    muzzle = (256 * s, 385 * s, 95 * s, 78 * s)
-    # Eyes sit low on the face, each with a small white catchlight.
-    eye_l = (205 * s, 295 * s, 14 * s)
-    eye_r = (307 * s, 295 * s, 14 * s)
-    gleam_l = (201 * s, 291 * s, 5 * s)
-    gleam_r = (303 * s, 291 * s, 5 * s)
-    # Nose + small mouth on the muzzle.
-    nose = (256 * s, 420 * s, 16 * s, 11 * s)
-    mouth = (256 * s, 456 * s, 13 * s, 5 * s)
+    left_inner = [(149 * s, 71 * s), (176 * s, 153 * s), (227 * s, 153 * s)]
+    right_inner = [(363 * s, 71 * s), (336 * s, 153 * s), (285 * s, 153 * s)]
+    # Broad rounded head: a big ellipse plus two bulging cheek circles.
+    head = (256 * s, 300 * s, 150 * s, 160 * s)
+    cheek_l = (165 * s, 315 * s, 80 * s)
+    cheek_r = (347 * s, 315 * s, 80 * s)
+    # Cream lower-face mask reaching the chin (part of the silhouette).
+    muzzle = (256 * s, 388 * s, 100 * s, 84 * s)
+    # Expressive eyes sit above the muzzle, each with a cream gleam.
+    eye_l = (200 * s, 292 * s, 15 * s, 19 * s)
+    eye_r = (312 * s, 292 * s, 15 * s, 19 * s)
+    gleam_l = (196 * s, 285 * s, 5.5 * s)
+    gleam_r = (308 * s, 285 * s, 5.5 * s)
+    # Nose on the cream muzzle; the smile is drawn by _in_mouth.
+    nose = (256 * s, 418 * s, 18 * s, 13 * s)
 
+    # Pass 1: silhouette mask (ears + head + cheeks + muzzle).
+    mask = bytearray(size * size)
     for y in range(size):
+        base = y * size
         for x in range(size):
-            color = BG
-            if point_in_triangle(x, y, *left_ear):
-                color = FOX
-            if point_in_triangle(x, y, *right_ear):
-                color = FOX
-            if point_in_triangle(x, y, *left_ear_tip):
+            if (
+                point_in_triangle(x, y, *left_ear)
+                or point_in_triangle(x, y, *right_ear)
+                or in_ellipse(x, y, *head)
+                or in_circle(x, y, *cheek_l)
+                or in_circle(x, y, *cheek_r)
+                or in_ellipse(x, y, *muzzle)
+            ):
+                mask[base + x] = 1
+
+    # Pass 2: colour each pixel, features over the base fill, contour last.
+    px = bytearray()
+    for y in range(size):
+        base = y * size
+        for x in range(size):
+            if not mask[base + x]:
+                px += bytes(BG) + b"\xff"
+                continue
+            color = FOX
+            if point_in_triangle(x, y, *left_inner) or point_in_triangle(x, y, *right_inner):
                 color = FOX_DARK
-            if point_in_triangle(x, y, *right_ear_tip):
-                color = FOX_DARK
-            if point_in_triangle(x, y, *left_inner):
-                color = FOX_DARK
-            if point_in_triangle(x, y, *right_inner):
-                color = FOX_DARK
-            if point_in_triangle(x, y, *left_tuft):
-                color = WHITE
-            if point_in_triangle(x, y, *right_tuft):
-                color = WHITE
-            if in_ellipse(x, y, head_cx, head_cy, head_rx, head_ry):
-                color = FOX
-            if in_circle(x, y, cheek_l[0], cheek_l[1], cheek_l[2]):
-                color = FOX
-            if in_circle(x, y, cheek_r[0], cheek_r[1], cheek_r[2]):
-                color = FOX
-            if in_ellipse(x, y, muzzle[0], muzzle[1], muzzle[2], muzzle[3]):
-                color = WHITE
-            if in_ellipse(x, y, mouth[0], mouth[1], mouth[2], mouth[3]):
-                color = NOSE
-            if in_circle(x, y, eye_l[0], eye_l[1], eye_l[2]):
-                color = NOSE
-            if in_circle(x, y, eye_r[0], eye_r[1], eye_r[2]):
-                color = NOSE
-            if in_circle(x, y, gleam_l[0], gleam_l[1], gleam_l[2]):
-                color = WHITE
-            if in_circle(x, y, gleam_r[0], gleam_r[1], gleam_r[2]):
-                color = WHITE
-            if in_ellipse(x, y, nose[0], nose[1], nose[2], nose[3]):
-                color = NOSE
+            if in_ellipse(x, y, *muzzle):
+                color = CREAM
+            if in_ellipse(x, y, *eye_l) or in_ellipse(x, y, *eye_r):
+                color = EYE
+            if in_circle(x, y, *gleam_l) or in_circle(x, y, *gleam_r):
+                color = CREAM
+            if in_ellipse(x, y, *nose):
+                color = EYE
+            if _in_mouth(x, y, s):
+                color = OUTLINE
+            if _on_outline(x, y, size, mask):
+                color = OUTLINE
             px += bytes(color) + b"\xff"
     return bytes(px)
 
