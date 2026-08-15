@@ -20,7 +20,7 @@ const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations, habitLabel, validateMood } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -2225,6 +2225,129 @@ async function mutateQuest(questId, action) {
   }
 }
 
+/* ---- check-in (mood scale + habit quick-log) -----------------------------
+ * The Today check-in card posts a mood (1-5, optional note) or a habit type
+ * to the shipped endpoints, then refreshes quests + XP so an assigned
+ * mood_checkin/habit_checkin flips to Auto-completed on the next read.
+ * Mirrors the quest-action mutation pattern: disable controls while pending,
+ * keep the user's selection/note on failure, clear only after success.
+ * Habit chips render from the pinned HABIT_TYPES literal (drift-guard), with
+ * human labels from WeightFormat.habitLabel; mood values are guarded
+ * client-side by validateMood before any fetch (empty/0/6/non-integer). */
+
+function renderHabitChips() {
+  const row = $("habit-chips");
+  row.innerHTML = "";
+  for (const type of HABIT_TYPES) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "checkin-habit";
+    chip.dataset.habitType = type;
+    chip.textContent = habitLabel(type);
+    row.append(chip);
+  }
+}
+
+function selectedMood() {
+  const btn = document.querySelector('.checkin-mood[aria-pressed="true"]');
+  return btn ? Number(btn.dataset.mood) : null;
+}
+
+function setMoodPending(pending) {
+  for (const btn of document.querySelectorAll(".checkin-mood")) btn.disabled = pending;
+  // Success clears the selection, so the submit button returns to disabled;
+  // failure preserves it, so the button comes back enabled.
+  $("mood-submit").disabled = pending || selectedMood() === null;
+}
+
+/* Per-element success-hint timers: each hint owns its hide timer, so a mood
+ * success and a habit success within 3s of each other hide independently — a
+ * shared timer would let the first message stay visible forever. */
+const _checkinSuccessTimers = new Map();
+
+function showCheckinSuccess(id, message) {
+  const el = $(id);
+  el.textContent = message;
+  el.hidden = false;
+  const prev = _checkinSuccessTimers.get(id);
+  if (prev) clearTimeout(prev);
+  _checkinSuccessTimers.set(id, setTimeout(() => {
+    el.hidden = true;
+    _checkinSuccessTimers.delete(id);
+  }, 3000));
+}
+
+function hideCheckinSuccess(id) {
+  const el = $(id);
+  el.hidden = true;
+  const timer = _checkinSuccessTimers.get(id);
+  if (timer) {
+    clearTimeout(timer);
+    _checkinSuccessTimers.delete(id);
+  }
+}
+
+async function submitMood(ev) {
+  ev.preventDefault();
+  const mood = selectedMood();
+  const note = $("mood-note").value.trim();
+  const errorEl = $("mood-error");
+  errorEl.hidden = true;
+  hideCheckinSuccess("mood-success");
+  if (mood === null || !validateMood(mood)) {
+    errorEl.textContent = "Choose a mood from 1 to 5.";
+    errorEl.hidden = false;
+    return;
+  }
+  setMoodPending(true);
+  try {
+    const payload = { mood };
+    if (note) payload.note = note;
+    await fetchJson("/api/mood", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    // Success: clear the selection and note, then refresh quests + XP so an
+    // assigned mood_checkin flips to Auto-completed (source "detected").
+    for (const btn of document.querySelectorAll(".checkin-mood")) btn.setAttribute("aria-pressed", "false");
+    $("mood-note").value = "";
+    $("mood-submit").disabled = true;
+    showCheckinSuccess("mood-success", "Mood logged. Quests refreshed.");
+    await loadQuestsAndXp();
+  } catch (err) {
+    errorEl.textContent = `Could not log mood: ${err.message}`;
+    errorEl.hidden = false;
+  } finally {
+    setMoodPending(false);
+  }
+}
+
+async function logHabit(habitType) {
+  if (!HABIT_TYPES.includes(habitType)) return;
+  const chips = document.querySelectorAll(".checkin-habit");
+  const errorEl = $("habit-error");
+  errorEl.hidden = true;
+  hideCheckinSuccess("habit-success");
+  for (const chip of chips) chip.disabled = true;
+  try {
+    await fetchJson("/api/habits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ habit_type: habitType }),
+    });
+    // Success: quick-log needs no form state; refresh quests + XP so an
+    // assigned habit_checkin flips to Auto-completed on the next read.
+    showCheckinSuccess("habit-success", "Habit logged. Quests refreshed.");
+    await loadQuestsAndXp();
+  } catch (err) {
+    errorEl.textContent = `Could not log habit: ${err.message}`;
+    errorEl.hidden = false;
+  } finally {
+    for (const chip of chips) chip.disabled = false;
+  }
+}
+
 function renderXpChip(xp) {
   const el = $("xp-chip-content");
   el.innerHTML = "";
@@ -2799,6 +2922,23 @@ async function init() {
     const btn = ev.target.closest(".quest-action");
     if (!btn) return;
     mutateQuest(btn.dataset.questId, btn.dataset.action);
+  });
+  renderHabitChips();
+  $("mood-form").addEventListener("submit", submitMood);
+  $("mood-checkin").addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".checkin-mood");
+    if (!btn || btn.disabled) return;
+    for (const b of document.querySelectorAll(".checkin-mood")) {
+      b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+    }
+    $("mood-submit").disabled = false;
+    $("mood-error").hidden = true;
+    hideCheckinSuccess("mood-success");
+  });
+  $("habit-chips").addEventListener("click", (ev) => {
+    const chip = ev.target.closest(".checkin-habit");
+    if (!chip || chip.disabled) return;
+    logHabit(chip.dataset.habitType);
   });
   $("enable-push").addEventListener("click", enablePush);
   $("disable-push").addEventListener("click", disablePush);

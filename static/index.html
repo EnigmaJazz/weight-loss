@@ -282,6 +282,39 @@
             <p class="hint error" id="quests-error" role="alert" hidden></p>
           </section>
 
+          <!-- check-in card (r1-mood-habit): mood scale + habit quick-log.
+               Mood first, habit second, separated by a full-width token
+               border; the habit chips are rendered by app.js from the pinned
+               HABIT_TYPES literal (never hardcoded here). -->
+          <section class="card checkin-card" id="checkin-card" aria-label="Check in">
+            <h2>Check in</h2>
+
+            <div class="checkin-section" id="mood-checkin">
+              <h3>Mood check-in</h3>
+              <form id="mood-form" autocomplete="off">
+                <div class="checkin-mood-row" role="group" aria-label="Mood scale">
+                  <button type="button" class="checkin-mood" data-mood="1" aria-pressed="false" aria-label="Mood 1: not great">1</button>
+                  <button type="button" class="checkin-mood" data-mood="2" aria-pressed="false" aria-label="Mood 2: a bit low">2</button>
+                  <button type="button" class="checkin-mood" data-mood="3" aria-pressed="false" aria-label="Mood 3: okay">3</button>
+                  <button type="button" class="checkin-mood" data-mood="4" aria-pressed="false" aria-label="Mood 4: good">4</button>
+                  <button type="button" class="checkin-mood" data-mood="5" aria-pressed="false" aria-label="Mood 5: great">5</button>
+                </div>
+                <label for="mood-note">Note (optional)</label>
+                <input type="text" id="mood-note" maxlength="500" autocomplete="off">
+                <button type="submit" id="mood-submit" class="checkin-submit" disabled>Log mood</button>
+                <p class="hint error" id="mood-error" role="alert" hidden></p>
+                <p class="hint" id="mood-success" role="status" hidden></p>
+              </form>
+            </div>
+
+            <div class="checkin-section" id="habit-quicklog">
+              <h3>Habit quick-log</h3>
+              <div class="checkin-habit-row" id="habit-chips" role="group" aria-label="Habits"></div>
+              <p class="hint error" id="habit-error" role="alert" hidden></p>
+              <p class="hint" id="habit-success" role="status" hidden></p>
+            </div>
+          </section>
+
           <!-- weekly objectives (r2-completion S3): container-first two progress
                rows exist in the shipped source; app.js updates counts/met bars
                and the exemption countdown after each weekly read (spec 'Weekly

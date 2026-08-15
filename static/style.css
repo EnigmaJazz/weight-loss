@@ -907,6 +907,7 @@ button.link:hover { color: var(--accent); background: none; }
 /* mobile: the shelf rows wrap instead of clipping at the right edge. */
 @media (max-width: 480px) {
   .collectible-row { flex-wrap: wrap; }
+  .checkin-mood-row { flex-wrap: wrap; }
 }
 
 /* weekly objectives (r2-completion S3): Today #weekly-card + Journey
@@ -947,6 +948,99 @@ button.link:hover { color: var(--accent); background: none; }
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
 }
+
+/* check-in card (r1-mood-habit): mood scale + habit quick-log on Today.
+ * Token-only (no palette hex); the two sections are separated by a full-width
+ * token border (never a side stripe or nested cards). Controls are static —
+ * no animation — so no reduced-motion additions are needed. */
+.checkin-card {
+  /* card layout comes from the shared .card rule; this scope hook keeps the
+   * .checkin-* family discoverable and token-only. */
+}
+
+.checkin-section + .checkin-section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.checkin-section h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.95rem;
+  color: var(--accent-dark);
+}
+
+.checkin-mood-row,
+.checkin-habit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.checkin-mood {
+  flex: 1 1 3rem;
+  min-height: 48px;
+  padding: 0.35rem 0.6rem;
+  margin: 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--accent-dark);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkin-mood:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+}
+
+.checkin-mood[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--toast-text);
+}
+
+.checkin-mood:disabled,
+.checkin-habit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.checkin-mood:disabled:hover { background: var(--card); }
+
+/* A disabled (pending) active mood keeps its selected fill on hover — the
+ * unselected card background must never mask the active state. */
+.checkin-mood[aria-pressed="true"]:disabled:hover { background: var(--accent); }
+
+.checkin-habit {
+  min-height: 48px;
+  padding: 0.35rem 0.8rem;
+  margin: 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--accent-dark);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.checkin-habit:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+}
+
+.checkin-habit:disabled:hover { background: var(--card); }
+
+/* Disabled (no selection / pending) submit mirrors the check-in controls:
+ * reduced opacity + default cursor, accent fill preserved on hover so the
+ * base button:hover never re-enables the look. No animation on this card. */
+.checkin-submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.checkin-submit:disabled:hover { background: var(--accent); }
 .weekly-status-row:last-child,
 .weekly-history-row:last-child { border-bottom: none; }
 .weekly-status-row[data-met="true"] { color: var(--accent-dark); font-weight: 600; }

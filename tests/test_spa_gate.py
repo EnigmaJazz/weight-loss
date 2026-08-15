@@ -1666,3 +1666,144 @@ async def test_celebration_queue_surfaces(client):
     block = sheet[sheet.index("@media (prefers-reduced-motion: reduce)"):]
     assert re.search(r"\.celebration-banner[^}]*transition\s*:\s*none", block)
     assert re.search(r"\.quest-delight[^}]*animation\s*:\s*none", block)
+
+
+# ---- check-in card (mood + habit quick-log) ------------------------------
+# The Today tab ships #checkin-card between #quests-card and #weekly-card:
+# a mood scale (five 1-5 buttons, optional note <= 500, submit disabled until
+# a valid mood is selected) and a habit quick-log whose chips are rendered by
+# app.js FROM the pinned HABIT_TYPES literal (no hardcoded chip HTML). Logging
+# posts to /api/mood and /api/habits via fetchJson, refreshes quests+XP on
+# success, and keeps section-scoped accessible feedback (role=alert error,
+# role=status success). CSS token-only, static (no animation).
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_checkin_card_between_quests_and_weekly(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    today = html[html.index('id="tab-today"') : html.index('id="tab-journey"')]
+    # Strict ordering: quests-card < checkin-card < weekly-card (design: one
+    # card, mood first, habit second — never nested cards).
+    assert 'id="checkin-card"' in today
+    assert (
+        today.index('id="quests-card"')
+        < today.index('id="checkin-card"')
+        < today.index('id="weekly-card"')
+    ), "#checkin-card must sit between #quests-card and #weekly-card"
+    card = today[today.index('id="checkin-card"') : today.index('id="weekly-card"')]
+    assert "<h2>Check in</h2>" in card
+    # Mood section first, habit section second.
+    assert card.index('id="mood-checkin"') < card.index('id="habit-quicklog"')
+
+
+@pytest.mark.asyncio
+async def test_index_html_ships_mood_scale_1_to_5_and_optional_note(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    card = html[html.index('id="checkin-card"') : html.index('id="weekly-card"')]
+    # Five mood buttons, values exactly 1..5 in order, aria-pressed selection
+    # semantics inside an accessible group; meaningful per-button labels.
+    buttons = re.findall(r'class="checkin-mood"[^>]*data-mood="(\d)"', card)
+    assert buttons == ["1", "2", "3", "4", "5"]
+    assert len(re.findall(r'aria-pressed="false"', card)) == 5
+    assert 'role="group"' in card
+    assert 'aria-label="Mood' in card
+    # Optional note, hard maxlength 500 matching the server contract.
+    assert 'id="mood-note"' in card
+    assert 'maxlength="500"' in card
+    # Submit starts disabled; only a selected mood enables it. The class that
+    # carries the disabled visual lives with the other .checkin-* rules.
+    assert 'id="mood-submit"' in card
+    assert re.search(r'id="mood-submit"[^>]*class="checkin-submit"[^>]*disabled', card) is not None
+
+
+@pytest.mark.asyncio
+async def test_index_html_habit_chips_are_not_hardcoded(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    card = html[html.index('id="checkin-card"') : html.index('id="weekly-card"')]
+    # The habit section ships an EMPTY container; app.js renders the chips
+    # from HABIT_TYPES. No hardcoded chip HTML or raw values in the markup.
+    assert 'id="habit-chips"' in card
+    assert 'class="checkin-habit"' not in card
+    for value in ("water", "fruit_veg", "home_cooked", "sleep_routine"):
+        assert f'"{value}"' not in card, f"habit value {value} must not be hardcoded in HTML"
+
+
+@pytest.mark.asyncio
+async def test_app_js_renders_habit_chips_from_pinned_literal(client):
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    fn = _js_fn_body(body, "renderHabitChips")
+    # The chips are driven by the pinned HABIT_TYPES literal (drift-guard
+    # covered by test_habit_types_literal_matches_server_constant): the render
+    # loop must iterate the literal and stamp the exact value as data-habit-type.
+    assert "HABIT_TYPES" in fn
+    assert "data-habit-type" in fn or "habitType" in fn
+
+
+@pytest.mark.asyncio
+async def test_app_js_wires_checkin_posts_and_refresh(client):
+    resp = await client.get("/static/app.js")
+    assert resp.status_code == 200
+    body = resp.text
+    # Mood: client guard (validateMood before any fetch), POST /api/mood,
+    # pending-disable of mood controls + submit, quests/XP refresh on success.
+    mood = _js_fn_body(body, "submitMood")
+    assert "validateMood(" in mood
+    assert mood.index("validateMood(") < mood.index('fetchJson("/api/mood"')
+    assert 'fetchJson("/api/mood"' in mood
+    assert "disabled = true" in mood
+    assert "loadQuestsAndXp()" in mood
+    # Habit: one-tap POST /api/habits, chips disabled while in flight, refresh.
+    habit = _js_fn_body(body, "logHabit")
+    assert 'fetchJson("/api/habits"' in habit
+    assert "disabled = true" in habit
+    assert "loadQuestsAndXp()" in habit
+    # Both endpoints use the shared same-origin fetch helper with JSON bodies.
+    assert re.search(r"headers: \{\s*\"Content-Type\": \"application/json\"", mood) is not None
+    assert re.search(r"headers: \{\s*\"Content-Type\": \"application/json\"", habit) is not None
+
+
+@pytest.mark.asyncio
+async def test_index_html_checkin_hints_are_accessible(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    card = html[html.index('id="checkin-card"') : html.index('id="weekly-card"')]
+    # Error regions are role=alert; success hints are role=status (aria-live).
+    assert 'id="mood-error"' in card and 'role="alert"' in card
+    assert 'id="mood-success"' in card and 'role="status"' in card
+    assert 'id="habit-error"' in card and 'role="alert"' in card
+    assert 'id="habit-success"' in card and 'role="status"' in card
+
+
+@pytest.mark.asyncio
+async def test_style_css_checkin_rules_token_only(client):
+    resp = await client.get("/static/style.css")
+    assert resp.status_code == 200
+    sheet = resp.text
+    for selector in (".checkin-card", ".checkin-section", ".checkin-mood", ".checkin-habit", ".checkin-submit"):
+        assert selector in sheet, f"style.css must declare {selector}"
+    # Token-only: every .checkin-* rule must use semantic tokens, never hex.
+    rules = list(re.finditer(r"\.checkin-[a-z-]+\s*\{[^}]*}", sheet))
+    assert len(rules) > 0, "style.css must declare checkin rules"
+    for rule in rules:
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
+            "checkin CSS must be token-only (no hex literals)"
+        )
+    # Sections separated by a full-width token border (never a side stripe).
+    assert re.search(r"\.checkin-section\s*\+\s*\.checkin-section\s*\{[^}]*border-top", sheet) is not None
+    # Disabled submit mirrors the controls: reduced opacity + default cursor,
+    # accent fill preserved on hover (base button:hover must not re-enable).
+    assert re.search(r"\.checkin-submit:disabled\s*\{[^}]*opacity", sheet) is not None
+    assert re.search(r"\.checkin-submit:disabled\s*\{[^}]*cursor:\s*default", sheet) is not None
+    assert re.search(r"\.checkin-submit:disabled:hover\s*\{[^}]*var\(--accent\)", sheet) is not None
+    # Mood row stays usable on narrow mobile (wrap, no clipping).
+    media_at = sheet.index("@media (max-width: 480px)")
+    assert re.search(r"\.checkin-mood-row[^}]*flex-wrap", sheet[media_at:]) is not None
