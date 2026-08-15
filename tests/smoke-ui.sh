@@ -462,6 +462,62 @@ else
   step_fail "XP chip shows progress to level 2 (got '$CHIP_PROGRESS')"
 fi
 
+# ---- 5.155 check-in card: mood + habit quick-log (r1-mood-habit) ---------
+# The Check in card is the honest-logging surface: logging a mood auto-
+# completes the always-assigned mood_checkin quest (source 'detected', row
+# reads Auto-completed) and the chip rises by that quest's XP. Habit is
+# rotation-aware: habit_checkin is only pinned when today's rotation assigned
+# it (the chip click still proves the quick-log path).
+echo "-- check-in card (mood + habit quick-log)"
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
+sleep 1
+
+# Card presence: five mood buttons 1-5 in order + the four HABIT_TYPES chips.
+CHECKIN_CARD="$(playwright-cli --raw eval "(() => { const card = document.querySelector('#checkin-card'); if (!card) return 'missing'; const moods = [...card.querySelectorAll('.checkin-mood')].map(b => b.dataset.mood).join(','); const chips = [...card.querySelectorAll('.checkin-habit')].map(c => c.dataset.habitType).sort().join(','); return moods + '|' + chips; })()" 2>&1 | tr -d '"')"
+if [ "$CHECKIN_CARD" = "1,2,3,4,5|fruit_veg,home_cooked,sleep_routine,water" ]; then
+  step_ok "check-in card ships 5 mood buttons and the four HABIT_TYPES chips"
+else
+  step_fail "check-in card ships 5 mood buttons and the four HABIT_TYPES chips (got '$CHECKIN_CARD')"
+fi
+
+# Mood check-in -> the always-assigned mood_checkin flips to Auto-completed
+# and the XP chip rises by that quest's xp_value (rotation-independent).
+MOOD_QUEST_ID="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'mood_checkin'); return q ? String(q.id) : 'none'; })()" 2>&1 | tr -d '"')"
+if [ "$MOOD_QUEST_ID" != "none" ]; then
+  MOOD_XP="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'mood_checkin'); return String(q.xp_value); })()" 2>&1 | tr -d '"')"
+  CHIP_PRE_MOOD="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  playwright-cli click '.checkin-mood[data-mood="4"]' >/dev/null 2>&1
+  playwright-cli click '#mood-submit' >/dev/null 2>&1
+  sleep 1
+  MOOD_ROW_STATUS="$(playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-quest-id=\"$MOOD_QUEST_ID\"] .quest-status')?.textContent" 2>&1 | tr -d '"')"
+  CHIP_POST_MOOD="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  if [ "$MOOD_ROW_STATUS" = "Auto-completed" ] && [ "$CHIP_POST_MOOD" = "$((CHIP_PRE_MOOD + MOOD_XP))" ]; then
+    step_ok "mood check-in auto-completes mood_checkin (+$MOOD_XP XP: $CHIP_PRE_MOOD -> $CHIP_POST_MOOD)"
+  else
+    step_fail "mood check-in auto-completes mood_checkin (status '$MOOD_ROW_STATUS', chip $CHIP_PRE_MOOD + $MOOD_XP = $((CHIP_PRE_MOOD + MOOD_XP)), got $CHIP_POST_MOOD)"
+  fi
+else
+  step_fail "mood_checkin quest is assigned today (rotation invariant)"
+fi
+
+# Habit quick-log: pinned only when today's rotation assigned habit_checkin.
+HABIT_QUEST_ID="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'habit_checkin'); return q ? String(q.id) : 'none'; })()" 2>&1 | tr -d '"')"
+if [ "$HABIT_QUEST_ID" != "none" ]; then
+  HABIT_XP="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'habit_checkin'); return String(q.xp_value); })()" 2>&1 | tr -d '"')"
+  CHIP_PRE_HABIT="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  playwright-cli click '.checkin-habit[data-habit-type="water"]' >/dev/null 2>&1
+  sleep 1
+  HABIT_ROW_STATUS="$(playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-quest-id=\"$HABIT_QUEST_ID\"] .quest-status')?.textContent" 2>&1 | tr -d '"')"
+  CHIP_POST_HABIT="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  if [ "$HABIT_ROW_STATUS" = "Auto-completed" ] && [ "$CHIP_POST_HABIT" = "$((CHIP_PRE_HABIT + HABIT_XP))" ]; then
+    step_ok "habit quick-log auto-completes habit_checkin (+$HABIT_XP XP)"
+  else
+    step_fail "habit quick-log auto-completes habit_checkin (status '$HABIT_ROW_STATUS', chip $CHIP_PRE_HABIT + $HABIT_XP = $((CHIP_PRE_HABIT + HABIT_XP)), got $CHIP_POST_HABIT)"
+  fi
+else
+  step_ok "habit_checkin not assigned today — habit quick-log pin skipped (rotation)"
+fi
+
 # ---- 5.16 quest actions: replace -> 409 -> complete (r1-quests-xp S4a) -----
 # Replace an open quest (one replacement per day): the replaced row disappears
 # and a fresh open row takes its place (still 3 current rows). A second
@@ -797,7 +853,12 @@ ACH_MOCK='{"achievements":[{"key":"getting_started","title":"Getting Started","e
 playwright-cli route "**/api/xp" --body="$XP_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli route "**/api/achievements" --body="$ACH_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli click "[data-tab=today]" >/dev/null 2>&1; sleep 1
-playwright-cli --raw eval "(async () => { const row = document.querySelector('#quests-card .quest-row[data-status=\"open\"]'); await mutateQuest(Number(row.dataset.questId), 'complete'); })()" >/dev/null 2>&1
+# Trigger the mocked level crossing. Prefer the real mutation path (complete
+# an open quest) when one exists; fall back to a plain loadData refresh when
+# the check-in/quest sections already completed every row (rotation-dependent
+# — streak_alive auto-completes from the wizard entry, mood/habit from the
+# check-in card) — the banner fires from the mocked level diff either way.
+playwright-cli --raw eval "(async () => { const row = document.querySelector('#quests-card .quest-row[data-status=\"open\"]'); if (row) { await mutateQuest(Number(row.dataset.questId), 'complete'); } else { await loadData(); } })()" >/dev/null 2>&1
 S6_BANNER=""; S6_TOAST=""
 for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
