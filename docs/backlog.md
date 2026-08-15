@@ -28,6 +28,6 @@ Shipped:
 
 Backlog:
 - [ ] **Island theme polish (R2A)** — fresh pass on the mascot icon (cartoon fox) and collectibles as unique island plants matching the World scene; presentation-only (collectible catalogue/API/engine unchanged, R10); strategy §RELEASE 2A. **Blocked on maintainer reference images.**
-- [ ] **Accent colour selection (R2B)** — per-user accent colour (purple explicitly requested by a user, plus a small curated set: teal/blue/green/orange), token-only, extends the three-state theme preference; strategy §RELEASE 2B.
+- [x] **Accent colour selection (R2B)** — per-user accent colour (purple explicitly requested by a user, plus a small curated set: teal/blue/green/orange), token-only, extends the three-state theme preference; strategy §RELEASE 2B. **Done — PR #67.**
 - [ ] Mascot personality pass — reuse the fox from `static/icons/`; reaction states on milestones/streaks (strategy: World/Coach surfaces, later releases).
 - [ ] Coach + World screens (R3+) — personalised recommendations and progression maps per strategy.

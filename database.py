@@ -1052,6 +1052,7 @@ class Database:
                 stored.get("weight_display", DEFAULT_SETTINGS["weight_display"])
             ),
             theme=str(stored.get("theme", DEFAULT_SETTINGS["theme"])),
+            accent=str(stored.get("accent", DEFAULT_SETTINGS["accent"])),
             onboarding_complete=_optional_bool(stored.get("onboarding_complete")),
             # Goals & lifestyle (user-onboarding): nullable strings default to
             # None; JSON lists default to [] and round-trip with order intact.

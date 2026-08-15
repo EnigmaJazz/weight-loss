@@ -246,6 +246,66 @@ async def test_settings_theme_isolated_between_users(pair):
     assert alice_settings["theme"] == "dark"
 
 
+# ---- accent colour preference (r2b-accent-colour) -----------------------
+# Contract: accent persists per user and round-trips; exactly the five values
+# purple|teal|blue|green|orange are accepted; invalid values are rejected with
+# 422; null removes the override and restores the "green" default; missing rows
+# fall back to the default.
+
+
+@pytest.mark.asyncio
+async def test_settings_accent_defaults_to_green(auth_client):
+    data = (await auth_client.get("/api/settings")).json()
+    assert data["accent"] == "green"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("accent", ["purple", "teal", "blue", "green", "orange"])
+async def test_settings_accent_roundtrip(auth_client, accent):
+    res = await auth_client.put("/api/settings", json={"accent": accent})
+    assert res.status_code == 200
+    assert res.json()["accent"] == accent
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["accent"] == accent
+
+
+@pytest.mark.asyncio
+async def test_settings_invalid_accent_rejected_without_mutation(auth_client):
+    # Spec: invalid accent -> 422 and current settings remain unchanged.
+    await auth_client.put("/api/settings", json={"accent": "teal"})
+    res = await auth_client.put("/api/settings", json={"accent": "pink"})
+    assert res.status_code == 422
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["accent"] == "teal"
+
+
+@pytest.mark.asyncio
+async def test_settings_accent_null_restores_default(auth_client):
+    # Contract: null removes the override and restores the "green" default,
+    # mirroring the theme null semantics.
+    await auth_client.put("/api/settings", json={"accent": "purple"})
+    res = await auth_client.put("/api/settings", json={"accent": None})
+    assert res.status_code == 200
+    assert res.json()["accent"] == "green"
+    got = (await auth_client.get("/api/settings")).json()
+    assert got["accent"] == "green"
+
+
+@pytest.mark.asyncio
+async def test_settings_accent_isolated_between_users(pair):
+    # Spec: A persists purple, B stays green; neither observes the other's value.
+    alice, bob = pair
+    res = await alice.put("/api/settings", json={"accent": "purple"})
+    assert res.status_code == 200
+    assert res.json()["accent"] == "purple"
+
+    bob_settings = (await bob.get("/api/settings")).json()
+    assert bob_settings["accent"] == "green"
+
+    alice_settings = (await alice.get("/api/settings")).json()
+    assert alice_settings["accent"] == "purple"
+
+
 # ---- notification schedule disable (notification-schedule-disable) -----
 # Contract: "" disables a schedule (persisted and round-tripped unchanged);
 # null removes the override and restores the default; any other non-empty

@@ -15,6 +15,7 @@ from fastapi import FastAPI
 
 import database as database_module
 from constants import CELEBRATION_MESSAGES
+from database import Database
 from tests.conftest import auth_user_id, pair
 
 SUBSCRIBE_BODY = {
@@ -235,6 +236,25 @@ async def test_settings_theme_only_no_fire(auth_client, stub_push):
     assert len(stub_push) == 1
 
     await _put_settings(auth_client, theme="dark")
+
+    assert len(stub_push) == 1
+
+
+@pytest.mark.asyncio
+async def test_settings_accent_only_no_fire(auth_client, stub_push):
+    # Spec: an accent-only settings update fires zero pushes even when
+    # checkpoints are active and the user is subscribed.
+    # Static invariant: accent must never be reward-affecting (a future edit
+    # of REWARD_AFFECTING_KEYS fails loudly instead of silently enabling
+    # celebrations on accent saves).
+    assert "accent" not in Database.REWARD_AFFECTING_KEYS
+    await _put_settings(auth_client, target_weight=80.0)
+    await _post_weight(auth_client, "2026-08-01", 100.0)
+    await _subscribe(auth_client)
+    await _post_weight(auth_client, "2026-08-02", 90.0)
+    assert len(stub_push) == 1
+
+    await _put_settings(auth_client, accent="purple")
 
     assert len(stub_push) == 1
 

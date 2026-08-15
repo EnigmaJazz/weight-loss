@@ -134,6 +134,19 @@ async def test_onboarding_rejects_theme_key(auth_client, app):
     assert _weight_count(app, user_id) == 0
 
 
+@pytest.mark.asyncio
+async def test_onboarding_rejects_accent_key(auth_client, app):
+    """Spec (r2b-accent-colour): accent must NOT be an accepted onboarding key;
+    OnboardingIn stays untouched (extra="forbid")."""
+    resp = await auth_client.post(
+        "/api/onboarding", json=_payload(accent="purple")
+    )
+    assert resp.status_code == 422
+    user_id = auth_user_id(app)
+    assert _settings_count(app, user_id) == 0
+    assert _weight_count(app, user_id) == 0
+
+
 # ---- validation order (design AD6) ---------------------------------------
 
 

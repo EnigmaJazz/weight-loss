@@ -14,9 +14,15 @@ PWA-tab/icon/theme mismatch bugs).
 import re
 from pathlib import Path
 
+from constants import ACCENT_COLORS
+
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_ACCENT = "#2f7d54"
+# Derived from the server allowlist so a new accent automatically enters the
+# lockstep guard (a hand-maintained copy here would silently skip validation).
+NON_DEFAULT_ACCENTS = tuple(a for a in ACCENT_COLORS if a != "green")
+HEX_LITERAL = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 
 
 def _normalize(hex_color: str) -> str:
@@ -70,3 +76,89 @@ def test_four_accent_locations_are_lockstep() -> None:
         _accent_from_icon_script(),
     }
     assert accents == {EXPECTED_ACCENT}
+
+
+def test_non_default_accent_tokens_ship_in_light_and_dark_contexts() -> None:
+    css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
+    for accent in NON_DEFAULT_ACCENTS:
+        light = re.search(
+            rf'\[data-accent="{accent}"\]\s*\{{([^}}]*)\}}', css
+        )
+        assert light is not None, f"missing light token block for {accent}"
+        assert re.search(r"--accent\s*:", light.group(1))
+        assert re.search(r"--accent-dark\s*:", light.group(1))
+
+        dark = re.search(
+            rf'\[data-theme="dark"\]\[data-accent="{accent}"\]\s*\{{([^}}]*)\}}',
+            css,
+        )
+        assert dark is not None, f"missing dark token block for {accent}"
+        assert re.search(r"--accent-dark\s*:", dark.group(1))
+
+        # Dark --accent-dark must differ from the light one (design: lightened
+        # for contrast, mirroring the green #58a97e treatment).
+        light_dark_hex = re.search(r"--accent-dark\s*:\s*(#[0-9a-fA-F]{6})", light.group(1))
+        dark_dark_hex = re.search(r"--accent-dark\s*:\s*(#[0-9a-fA-F]{6})", dark.group(1))
+        assert light_dark_hex is not None and dark_dark_hex is not None, (
+            f"accent-dark hex missing for {accent}"
+        )
+        assert _normalize(light_dark_hex.group(1)) != _normalize(dark_dark_hex.group(1)), (
+            f"dark --accent-dark for {accent} must be lightened, not copied"
+        )
+
+
+def test_accent_values_are_distinct_and_swatches_match_tokens() -> None:
+    """Every accent's light --accent must differ from every other accent's and
+    match its picker swatch, so a copy-paste colour or a drifting preview is
+    caught (both copies live in style.css, which the hex ban exempts)."""
+    css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
+    light_hexes: dict[str, str] = {}
+    for accent in NON_DEFAULT_ACCENTS:
+        block = re.search(
+            rf'\[data-accent="{accent}"\]\s*\{{([^}}]*)\}}', css
+        )
+        assert block is not None, f"missing light token block for {accent}"
+        m = re.search(r"--accent\s*:\s*(#[0-9a-fA-F]{6})", block.group(1))
+        assert m is not None, f"--accent hex missing for {accent}"
+        light_hexes[accent] = _normalize(m.group(1))
+
+    assert len(set(light_hexes.values())) == len(light_hexes), (
+        "accent colours must be pairwise distinct from each other"
+    )
+    assert all(h != EXPECTED_ACCENT for h in light_hexes.values()), (
+        "non-default accents must differ from the brand green"
+    )
+
+    for accent, hex_value in light_hexes.items():
+        swatch = re.search(
+            rf'\.swatch-{accent}\s*\{{[^}}]*--swatch\s*:\s*(#[0-9a-fA-F]{{6}})', css
+        )
+        assert swatch is not None, f"missing swatch token for {accent}"
+        assert _normalize(swatch.group(1)) == hex_value, (
+            f"swatch preview for {accent} drifted from its token"
+        )
+
+
+def test_green_uses_default_palette_without_an_override_block() -> None:
+    css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
+    assert '[data-accent="green"]' not in css
+    # Green's swatch must consume the default token, not re-copy the hex.
+    assert re.search(r"\.swatch-green\s*\{\s*--swatch:\s*var\(--accent\)", css), (
+        "green swatch must derive from var(--accent)"
+    )
+
+
+def test_component_files_do_not_carry_hex_colour_literals() -> None:
+    for relative in ("static/index.html", "static/app.js", "static/format.js"):
+        body = (ROOT / relative).read_text(encoding="utf-8")
+        if relative == "static/index.html":
+            # The pinned PWA theme-color and legacy inline fox mascot predate
+            # accent selection and are separately gate-locked brand assets.
+            body = body.replace(f'content="{EXPECTED_ACCENT}"', 'content="brand-accent"')
+            body = re.sub(
+                r'<span class="mascot"[^>]*>.*?</span>',
+                '<span class="mascot"></span>',
+                body,
+                flags=re.DOTALL,
+            )
+        assert HEX_LITERAL.search(body) is None, f"hex literal escaped into {relative}"

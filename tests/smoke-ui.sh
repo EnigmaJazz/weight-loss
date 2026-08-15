@@ -1011,6 +1011,61 @@ else
   step_fail "theme toggle returns to system-resolved theme (got '$TOGGLE_BACK', system '$SYSTEM_RESOLVED')"
 fi
 
+# Accent selection is immediate, stays active across every tab, and remains
+# token-driven in both concrete themes. A fresh account starts on default green
+# with no data-accent attribute.
+DEFAULT_ACCENT="$(playwright-cli --raw eval "document.documentElement.hasAttribute('data-accent') ? document.documentElement.dataset.accent : 'none'" 2>&1 | tr -d '"')"
+if [ "$DEFAULT_ACCENT" = "none" ]; then
+  step_ok "default account has no data-accent attribute"
+else
+  step_fail "default account has no data-accent attribute (got '$DEFAULT_ACCENT')"
+fi
+
+playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
+playwright-cli click 'input[name="accent"][value="purple"]' >/dev/null 2>&1
+sleep 1
+# The attribute alone proves nothing about the CSS: assert the resolved token
+# actually changed from the brand green (a wrong hex in the purple block would
+# pass every static pin), and that the server persisted the choice (the
+# debounced save path is invisible to attribute checks).
+ACCENT_TOKEN="$(playwright-cli --raw eval "getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()" 2>&1 | tr -d '"')"
+if [ "$ACCENT_TOKEN" != "#2f7d54" ] && [ -n "$ACCENT_TOKEN" ]; then
+  step_ok "purple resolves a non-brand --accent token ($ACCENT_TOKEN)"
+else
+  step_fail "purple resolves a non-brand --accent token (got '$ACCENT_TOKEN')"
+fi
+SETTINGS_ACCENT="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/settings', false); x.send(); return String(JSON.parse(x.responseText).accent); })()" 2>&1 | tr -d '"')"
+if [ "$SETTINGS_ACCENT" = "purple" ]; then
+  step_ok "server persisted the accent choice ($SETTINGS_ACCENT)"
+else
+  step_fail "server persisted the accent choice (got '$SETTINGS_ACCENT')"
+fi
+mkdir -p artifacts/accent-colour
+for tab in today journey world me; do
+  playwright-cli click "[data-tab=$tab]" >/dev/null 2>&1
+  ACCENT_STATE="$(playwright-cli --raw eval "document.documentElement.dataset.accent + '|' + document.documentElement.dataset.theme + '|' + !document.querySelector('#tab-$tab').hidden" 2>&1 | tr -d '"')"
+  if [ "$ACCENT_STATE" = "purple|light|true" ]; then
+    step_ok "purple accent applies on $tab in light theme"
+  else
+    step_fail "purple accent applies on $tab in light theme (got '$ACCENT_STATE')"
+  fi
+  playwright-cli screenshot --filename="artifacts/accent-colour/purple-light-$tab.png" >/dev/null 2>&1
+done
+
+playwright-cli click "[data-tab=me]" >/dev/null 2>&1
+playwright-cli click 'input[name="appearance"][value="dark"]' >/dev/null 2>&1
+sleep 1
+for tab in today journey world me; do
+  playwright-cli click "[data-tab=$tab]" >/dev/null 2>&1
+  ACCENT_STATE="$(playwright-cli --raw eval "document.documentElement.dataset.accent + '|' + document.documentElement.dataset.theme + '|' + !document.querySelector('#tab-$tab').hidden" 2>&1 | tr -d '"')"
+  if [ "$ACCENT_STATE" = "purple|dark|true" ]; then
+    step_ok "purple accent applies on $tab in dark theme"
+  else
+    step_fail "purple accent applies on $tab in dark theme (got '$ACCENT_STATE')"
+  fi
+  playwright-cli screenshot --filename="artifacts/accent-colour/purple-dark-$tab.png" >/dev/null 2>&1
+done
+
 # ---- 6. rewards + screenshot -----------------------------------------------
 
 echo "-- rewards / capture"

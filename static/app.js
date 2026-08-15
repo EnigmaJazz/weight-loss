@@ -17,10 +17,15 @@ const EXERCISE_TYPES = ["walk", "run", "gym", "cycling", "swim", "other"];
  * the literal only pins the catalogue so UI and server cannot drift. */
 const HABIT_TYPES = ["water", "fruit_veg", "home_cooked", "sleep_routine"];
 
+/* Accent-colour allowlist mirroring constants.ACCENT_COLORS (the drift guard
+ * test pins this literal to the server constant). Drives the accent radio
+ * group in Me; the server validates against the same allowlist. */
+const ACCENT_COLORS = ["purple", "teal", "blue", "green", "orange"];
+
 /* ---- formatting -------------------------------------------------------- */
 /* fmt1/weightLabel/summaryLabel live in static/format.js (index.html loads it
  * before app.js) so node:test can pin the exact display contract. */
-const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations, habitLabel, validateMood } = globalThis.WeightFormat;
+const { fmt1, weightLabel, weightImperial, stoneLbToKg, ftInToCm, formatDate, unitPref, chronological, exerciseMinutesPerWeek, caloriesPerDay, weightKgFromBmi, bmiFromKg, healthyRange, classifyBmi, targetRangeHint, goalProgress, checkpointThresholds, kgToImperial, milestoneNextLabel, newAchievementKeys, shouldCelebrate, resolveTheme, resolveAccent, thresholdForLevel, levelFromXp, xpIntoNext, worldStage, stageChanged, iconForDomain, questStatusChanged, weeklyMetDiff, collectibleKeysetDiff, enqueueCelebrations, habitLabel, validateMood } = globalThis.WeightFormat;
 const {
   normalizeUsername,
   validateUsername,
@@ -701,6 +706,9 @@ async function loadData() {
   // overwrites any pre-auth localStorage choice from the FOUC bootstrap.
   themePref = unitPref(settings.theme, "system");
   applyTheme(resolveTheme(themePref, systemPref()));
+  // Server accent wins post-login — apply it (green = default, no attr).
+  accentPref = resolveAccent(settings.accent);
+  applyAccent(accentPref);
   renderSummary(weight.summary);
   renderGoalRing(chartData.weightSummary);
   renderHistory(weight.entries);
@@ -1284,6 +1292,7 @@ const CHART_FONT_LARGE = `14px ${chartFontFamily}`;
  * The preference is tracked here so the prefers-color-scheme listener can
  * be added only in "system" mode and removed otherwise (design D5). */
 let themePref = "system";
+let accentPref = "green";
 const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 let themeSystemHandler = null;
 
@@ -1327,6 +1336,25 @@ function syncThemeSystemListener() {
   } else if (themeSystemHandler != null) {
     themeQuery.removeEventListener("change", themeSystemHandler);
     themeSystemHandler = null;
+  }
+}
+
+/* ---- accent colour ------------------------------------------------------- */
+
+function applyAccent(pref) {
+  const accent = resolveAccent(pref);
+  if (accent === "green") {
+    delete document.documentElement.dataset.accent;
+  } else {
+    document.documentElement.dataset.accent = accent;
+  }
+  localStorage.setItem("accent", accent);
+  refreshChartColors();
+  // Redraw only what is visible — mirrors applyTheme's visibility-gated redraw.
+  if (!$("tab-journey").hidden) {
+    drawChart(chartData.weightEntries, chartData.weightSummary);
+    drawExerciseChart(chartData.exerciseEntries);
+    drawMealChart(chartData.mealEntries);
   }
 }
 
@@ -2468,6 +2496,8 @@ function renderSettings(s, me) {
   // Appearance radio mirrors the same theme preference as the header toggle
   // (design §JS Theming Lifecycle): system/light/dark, default "system".
   setRadio("appearance", unitPref(s.theme, "system"));
+  // Accent colour radio mirrors the server value (green = default).
+  setRadio("accent", resolveAccent(s.accent));
   renderGoalsLifestyle(s);
   syncWeightUnitUi();
   syncHeightUnitUi();
@@ -2894,7 +2924,7 @@ async function saveThemePreference() {
       await fetchJson("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme: themePref }),
+        body: JSON.stringify({ theme: themePref, accent: accentPref }),
       });
     } catch (_) {
       /* preference save is best-effort */
@@ -2987,6 +3017,13 @@ async function init() {
     r.addEventListener("change", () => {
       themePref = r.value;
       applyTheme(resolveTheme(themePref, systemPref()));
+      saveThemePreference();
+    });
+  }
+  for (const r of document.querySelectorAll('input[name="accent"]')) {
+    r.addEventListener("change", () => {
+      accentPref = resolveAccent(r.value);
+      applyAccent(accentPref);
       saveThemePreference();
     });
   }

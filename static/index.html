@@ -10,8 +10,8 @@
   <title>Weight Loss Tracker</title>
   <script>
     /* FOUC-safe theme bootstrap (design §JS Theming Lifecycle): apply the
-     * saved theme before first paint — localStorage first, then the OS color
-     * scheme; light is the no-JS default (no data-theme attribute). */
+      * saved theme before first paint — localStorage first, then the OS color
+      * scheme; light is the no-JS default (no data-theme attribute). */
     (function () {
       var theme = null;
       try {
@@ -23,6 +23,18 @@
         theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
       }
       document.documentElement.dataset.theme = theme;
+    })();
+    /* FOUC-safe accent bootstrap: apply a saved non-default accent before
+      * first paint so the user sees their choice (green = default, no attr).
+      * Only writes data-accent for known non-default values. */
+    (function () {
+      var accent = null;
+      try {
+        accent = localStorage.getItem("accent");
+      } catch (_) {}
+      if (["purple", "teal", "blue", "orange"].includes(accent)) {
+        document.documentElement.dataset.accent = accent;
+      }
     })();
   </script>
 </head>
@@ -675,7 +687,15 @@
                 <label class="radio-option"><input type="radio" name="appearance" value="light"> Light</label>
                 <label class="radio-option"><input type="radio" name="appearance" value="dark"> Dark</label>
               </fieldset>
-              <p class="hint">Theme choices save automatically.</p>
+              <fieldset class="unit-group accent-group">
+                <legend>Accent colour</legend>
+                <label class="accent-swatch"><input type="radio" name="accent" value="purple"> <span class="swatch-dot swatch-purple" aria-hidden="true"></span> Purple</label>
+                <label class="accent-swatch"><input type="radio" name="accent" value="teal"> <span class="swatch-dot swatch-teal" aria-hidden="true"></span> Teal</label>
+                <label class="accent-swatch"><input type="radio" name="accent" value="blue"> <span class="swatch-dot swatch-blue" aria-hidden="true"></span> Blue</label>
+                <label class="accent-swatch"><input type="radio" name="accent" value="green" checked> <span class="swatch-dot swatch-green" aria-hidden="true"></span> Green</label>
+                <label class="accent-swatch"><input type="radio" name="accent" value="orange"> <span class="swatch-dot swatch-orange" aria-hidden="true"></span> Orange</label>
+              </fieldset>
+              <p class="hint">Appearance choices save automatically.</p>
             </form>
           </section>
 
