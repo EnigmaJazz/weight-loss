@@ -180,28 +180,29 @@ assert_find "logout button visible" "Log out"
 
 # ---- 2.75 fresh-account World island (r2-world-xp-island S3) --------------
 # A brand-new account (scratch DB, first user id=1) finishes onboarding with
-# 0 total XP: today's deterministic quests (mood_checkin / habit_checkin /
-# exercise_10) are none weight-triggered, so the wizard's weight entry
-# auto-completes nothing. Pin that zero-XP contract HERE — before section 5.16
-# manually completes a quest — in both themes: stage name, level-span progress
-# (0 / 100), exactly one visible stage group (computed display, not DOM count),
-# placeholder absent.
-echo "-- world island (fresh 0-XP account)"
+# 0 or 20 total XP depending on the day's deterministic quest rotation: the
+# wizard's weight entry auto-completes any entry-triggered quest (e.g.
+# streak_alive) on rotation days that include one. The XP truth is the server's
+# GET /api/xp; this section pins the CONSISTENCY contract before section 5.16
+# manually completes a quest — in both themes: chip == API, stage name,
+# level-span progress (API_total / 100), exactly one visible stage group
+# (computed display, not DOM count), placeholder absent.
+echo "-- world island (fresh account)"
 
-# 0-XP precondition: the chip must read exactly 0 XP and GET /api/xp must
-# agree (synchronous XHR rides the session cookie), so a stray auto-completed
-# quest fails the smoke before the island assertions run.
-CHIP_TOTAL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-total')?.textContent" 2>&1 | tr -d '"')"
-if [ "$CHIP_TOTAL" = "0 XP" ]; then
-  step_ok "XP chip reads 0 XP on a fresh account ($CHIP_TOTAL)"
-else
-  step_fail "XP chip reads 0 XP on a fresh account (got '$CHIP_TOTAL')"
-fi
+# Server truth first (synchronous XHR rides the session cookie); every later
+# pin derives from it, so rotation-dependent auto-completions cannot flake.
 API_TOTAL="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/xp', false); x.send(); return String(JSON.parse(x.responseText).total_xp); })()" 2>&1 | tr -d '"')"
-if [ "$API_TOTAL" = "0" ]; then
-  step_ok "GET /api/xp reports total_xp 0 (got $API_TOTAL)"
+if printf '%s' "$API_TOTAL" | grep -Eq '^[0-9]+$' && [ "$API_TOTAL" -lt 100 ]; then
+  step_ok "GET /api/xp reports a sub-level-2 total (got $API_TOTAL)"
 else
-  step_fail "GET /api/xp reports total_xp 0 (got '$API_TOTAL')"
+  step_fail "GET /api/xp reports a sub-level-2 total (got '$API_TOTAL')"
+fi
+# Chip must mirror the server total exactly (rotation-independent invariant).
+CHIP_TOTAL="$(playwright-cli --raw eval "document.querySelector('.xp-chip-total')?.textContent" 2>&1 | tr -d '"')"
+if [ "$CHIP_TOTAL" = "$API_TOTAL XP" ]; then
+  step_ok "XP chip mirrors server total ($CHIP_TOTAL)"
+else
+  step_fail "XP chip mirrors server total (got '$CHIP_TOTAL', API $API_TOTAL)"
 fi
 
 # Deterministic light theme via the Me-tab Appearance radio (same path section
@@ -221,15 +222,15 @@ assert_visibility "world panel visible" "#tab-world" "visible"
 
 WORLD_STAGE="$(playwright-cli --raw eval "document.querySelector('#world-stage-name')?.textContent.trim()" 2>&1 | tr -d '"')"
 if [ "$WORLD_STAGE" = "Sprout Isle" ]; then
-  step_ok "world shows Sprout Isle at 0 XP (light)"
+  step_ok "world shows Sprout Isle on a fresh account (light)"
 else
-  step_fail "world shows Sprout Isle at 0 XP (got '$WORLD_STAGE')"
+  step_fail "world shows Sprout Isle on a fresh account (got '$WORLD_STAGE')"
 fi
 WORLD_PROGRESS="$(playwright-cli --raw eval "document.querySelector('#world-progress .progress-label')?.textContent.trim()" 2>&1 | tr -d '"')"
-if [ "$WORLD_PROGRESS" = "0 / 100" ]; then
-  step_ok "world shows level progress 0 / 100 (light)"
+if [ "$WORLD_PROGRESS" = "$API_TOTAL / 100" ]; then
+  step_ok "world shows level progress $API_TOTAL / 100 (light)"
 else
-  step_fail "world shows level progress 0 / 100 (got '$WORLD_PROGRESS')"
+  step_fail "world shows level progress $API_TOTAL / 100 (got '$WORLD_PROGRESS')"
 fi
 WORLD_VISIBLE_STAGES="$(playwright-cli --raw eval "(() => { const vis = [...document.querySelectorAll('#world-island .island-stage')].filter(s => getComputedStyle(s).display !== 'none'); return String(vis.length) + '|' + (vis[0]?.dataset.stage ?? 'none'); })()" 2>&1 | tr -d '"')"
 if [ "$WORLD_VISIBLE_STAGES" = "1|1" ]; then
@@ -256,15 +257,15 @@ else
 fi
 WORLD_STAGE_DARK="$(playwright-cli --raw eval "document.querySelector('#world-stage-name')?.textContent.trim()" 2>&1 | tr -d '"')"
 if [ "$WORLD_STAGE_DARK" = "Sprout Isle" ]; then
-  step_ok "world shows Sprout Isle at 0 XP (dark)"
+  step_ok "world shows Sprout Isle on a fresh account (dark)"
 else
-  step_fail "world shows Sprout Isle at 0 XP (dark, got '$WORLD_STAGE_DARK')"
+  step_fail "world shows Sprout Isle on a fresh account (dark, got '$WORLD_STAGE_DARK')"
 fi
 WORLD_PROGRESS_DARK="$(playwright-cli --raw eval "document.querySelector('#world-progress .progress-label')?.textContent.trim()" 2>&1 | tr -d '"')"
-if [ "$WORLD_PROGRESS_DARK" = "0 / 100" ]; then
-  step_ok "world shows level progress 0 / 100 (dark)"
+if [ "$WORLD_PROGRESS_DARK" = "$API_TOTAL / 100" ]; then
+  step_ok "world shows level progress $API_TOTAL / 100 (dark)"
 else
-  step_fail "world shows level progress 0 / 100 (dark, got '$WORLD_PROGRESS_DARK')"
+  step_fail "world shows level progress $API_TOTAL / 100 (dark, got '$WORLD_PROGRESS_DARK')"
 fi
 WORLD_VISIBLE_STAGES_DARK="$(playwright-cli --raw eval "(() => { const vis = [...document.querySelectorAll('#world-island .island-stage')].filter(s => getComputedStyle(s).display !== 'none'); return String(vis.length) + '|' + (vis[0]?.dataset.stage ?? 'none'); })()" 2>&1 | tr -d '"')"
 if [ "$WORLD_VISIBLE_STAGES_DARK" = "1|1" ]; then
@@ -461,13 +462,97 @@ else
   step_fail "XP chip shows progress to level 2 (got '$CHIP_PROGRESS')"
 fi
 
+# ---- 5.155 check-in card: mood + habit quick-log (r1-mood-habit) ---------
+# The Check in card is the honest-logging surface: logging a mood auto-
+# completes the always-assigned mood_checkin quest (source 'detected', row
+# reads Auto-completed) and the chip rises by that quest's XP. Habit is
+# rotation-aware: habit_checkin is only pinned when today's rotation assigned
+# it (the chip click still proves the quick-log path).
+echo "-- check-in card (mood + habit quick-log)"
+playwright-cli click "[data-tab=today]" >/dev/null 2>&1
+sleep 1
+
+# Card presence: five mood buttons 1-5 in order + the four HABIT_TYPES chips.
+CHECKIN_CARD="$(playwright-cli --raw eval "(() => { const card = document.querySelector('#checkin-card'); if (!card) return 'missing'; const moods = [...card.querySelectorAll('.checkin-mood')].map(b => b.dataset.mood).join(','); const chips = [...card.querySelectorAll('.checkin-habit')].map(c => c.dataset.habitType).sort().join(','); return moods + '|' + chips; })()" 2>&1 | tr -d '"')"
+if [ "$CHECKIN_CARD" = "1,2,3,4,5|fruit_veg,home_cooked,sleep_routine,water" ]; then
+  step_ok "check-in card ships 5 mood buttons and the four HABIT_TYPES chips"
+else
+  step_fail "check-in card ships 5 mood buttons and the four HABIT_TYPES chips (got '$CHECKIN_CARD')"
+fi
+
+# Mood check-in -> the always-assigned mood_checkin flips to Auto-completed
+# and the XP chip rises by that quest's xp_value (rotation-independent).
+MOOD_QUEST_ID="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'mood_checkin'); return q ? String(q.id) : 'none'; })()" 2>&1 | tr -d '"')"
+if [ "$MOOD_QUEST_ID" != "none" ]; then
+  MOOD_XP="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'mood_checkin'); return String(q.xp_value); })()" 2>&1 | tr -d '"')"
+  CHIP_PRE_MOOD="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  playwright-cli click '.checkin-mood[data-mood="4"]' >/dev/null 2>&1
+  playwright-cli click '#mood-submit' >/dev/null 2>&1
+  sleep 1
+  MOOD_ROW_STATUS="$(playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-quest-id=\"$MOOD_QUEST_ID\"] .quest-status')?.textContent" 2>&1 | tr -d '"')"
+  CHIP_POST_MOOD="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  if [ "$MOOD_ROW_STATUS" = "Auto-completed" ] && [ "$CHIP_POST_MOOD" = "$((CHIP_PRE_MOOD + MOOD_XP))" ]; then
+    step_ok "mood check-in auto-completes mood_checkin (+$MOOD_XP XP: $CHIP_PRE_MOOD -> $CHIP_POST_MOOD)"
+  else
+    step_fail "mood check-in auto-completes mood_checkin (status '$MOOD_ROW_STATUS', chip $CHIP_PRE_MOOD + $MOOD_XP = $((CHIP_PRE_MOOD + MOOD_XP)), got $CHIP_POST_MOOD)"
+  fi
+else
+  step_fail "mood_checkin quest is assigned today (rotation invariant)"
+fi
+
+# Habit quick-log: pinned only when today's rotation assigned habit_checkin.
+HABIT_QUEST_ID="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'habit_checkin'); return q ? String(q.id) : 'none'; })()" 2>&1 | tr -d '"')"
+if [ "$HABIT_QUEST_ID" != "none" ]; then
+  HABIT_XP="$(playwright-cli --raw eval "(() => { const x = new XMLHttpRequest(); x.open('GET', '/api/quests', false); x.send(); const q = JSON.parse(x.responseText).quests.find(q => q.key === 'habit_checkin'); return String(q.xp_value); })()" 2>&1 | tr -d '"')"
+  CHIP_PRE_HABIT="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  playwright-cli click '.checkin-habit[data-habit-type="water"]' >/dev/null 2>&1
+  sleep 1
+  HABIT_ROW_STATUS="$(playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-quest-id=\"$HABIT_QUEST_ID\"] .quest-status')?.textContent" 2>&1 | tr -d '"')"
+  CHIP_POST_HABIT="$(playwright-cli --raw eval "Number(document.querySelector('.xp-chip-total').textContent.replace(/[^0-9]/g, ''))" 2>&1 | tr -d '"')"
+  if [ "$HABIT_ROW_STATUS" = "Auto-completed" ] && [ "$CHIP_POST_HABIT" = "$((CHIP_PRE_HABIT + HABIT_XP))" ]; then
+    step_ok "habit quick-log auto-completes habit_checkin (+$HABIT_XP XP)"
+  else
+    step_fail "habit quick-log auto-completes habit_checkin (status '$HABIT_ROW_STATUS', chip $CHIP_PRE_HABIT + $HABIT_XP = $((CHIP_PRE_HABIT + HABIT_XP)), got $CHIP_POST_HABIT)"
+  fi
+else
+  step_ok "habit_checkin not assigned today — habit quick-log pin skipped (rotation)"
+fi
+
+# Error path (R2): a 422 from the server must show the accessible error hint
+# and preserve the user's selection + note (submit re-enables). Route /api/mood
+# to 422, then unroute so later sections hit the real server.
+playwright-cli route "**/api/mood" --status=422 --body='{"detail":"mood must be 1-5"}' --content-type=application/json >/dev/null 2>&1
+playwright-cli click '.checkin-mood[data-mood="3"]' >/dev/null 2>&1
+playwright-cli fill '#mood-note' 'kept after failure' >/dev/null 2>&1
+playwright-cli click '#mood-submit' >/dev/null 2>&1
+sleep 1
+MOOD_ERROR_VISIBLE="$(playwright-cli --raw eval "!document.querySelector('#mood-error').hidden && document.querySelector('#mood-error').textContent.includes('Could not log mood')" 2>&1 | tr -d '"')"
+MOOD_SELECTION_KEPT="$(playwright-cli --raw eval "document.querySelector('.checkin-mood[data-mood=\"3\"]').getAttribute('aria-pressed')" 2>&1 | tr -d '"')"
+MOOD_NOTE_KEPT="$(playwright-cli --raw eval "document.querySelector('#mood-note').value" 2>&1 | tr -d '"')"
+playwright-cli unroute "**/api/mood" >/dev/null 2>&1
+if [ "$MOOD_ERROR_VISIBLE" = "true" ] && [ "$MOOD_SELECTION_KEPT" = "true" ] && [ "$MOOD_NOTE_KEPT" = "kept after failure" ]; then
+  step_ok "422 shows the mood error hint and preserves selection + note"
+else
+  step_fail "422 shows the mood error hint and preserves selection + note (error='$MOOD_ERROR_VISIBLE', pressed='$MOOD_SELECTION_KEPT', note='$MOOD_NOTE_KEPT')"
+fi
+
 # ---- 5.16 quest actions: replace -> 409 -> complete (r1-quests-xp S4a) -----
 # Replace an open quest (one replacement per day): the replaced row disappears
 # and a fresh open row takes its place (still 3 current rows). A second
 # Replace must 409: accessible error feedback appears and the assignment is
 # unchanged. Then Complete must refresh the row to done (open count drops by
 # one) and raise the chip total by the quest's XP.
+#
+# Rotation-aware: on days the check-in section (5.155) plus the wizard's
+# weight entry auto-complete EVERY assigned quest (e.g. rotation
+# {mood_checkin, streak_alive, habit_checkin}), no open row exists and these
+# mutation pins are skipped with an explicit note — the same all-done state
+# the celebration fallback (5.20) already handles.
 echo "-- quest actions"
+OPEN_ROWS_5_16="$(playwright-cli --raw eval "document.querySelectorAll('#quests-card .quest-row[data-status=\"open\"]').length" 2>&1 | tr -d '"')"
+if [ "$OPEN_ROWS_5_16" = "0" ]; then
+  step_ok "no open quest rows today — quest action pins skipped (rotation all-done)"
+else
 REPLACED_IDS="$(playwright-cli --raw eval "JSON.stringify([...document.querySelectorAll('#quests-card .quest-row')].map(r => r.dataset.questId).sort())" 2>&1 | tr -d '"')"
 playwright-cli --raw eval "document.querySelector('#quests-card .quest-row[data-status=\"open\"] [data-action=\"replace\"]').click()" >/dev/null 2>&1
 sleep 1
@@ -509,6 +594,7 @@ if [ "$OPEN_AFTER_COMPLETE" = "$((OPEN_BEFORE_COMPLETE - 1))" ] && [ "$CHIP_AFTE
   step_ok "complete refreshes the row to done and adds XP to the chip ($CHIP_AFTER)"
 else
   step_fail "complete refreshes the row to done and adds XP to the chip (open $OPEN_BEFORE_COMPLETE -> $OPEN_AFTER_COMPLETE, chip $CHIP_BEFORE + $ROW_XP = $EXPECTED_CHIP, got $CHIP_AFTER)"
+fi
 fi
 
 # ---- 5.17 journey progress cards: XP / momentum / quest history (S4b) ----
@@ -796,7 +882,12 @@ ACH_MOCK='{"achievements":[{"key":"getting_started","title":"Getting Started","e
 playwright-cli route "**/api/xp" --body="$XP_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli route "**/api/achievements" --body="$ACH_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli click "[data-tab=today]" >/dev/null 2>&1; sleep 1
-playwright-cli --raw eval "(async () => { const row = document.querySelector('#quests-card .quest-row[data-status=\"open\"]'); await mutateQuest(Number(row.dataset.questId), 'complete'); })()" >/dev/null 2>&1
+# Trigger the mocked level crossing. Prefer the real mutation path (complete
+# an open quest) when one exists; fall back to a plain loadData refresh when
+# the check-in/quest sections already completed every row (rotation-dependent
+# — streak_alive auto-completes from the wizard entry, mood/habit from the
+# check-in card) — the banner fires from the mocked level diff either way.
+playwright-cli --raw eval "(async () => { const row = document.querySelector('#quests-card .quest-row[data-status=\"open\"]'); if (row) { await mutateQuest(Number(row.dataset.questId), 'complete'); } else { await loadData(); } })()" >/dev/null 2>&1
 S6_BANNER=""; S6_TOAST=""
 for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
