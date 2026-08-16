@@ -1900,15 +1900,25 @@ function renderCollectibles(collRes) {
 function renderCollectibleShelf(collectibles) {
   const list = $("collectibles-list");
   list.innerHTML = "";
+  const defs = $("island-plant-defs");
   for (const c of collectibles) {
     const li = document.createElement("li");
     li.className = "collectible-row";
     li.dataset.state = c.earned ? "earned" : "locked";
     li.dataset.key = c.key;
-    // CSS-only medallion art (earned) vs muted silhouette (locked); aria-hidden.
+    // Cloned island plant artwork in an inline SVG (single source: the keyed
+    // <g> defs, no duplicated art). Earned keeps the ip-* fills; locked rows
+    // silhouette to --island-plant-locked in CSS. Decorative: aria-hidden.
     const art = document.createElement("span");
     art.className = "collectible-art";
     art.setAttribute("aria-hidden", "true");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 20 28");
+    const def = defs?.querySelector(`[data-plant-key="${c.key}"]`);
+    if (def) {
+      svg.append(def.cloneNode(true));
+    }
+    art.append(svg);
     const title = document.createElement("span");
     title.className = "collectible-title";
     title.textContent = c.title;

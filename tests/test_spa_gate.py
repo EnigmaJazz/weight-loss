@@ -394,6 +394,42 @@ async def test_index_html_ships_mascot_and_wizard_indicator(client):
 
 
 @pytest.mark.asyncio
+async def test_index_html_mascot_reuses_island_fox_symbol(client):
+    """The header mascot must be the shared island fox symbol — a rounded
+    brand-green tile with <use href="#island-fox-symbol"> — never a second
+    copy of the fox geometry or hardcoded colours (r2a-island-polish Issue 1,
+    spec R-R2A-1/R-R2A-2: one definition, referenced everywhere)."""
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    header_row = html[html.index('<div class="header-row">') : html.index("</header>")]
+    mascot = header_row[
+        header_row.index('<span class="mascot"')
+        : header_row.index("</span>") + len("</span>")
+    ]
+    # Shared symbol reuse: the exact symbol id, referenced via <use>.
+    assert '<use href="#island-fox-symbol"' in mascot, (
+        "mascot must reference the shared island fox symbol"
+    )
+    assert 'id="island-fox-symbol"' in html, (
+        "the shared island fox symbol must ship once in the document"
+    )
+    # The tile is a rounded square whose fill comes from CSS, not markup.
+    assert '<rect class="mascot-tile"' in mascot
+    assert re.search(r"fill=\s*[\"']", mascot) is None, (
+        "mascot markup must not carry inline fill colours"
+    )
+    # No duplicated fox geometry or hardcoded colours in the mascot markup.
+    assert re.search(r"#[0-9a-fA-F]{3,8}\b", mascot) is None, (
+        "mascot markup must not carry hex colour literals"
+    )
+    assert "M17.5 3.75" not in html, "old hardcoded mascot geometry must be gone"
+    assert "#eb892c" not in html, "old mascot fox-orange hex must be gone"
+    assert "#b45c16" not in html, "old mascot ear/outline hex must be gone"
+    assert "#fcf8f0" not in html, "old mascot cream hex must be gone"
+
+
+@pytest.mark.asyncio
 async def test_app_js_ships_component_hooks(client):
     """app.js must wire the streak flame + active-streak data attribute, the
     wizard indicator .is-current sync with aria-current, and the toast
@@ -1660,7 +1696,9 @@ async def test_style_css_ships_weekly_rules_token_only(client):
 # fetches /api/collectibles in loadJourneyCards' allSettled, keeps
 # prevCollectibleKeys, queues collectibleSignals (collectible_first_earn) on
 # fulfilled reads, recolours the island plants on success, and never clears
-# the shelf on failure. CSS token-only.
+# the shelf on failure. The shelf clones the keyed island plant defs into an
+# inline SVG per row (single source of truth, no duplicated artwork); locked
+# rows silhouette to --island-plant-locked. CSS token-only.
 
 
 @pytest.mark.asyncio
@@ -1723,6 +1761,17 @@ async def test_journey_collectibles_surface(client):
     assert "renderWorldLatestEarn" not in body
     assert "ddMmYyKey" not in body
     assert "world-latest-earn" not in body
+    # Shelf art (r2a-island-polish): renderCollectibleShelf builds an inline
+    # 20x28 SVG per row, finds the matching keyed <g> in #island-plant-defs and
+    # clones it (single source, no duplicated artwork), keeps the span
+    # aria-hidden, and fails soft when a def is missing (row still renders).
+    shelf = _js_fn_body(body, "renderCollectibleShelf")
+    assert 'createElementNS("http://www.w3.org/2000/svg", "svg")' in shelf
+    assert 'setAttribute("viewBox", "0 0 20 28")' in shelf
+    assert '$("island-plant-defs")' in shelf
+    assert "data-plant-key" in shelf
+    assert "cloneNode(true)" in shelf
+    assert 'art.setAttribute("aria-hidden", "true")' in shelf
 
     css = await client.get("/static/style.css")
     assert css.status_code == 200
@@ -1736,6 +1785,22 @@ async def test_journey_collectibles_surface(client):
         assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
             "collectible CSS must be token-only (no hex literals)"
         )
+    # Shelf art styling (r2a-island-polish): the inline SVG is sized to its
+    # 20x28 box, locked rows silhouette descendant fills to --island-plant-locked
+    # exactly like the island layer (outline retained), and the obsolete
+    # medallion disc / ::after dot are gone.
+    assert re.search(r"\.collectible-art\s*\{\s*display:\s*inline-flex", sheet) is not None
+    assert re.search(r"\.collectible-art svg\s*\{\s*display:\s*block", sheet) is not None
+    assert re.search(
+        r'\.collectible-row\[data-state="locked"\]\s+\.collectible-art\s*\*\s*\{\s*fill:\s*var\(--island-plant-locked\)',
+        sheet,
+    ) is not None, "locked collectible art must silhouette via --island-plant-locked"
+    assert not re.search(r"\.collectible[a-z-]*::after", sheet), (
+        "collectible art must not depend on ::after"
+    )
+    assert not re.search(r"\.collectible-art\s*\{[^}]*background", sheet), (
+        "collectible art must not use a medallion background"
+    )
     # Mobile (<=480px must not clip) + reduced-motion (card/art/plants static).
     mobile = sheet[sheet.index("@media (max-width: 480px)"):]
     assert re.search(r"\.collectible-row[^}]*flex-wrap", mobile) is not None

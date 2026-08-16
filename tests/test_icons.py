@@ -78,13 +78,14 @@ def test_regenerated_icons_match_committed_artifacts(make_icons: ModuleType) -> 
         committed = ICON_DIR / f"icon-{size}.png"
         assert _decode_png(generated) == _decode_png(committed)
 
-# ---- fox redraw pins (r2a-island-polish Unit 1, R-R2A-1/R-R2A-9) ----------
-# Deterministic probes at both sizes pin the reference-style fox: oversized
-# pointed ears, dark inner-ear shading, orange fur with a warm-brown contour,
-# cream muzzle/chin, dark expressive eyes with cream gleams, nose and smile.
-# Palette constants mirror make_icons.py (which mirrors the CSS fox tokens);
-# the previous cartoon fox fails every probe (verified in the RED pass), so a
-# regression cannot pass silently.
+# ---- island fox redraw pins (r2a-island-polish Unit 1, R-R2A-1/R-R2A-9) ---
+# Deterministic probes at both sizes pin the exact island-fox-symbol face:
+# tall narrow pointed ears with dark inner shading, orange fur with a warm-
+# brown contour, a cream lower-face muzzle, dark oval eyes with cream gleams,
+# short curved brows, a nose and a smiling mouth. Palette constants mirror
+# make_icons.py (which mirrors the CSS fox tokens); the previous cartoon fox
+# fails every probe (verified in the RED pass), so a regression cannot pass
+# silently.
 
 _FOX = (244, 124, 44)       # #f47c2c reference orange (--fox)
 _FOX_DARK = (216, 102, 44)  # #d8662c inner-ear orange (--fox-dark)
@@ -93,27 +94,34 @@ _CREAM = (255, 240, 207)    # #fff0cf cream muzzle / gleams (--island-fox-face)
 _EYE = (58, 34, 20)         # #3a2214 dark eyes / nose (--island-fox-eye)
 _BG = (47, 125, 84)         # #2f7d54 brand green (palette lockstep)
 
-# 512-space probes -> (nx, ny, expected color), scaled by size/512. All points
-# sit well inside their feature (interior probes, not boundary pixels), except
-# the head-edge contour probe which pins the warm-brown outline itself.
-_CARTOON_FOX_PROBES = [
-    # oversized ears: orange fur + dark inner-ear shading
-    (142, 60, _FOX), (184, 125, _FOX_DARK), (328, 125, _FOX_DARK),
-    # face: orange fur; warm-brown contour at the right cheek's edge
-    (256, 220, _FOX), (396, 300, _FOX), (427, 315, _OUTLINE),
-    # cream muzzle/chin below the smile; eyes + cream gleams above the muzzle
-    (256, 464, _CREAM), (200, 292, _EYE), (196, 285, _CREAM),
-    # nose on the cream + the smile arc (outline-brown)
-    (256, 415, _EYE), (256, 461, _OUTLINE),
-    # brand green background untouched beside the fox
-    (60, 300, _BG),
+# 64-space probes -> (nx, ny, expected color), scaled by size/64 with the
+# renderer's vertical centering (+2.5 units). All points sit well inside
+# their feature (interior probes, not boundary pixels), except the chin-edge
+# contour probe which pins the warm-brown outline itself.
+_ISLAND_FOX_PROBES = [
+    # tall narrow pointed ears: orange fur + dark inner-ear shading
+    (16, 8, _FOX), (17, 11, _FOX_DARK), (47, 11, _FOX_DARK),
+    # face: orange fur on the forehead and both cheeks
+    (32, 26, _FOX), (20, 30, _FOX), (44, 30, _FOX),
+    # cream muzzle below the smile; oval eyes + cream gleams above it
+    (32, 50, _CREAM), (24.5, 34.5, _EYE), (39.5, 34.5, _EYE),
+    (23.4, 33.2, _CREAM), (38.6, 33.2, _CREAM),
+    # nose on the cream; brows and mouth stem (outline-brown strokes)
+    (32, 40.5, _EYE), (24.5, 28, _OUTLINE), (39.5, 28, _OUTLINE),
+    (32, 44, _OUTLINE),
+    # warm-brown contour at the chin's bottom edge
+    (29, 54.5, _OUTLINE),
+    # brand green background untouched around the fox
+    (5, 30, _BG), (32, 2, _BG),
 ]
 
 
 @pytest.mark.parametrize("size", (192, 512))
-def test_cartoon_fox_face_geometry(make_icons: ModuleType, size: int) -> None:
+def test_island_fox_face_geometry(make_icons: ModuleType, size: int) -> None:
     rgba = make_icons.render(size)
-    s = size / 512.0
-    for nx, ny, expected in _CARTOON_FOX_PROBES:
-        i = (int(ny * s) * size + int(nx * s)) * 4
+    s = size / 64.0
+    for nx, ny, expected in _ISLAND_FOX_PROBES:
+        x = int(nx * s)
+        y = int((ny + 2.5) * s)
+        i = (y * size + x) * 4
         assert (rgba[i], rgba[i + 1], rgba[i + 2]) == expected

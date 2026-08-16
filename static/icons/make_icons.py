@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """Generate PWA icons for the Weight Loss Tracker (pure stdlib, no deps).
 
-Draws the reference-style fox face on the app's green background
-(r2a-island-polish Unit 1, R-R2A-1/R-R2A-9): oversized pointed ears with
-dark inner shading, a broad rounded orange head, a wide cream muzzle/chin,
-a warm-brown contour around the whole fox, and an expressive face — dark
-eyes with cream gleams, a nose, and a simple smile. Colours mirror the CSS
-fox token family (`--fox`, `--fox-dark`, `--fox-outline`,
-`--island-fox-face`, `--island-fox-eye`); the brand background stays the
-lockstep-pinned `#2f7d54`. Flat fills, no gradients, no shading.
+Draws the island fox mascot — the exact <symbol id="island-fox-symbol">
+geometry from static/index.html — on the app's green background. The SVG's
+cubic body and muzzle paths are sampled into polygons, scaled from 64-space
+onto the icon canvas, and painted with the token palette: warm fox-orange
+fur, darker inner ears, a cream lower-face muzzle, dark oval eyes with cream
+gleams, short curved brows, a small nose, and a smiling mouth, all wrapped
+in the warm-brown contour. Flat token fills, no gradients, no shading.
 Writes a PNG with the stdlib zlib+struct writer (zero-dependency approach).
 
 Usage: python3 make_icons.py [output_dir]
 """
 
 import logging
+import math
 import struct
 import sys
 import zlib
@@ -30,6 +30,56 @@ FOX_DARK = (216, 102, 44)   # #d8662c deeper inner-ear orange (--fox-dark)
 OUTLINE = (120, 55, 31)     # #78371f warm-brown contour (--fox-outline)
 CREAM = (255, 240, 207)     # #fff0cf cream muzzle / gleams (--island-fox-face)
 EYE = (58, 34, 20)          # #3a2214 dark expressive eyes / nose (--island-fox-eye)
+
+# --- island-fox-symbol geometry (64-space, static/index.html) ---------------
+# The fox body and cream muzzle are closed cubic paths; each is sampled into
+# a polygon with _closed_polygon(). The remaining features are the symbol's
+# exact shapes scaled to the canvas.
+
+# Body silhouette: left ear -> left cheek -> chin -> right cheek -> right ear
+# -> crown between the ears -> back to the left ear tip.
+BODY_CUBICS: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]] = [
+    ((11, 4), (13, 5), (15, 9), (16, 15)),
+    ((16, 15), (13, 18), (11, 25), (11, 32)),
+    ((11, 32), (11, 42), (18, 52), (27, 54)),
+    ((27, 54), (29, 55), (35, 55), (37, 54)),
+    ((37, 54), (46, 52), (53, 42), (53, 32)),
+    ((53, 32), (53, 25), (51, 18), (48, 15)),
+    ((48, 15), (49, 9), (51, 5), (53, 4)),
+    ((53, 4), (49, 5), (45, 9), (42, 16)),
+    ((42, 16), (39, 21), (36, 23), (32, 23)),
+    ((32, 23), (28, 23), (25, 21), (22, 16)),
+    ((22, 16), (19, 9), (15, 5), (11, 4)),
+]
+
+# Cream lower-face mask tucked into the body (its own closed cubic path).
+MUZZLE_CUBICS: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]] = [
+    ((32, 38), (24, 36), (17, 39), (16, 45)),
+    ((16, 45), (15, 51), (22, 54), (32, 54)),
+    ((32, 54), (42, 54), (49, 51), (48, 45)),
+    ((48, 45), (47, 39), (40, 36), (32, 38)),
+]
+
+# Dark inner-ear triangles (fill --fox-dark).
+INNER_L = ((17, 14), (13, 7), (21, 13))
+INNER_R = ((47, 14), (51, 7), (43, 13))
+
+# Oval eyes, cream gleams, nose (fill --island-fox-eye / --island-fox-face).
+EYE_L = (24.5, 34.5, 3.2, 4.0)      # (cx, cy, rx, ry)
+EYE_R = (39.5, 34.5, 3.2, 4.0)
+GLEAM_L = (23.4, 33.2, 1.35)        # (cx, cy, r)
+GLEAM_R = (38.6, 33.2, 1.35)
+NOSE = (32.0, 40.5, 2.8, 2.0)
+
+# Brows and mouth: outline-brown strokes (stroke-width 1.4 in the symbol).
+# Quadratic curves are (start, control, end); the mouth stem is a straight
+# segment encoded as a degenerate quadratic.
+BROW_L = ((20.5, 28.5), (24.5, 27.5), (28.5, 28.5))
+BROW_R = ((35.5, 28.5), (39.5, 27.5), (43.5, 28.5))
+MOUTH_STEM = ((32.0, 43.0), (32.0, 44.25), (32.0, 45.5))
+MOUTH_L = ((32.0, 45.5), (28.0, 47.5), (26.0, 45.0))
+MOUTH_R = ((32.0, 45.5), (36.0, 47.5), (38.0, 45.0))
+STROKE_HALF = 0.7  # 64-space half-width of the symbol's 1.4-unit strokes
 
 
 def point_in_triangle(
@@ -78,17 +128,103 @@ def in_ellipse(
     return ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1.0
 
 
-def _in_mouth(x: float, y: float, s: float) -> bool:
-    """The fox's smile: a short connector under the nose plus a shallow arc
-    (512-space geometry scaled by ``s``), drawn in the warm-brown outline."""
-    half = max(1.0, 1.5 * s)
-    if abs(x - 256 * s) <= half and 431 * s <= y <= 452 * s:
-        return True
-    if 228 * s - half <= x <= 284 * s + half:
-        t = max(0.0, min(1.0, (x / s - 228.0) / 56.0))
-        y_arc = (452.0 + 36.0 * t * (1.0 - t)) * s
-        return abs(y - y_arc) <= half
+def _cubic_points(
+    p0: tuple[float, float],
+    c1: tuple[float, float],
+    c2: tuple[float, float],
+    p1: tuple[float, float],
+    steps: int,
+) -> list[tuple[float, float]]:
+    """Sample one cubic Bezier (64-space) into ``steps + 1`` points."""
+    pts: list[tuple[float, float]] = []
+    for i in range(steps + 1):
+        t = i / steps
+        mt = 1.0 - t
+        pts.append(
+            (
+                mt**3 * p0[0] + 3.0 * mt**2 * t * c1[0] + 3.0 * mt * t**2 * c2[0] + t**3 * p1[0],
+                mt**3 * p0[1] + 3.0 * mt**2 * t * c1[1] + 3.0 * mt * t**2 * c2[1] + t**3 * p1[1],
+            )
+        )
+    return pts
+
+
+def _closed_polygon(
+    cubics: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]],
+    steps: int,
+) -> list[tuple[float, float]]:
+    """Sample a closed cubic path into a polygon (shared endpoints deduped)."""
+    pts: list[tuple[float, float]] = []
+    for p0, c1, c2, p1 in cubics:
+        pts.extend(_cubic_points(p0, c1, c2, p1, steps)[:-1])
+    pts.append(pts[0])
+    return pts
+
+
+def _scale(
+    points: list[tuple[float, float]], u: float, ox: float, oy: float
+) -> list[tuple[float, float]]:
+    return [(x * u + ox, y * u + oy) for x, y in points]
+
+
+def _quad_points(
+    p0: tuple[float, float],
+    c: tuple[float, float],
+    p1: tuple[float, float],
+    steps: int = 8,
+) -> list[tuple[float, float]]:
+    """Sample one quadratic Bezier (64-space) into ``steps + 1`` points."""
+    pts: list[tuple[float, float]] = []
+    for i in range(steps + 1):
+        t = i / steps
+        mt = 1.0 - t
+        pts.append(
+            (
+                mt**2 * p0[0] + 2.0 * mt * t * c[0] + t**2 * p1[0],
+                mt**2 * p0[1] + 2.0 * mt * t * c[1] + t**2 * p1[1],
+            )
+        )
+    return pts
+
+
+def _dist_to_segment(
+    px: float, py: float, ax: float, ay: float, bx: float, by: float
+) -> float:
+    dx = bx - ax
+    dy = by - ay
+    length_sq = dx * dx + dy * dy
+    if length_sq == 0.0:
+        return math.hypot(px - ax, py - ay)
+    t = ((px - ax) * dx + (py - ay) * dy) / length_sq
+    t = max(0.0, min(1.0, t))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def _near_stroke(
+    x: float, y: float, segments: list[tuple[float, float, float, float]], half: float
+) -> bool:
+    """True when (x, y) lies within ``half`` of any stroke segment."""
+    for ax, ay, bx, by in segments:
+        if _dist_to_segment(x, y, ax, ay, bx, by) <= half:
+            return True
     return False
+
+
+def _stroke_segments(
+    quads: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float]]],
+    u: float,
+    ox: float,
+    oy: float,
+) -> list[tuple[float, float, float, float]]:
+    """Sample the symbol's stroke curves into scaled line segments."""
+    segments: list[tuple[float, float, float, float]] = []
+    for p0, c, p1 in quads:
+        pts = _scale(_quad_points(p0, c, p1), u, ox, oy)
+        segments.extend(
+            (pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
+            for i in range(len(pts) - 1)
+        )
+    return segments
 
 
 def _on_outline(x: int, y: int, size: int, mask: bytearray) -> bool:
@@ -107,62 +243,63 @@ def _on_outline(x: int, y: int, size: int, mask: bytearray) -> bool:
 
 
 def render(size: int) -> bytes:
-    """Return raw RGBA pixels for the reference-style fox icon at `size` square.
+    """Return raw RGBA pixels for the island fox icon at `size` square.
 
-    Geometry lives in 512-space and scales with ``size / 512.0``, so the
-    same face renders identically at 192 and 512 (pinned by
-    tests/test_icons.py's fox probes). A silhouette mask (ears + head +
-    cheeks + muzzle) drives a 1px warm-brown contour around the fox.
+    The symbol geometry lives in 64-space and scales with ``size / 64.0``,
+    so the same face renders identically at 192 and 512 (pinned by
+    tests/test_icons.py's fox probes). A silhouette mask (the sampled body
+    polygon) drives a 1px warm-brown contour around the fox.
     """
-    s = size / 512.0
+    u = size / 64.0
+    # The fox's 64-space bbox is x 11..53 (centred) and y 4..55; nudge it
+    # down so the icon's vertical centre matches the canvas centre.
+    ox = 0.0
+    oy = 2.5 * u
 
-    # Oversized pointed ears with a flat base that sits inside the head.
-    left_ear = [(120 * s, 26 * s), (170 * s, 175 * s), (262 * s, 175 * s)]
-    right_ear = [(392 * s, 26 * s), (342 * s, 175 * s), (250 * s, 175 * s)]
-    # Dark inner ear: smaller triangle inside each ear.
-    left_inner = [(149 * s, 71 * s), (176 * s, 153 * s), (227 * s, 153 * s)]
-    right_inner = [(363 * s, 71 * s), (336 * s, 153 * s), (285 * s, 153 * s)]
-    # Broad rounded head: a big ellipse plus two bulging cheek circles.
-    head = (256 * s, 300 * s, 150 * s, 160 * s)
-    cheek_l = (165 * s, 315 * s, 80 * s)
-    cheek_r = (347 * s, 315 * s, 80 * s)
-    # Cream lower-face mask reaching the chin (part of the silhouette).
-    muzzle = (256 * s, 388 * s, 100 * s, 84 * s)
-    # Expressive eyes sit above the muzzle, each with a cream gleam.
-    eye_l = (200 * s, 292 * s, 15 * s, 19 * s)
-    eye_r = (312 * s, 292 * s, 15 * s, 19 * s)
-    gleam_l = (196 * s, 285 * s, 5.5 * s)
-    gleam_r = (308 * s, 285 * s, 5.5 * s)
-    # Nose on the cream muzzle; the smile is drawn by _in_mouth.
-    nose = (256 * s, 418 * s, 18 * s, 13 * s)
+    body = _scale(_closed_polygon(BODY_CUBICS, 24), u, ox, oy)
+    muzzle = _scale(_closed_polygon(MUZZLE_CUBICS, 24), u, ox, oy)
 
-    # Pass 1: silhouette mask (ears + head + cheeks + muzzle).
+    inner_l = _scale(list(INNER_L), u, ox, oy)
+    inner_r = _scale(list(INNER_R), u, ox, oy)
+
+    eye_l = (EYE_L[0] * u + ox, EYE_L[1] * u + oy, EYE_L[2] * u, EYE_L[3] * u)
+    eye_r = (EYE_R[0] * u + ox, EYE_R[1] * u + oy, EYE_R[2] * u, EYE_R[3] * u)
+    gleam_l = (GLEAM_L[0] * u + ox, GLEAM_L[1] * u + oy, GLEAM_L[2] * u)
+    gleam_r = (GLEAM_R[0] * u + ox, GLEAM_R[1] * u + oy, GLEAM_R[2] * u)
+    nose = (NOSE[0] * u + ox, NOSE[1] * u + oy, NOSE[2] * u, NOSE[3] * u)
+
+    strokes = _stroke_segments([BROW_L, BROW_R, MOUTH_STEM, MOUTH_L, MOUTH_R], u, ox, oy)
+    half_stroke = STROKE_HALF * u
+
+    # Bounding box of the body polygon: everything outside is brand green.
+    xs = [p[0] for p in body]
+    ys = [p[1] for p in body]
+    bx0 = max(0, int(min(xs)))
+    bx1 = min(size - 1, int(max(xs)))
+    by0 = max(0, int(min(ys)))
+    by1 = min(size - 1, int(max(ys)))
+
+    # Pass 1: silhouette mask (the fox body polygon).
     mask = bytearray(size * size)
-    for y in range(size):
+    for y in range(by0, by1 + 1):
         base = y * size
-        for x in range(size):
-            if (
-                point_in_triangle(x, y, *left_ear)
-                or point_in_triangle(x, y, *right_ear)
-                or in_ellipse(x, y, *head)
-                or in_circle(x, y, *cheek_l)
-                or in_circle(x, y, *cheek_r)
-                or in_ellipse(x, y, *muzzle)
-            ):
+        for x in range(bx0, bx1 + 1):
+            if point_in_polygon(x, y, body):
                 mask[base + x] = 1
 
     # Pass 2: colour each pixel, features over the base fill, contour last.
-    px = bytearray()
-    for y in range(size):
+    bg_pixel = bytes(BG) + b"\xff"
+    px = bytearray(bg_pixel * size * size)
+    for y in range(by0, by1 + 1):
         base = y * size
-        for x in range(size):
-            if not mask[base + x]:
-                px += bytes(BG) + b"\xff"
+        for x in range(bx0, bx1 + 1):
+            idx = base + x
+            if not mask[idx]:
                 continue
             color = FOX
-            if point_in_triangle(x, y, *left_inner) or point_in_triangle(x, y, *right_inner):
+            if point_in_triangle(x, y, *inner_l) or point_in_triangle(x, y, *inner_r):
                 color = FOX_DARK
-            if in_ellipse(x, y, *muzzle):
+            if point_in_polygon(x, y, muzzle):
                 color = CREAM
             if in_ellipse(x, y, *eye_l) or in_ellipse(x, y, *eye_r):
                 color = EYE
@@ -170,11 +307,14 @@ def render(size: int) -> bytes:
                 color = CREAM
             if in_ellipse(x, y, *nose):
                 color = EYE
-            if _in_mouth(x, y, s):
+            if _near_stroke(x, y, strokes, half_stroke):
                 color = OUTLINE
             if _on_outline(x, y, size, mask):
                 color = OUTLINE
-            px += bytes(color) + b"\xff"
+            o = idx * 4
+            px[o] = color[0]
+            px[o + 1] = color[1]
+            px[o + 2] = color[2]
     return bytes(px)
 
 

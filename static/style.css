@@ -18,6 +18,9 @@
   --text: #1f2933;
   --muted: #6b7280;
   --accent: #2f7d54;
+  --brand-green: #2f7d54; /* dedicated brand token (r2a-island-polish Issue 3):
+                            * stays lockstep with --accent; used by the mascot
+                            * tile and the green swatch. */
   --accent-dark: #266442;
   --border: #e2e8f0;
   --danger: #c0392b;
@@ -162,13 +165,14 @@
 
 /* Accent colour swatch previews — each swatch uses its own CSS token so the
  * preview circle always shows the correct colour regardless of the selected
- * accent. Green's swatch consumes --accent (the :root default), and the
- * non-default swatch hexes are pinned equal to their [data-accent] tokens by
+ * accent. Green's swatch consumes the dedicated --brand-green token (which
+ * stays lockstep with the :root --accent default), and the non-default
+ * swatch hexes are pinned equal to their [data-accent] tokens by
  * tests/test_palette_lockstep.py. */
 .swatch-purple { --swatch: #7352a3; }
 .swatch-teal   { --swatch: #207c78; }
 .swatch-blue   { --swatch: #376fa8; }
-.swatch-green  { --swatch: var(--accent); }
+.swatch-green  { --swatch: var(--brand-green); }
 .swatch-orange { --swatch: #b45f26; }
 
 * { box-sizing: border-box; }
@@ -219,6 +223,10 @@ header h1 {
   height: 2.2rem;
   display: block;
 }
+/* Mascot tile (r2a-island-polish Issue 1/3): the brand-green rounded square
+ * behind the shared fox symbol; fill comes from --brand-green (lockstep with
+ * --accent) so the tile can never drift from the header brand colour. */
+.mascot-tile { fill: var(--brand-green); }
 /* Theme toggle + Log out group at the far right of the header row (design
  * D4: margin-left:auto moved from #logout-btn to #theme-toggle so the pair
  * stays grouped at flex-end; the toggle is always visible pre-auth, D3). */
@@ -1026,31 +1034,26 @@ button.link:hover { color: var(--accent); background: none; }
   font-weight: 600;
 }
 
-/* medallion art: fox/gold disc + CSS-only ::after mark (earned) vs muted
- * silhouette disc (locked); no text glyphs, tokens only. */
+/* collectible art (r2a-island-polish): cloned island plant SVG in a 20x28
+ * box sized to the row. Earned rows keep the full ip-* fills; locked rows
+ * silhouette every descendant fill to --island-plant-locked exactly like the
+ * island layer, retaining the warm outline. Token-only, no text glyphs. */
 .collectible-art {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-pill);
+  height: 2.8rem;
   flex: none;
 }
-.collectible-art::after {
-  content: "";
+.collectible-art svg {
   display: block;
-  width: 0.9rem;
-  height: 0.9rem;
-  border-radius: var(--radius-pill);
+  width: 100%;
+  height: 100%;
 }
-.collectible-row[data-state="earned"] .collectible-art {
-  background: var(--gold);
-  box-shadow: var(--shadow-1);
+.collectible-row[data-state="locked"] .collectible-art * {
+  fill: var(--island-plant-locked);
 }
-.collectible-row[data-state="earned"] .collectible-art::after { background: var(--fox-dark); }
-.collectible-row[data-state="locked"] .collectible-art { background: var(--border); }
-.collectible-row[data-state="locked"] .collectible-art::after { background: var(--muted); }
 
 
 /* mobile: the shelf rows wrap instead of clipping at the right edge. */
