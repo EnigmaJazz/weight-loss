@@ -57,6 +57,22 @@
   --island-sun: #fde68a;
   --island-fox-face: #fff0cf;  /* cream muzzle / gleams */
   --island-fox-eye: #3a2214;    /* dark expressive eyes / nose */
+   /* r2a-island-polish Unit 2: compact illustrated plant tokens (muted warm
+    * palette, warm-brown rounded outlines). --island-plant-locked is the
+    * muted-sage silhouette fill for unearned plants — grayer + lighter than
+    * --island-ground so locked spots stay visibly distinct in both themes. */
+   --island-plant-outline: #7c4a26;
+   --island-plant-locked: #adbd9e;
+  --island-plant-eye: #4a2c18;
+  --island-plant-green: #7ba35a;
+  --island-plant-green-deep: #55804a;
+  --island-plant-cream: #f7e8c9;
+  --island-plant-coral: #e37a5e;
+  --island-plant-red: #c9664f;
+  --island-plant-gold: #eeb95c;
+  --island-plant-purple: #9b7ab4;
+  --island-plant-blue: #7e92c3;
+  --island-plant-tan: #c58d52;
 }
 
 /* Accent colour overrides (r2b-accent-colour Unit 2).
@@ -127,6 +143,21 @@
   --island-sun: #fcd34d;
   --island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
   --island-fox-eye: #241509;    /* deeper eye/nose for dark surfaces */
+   /* r2a-island-polish Unit 2: plant tokens in the dark palette (lightened for
+    * contrast on dark surfaces); locked is a muted sage, lighter + grayer than
+    * the dark ground so silhouettes stay distinct. */
+   --island-plant-outline: #a06a3c;
+   --island-plant-locked: #7e8c78;
+  --island-plant-eye: #241509;
+  --island-plant-green: #8fae68;
+  --island-plant-green-deep: #63905a;
+  --island-plant-cream: #f8ecd2;
+  --island-plant-coral: #e98a70;
+  --island-plant-red: #d77a63;
+  --island-plant-gold: #f2c46c;
+  --island-plant-purple: #ad8fc4;
+  --island-plant-blue: #93a6d1;
+  --island-plant-tan: #cf9c63;
 }
 
 /* Accent colour swatch previews — each swatch uses its own CSS token so the
@@ -310,6 +341,42 @@ main {
 .island-fox-eye,
 .island-fox-nose { fill: var(--island-fox-eye); }
 .island-fox-eye-gleam { fill: var(--island-fox-face); }
+
+/* r2a-island-polish Unit 2: plant artwork classes. Every ip-* rule consumes
+ * plant tokens only — muted warm fills + warm-brown rounded outline; stroke
+ * -only detail lines (veins/spines/scales) use .ip-line. */
+.ip-green, .ip-green-deep, .ip-cream, .ip-coral, .ip-red, .ip-gold,
+.ip-purple, .ip-blue, .ip-tan {
+  stroke: var(--island-plant-outline);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ip-green { fill: var(--island-plant-green); }
+.ip-green-deep { fill: var(--island-plant-green-deep); }
+.ip-cream { fill: var(--island-plant-cream); }
+.ip-coral { fill: var(--island-plant-coral); }
+.ip-red { fill: var(--island-plant-red); }
+.ip-gold { fill: var(--island-plant-gold); }
+.ip-purple { fill: var(--island-plant-purple); }
+.ip-blue { fill: var(--island-plant-blue); }
+.ip-tan { fill: var(--island-plant-tan); }
+.ip-eye { fill: var(--island-plant-eye); }
+.ip-line {
+  fill: none;
+  stroke: var(--island-plant-outline);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Island plants layer (r2a-island-polish Unit 2): clones sit above the ground
+ * and below the stage groups so fox/tree stay legible. Earned = full colour;
+ * locked = silhouette fill (--island-plant-locked) with the warm outline
+ * retained. Token-only. */
+#island-plants .island-plant[data-earned="false"] * {
+  fill: var(--island-plant-locked);
+}
 
 /* stage name + progress (static stage-1 defaults; Slice 3 renders live). */
 .island-stage-name {
@@ -985,17 +1052,6 @@ button.link:hover { color: var(--accent); background: none; }
 .collectible-row[data-state="locked"] .collectible-art { background: var(--border); }
 .collectible-row[data-state="locked"] .collectible-art::after { background: var(--muted); }
 
-/* World island latest-earn accent (r2-completion S5): a small medallion
- * pinned inside the island SVG marking the most recent earn. Hidden by
- * default; app.js reveals it with the latest earned key. */
-.world-latest-earn-ring {
-  fill: var(--gold);
-  stroke: var(--fox-dark);
-  stroke-width: 1.5;
-}
-.world-latest-earn-glyph {
-  fill: var(--fox-dark);
-}
 
 /* mobile: the shelf rows wrap instead of clipping at the right edge. */
 @media (max-width: 480px) {
@@ -1375,8 +1431,9 @@ a:focus-visible,
   .quest-domain-icon,
   .mascot,
   .island-fox,
-  .collectible-art,
-  .world-latest-earn {
+  .island-plants,
+  .island-plant,
+  .collectible-art {
     animation: none !important;
     transition: none !important;
   }

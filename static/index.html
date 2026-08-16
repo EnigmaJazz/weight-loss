@@ -499,6 +499,11 @@
               <circle class="island-sun" cx="198" cy="28" r="13"/>
               <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
               <path class="island-ground" d="M18 118 C64 92 176 92 222 118 L222 150 L18 150 Z"/>
+              <!-- Plant layer (r2a-island-polish Unit 2): dynamic sibling of the
+                   keyed artwork defs below; app.js clones the current stage's
+                   plants here. Rendered between ground and stage groups so the
+                   fox/tree stay legible; aria-hidden (decorative). -->
+              <g id="island-plants" class="island-plants" aria-hidden="true"></g>
               <!-- Fox mascot (r2a-island-polish Unit 1): ONE shared definition;
                    each stage group references it with its own transform/scale,
                    so poses differ only by placement, never by duplicated
@@ -518,6 +523,182 @@
                   <ellipse class="island-fox-nose" cx="32" cy="40.5" rx="2.8" ry="2"/>
                   <path class="island-fox-mouth" d="M32 43 V45.5 M32 45.5 Q28 47.5 26 45 M32 45.5 Q36 47.5 38 45"/>
                 </symbol>
+                <!-- Plant artwork (r2a-island-polish Unit 2): 16 compact
+                     botanical motifs matching the reference set, each a <g>
+                     keyed with data-plant-key inside a shared 20x28 local box
+                     (base at 10,28). Warm-brown rounded outlines + muted warm
+                     flat fills via ip-* tokens; static defs are cloned into
+                     #island-plants by app.js with stable placement transforms,
+                     and locked clones silhouette to --island-plant-locked. -->
+                <g id="island-plant-defs">
+                  <g data-plant-key="getting_started">
+                    <rect class="ip-tan" x="2.5" y="15.5" width="15" height="12" rx="1.5"/>
+                    <rect class="ip-coral" x="1.5" y="13.5" width="17" height="3" rx="1.4"/>
+                    <rect class="ip-green" x="4.2" y="5" width="2.7" height="7.5" rx="1.35"/>
+                    <rect class="ip-green" x="13.1" y="5" width="2.7" height="7.5" rx="1.35"/>
+                    <ellipse class="ip-green" cx="10" cy="10" rx="4" ry="7"/>
+                    <path class="ip-line" d="M5.8 5.2 l-1.6 -0.8 M6.1 8 l-1.7 0.2 M14.2 5.2 l1.6 -0.8 M13.9 8 l1.7 0.2"/>
+                    <circle class="ip-eye" cx="8.4" cy="9" r="0.75"/>
+                    <circle class="ip-eye" cx="11.6" cy="9" r="0.75"/>
+                    <path class="ip-line" d="M8.9 11.4 Q10 12.2 11.1 11.4"/>
+                  </g>
+                  <g data-plant-key="moving_forward">
+                    <path class="ip-green" d="M10 27 C8 22.6 6.4 18.4 5.4 14.8"/>
+                    <path class="ip-green" d="M10 27 C10.4 22 10.2 17.2 9.8 12.8"/>
+                    <path class="ip-green" d="M10 27 C12.6 23 14 18.6 14.6 14.8"/>
+                    <g class="ip-green">
+                      <circle cx="5.4" cy="12.6" r="2.1"/>
+                      <circle cx="5.4" cy="16.8" r="2.1"/>
+                      <circle cx="3.3" cy="14.7" r="2.1"/>
+                      <circle cx="7.5" cy="14.7" r="2.1"/>
+                    </g>
+                    <g class="ip-green">
+                      <circle cx="9.8" cy="10.6" r="2.1"/>
+                      <circle cx="9.8" cy="14.8" r="2.1"/>
+                      <circle cx="7.7" cy="12.7" r="2.1"/>
+                      <circle cx="11.9" cy="12.7" r="2.1"/>
+                    </g>
+                    <g class="ip-green">
+                      <circle cx="14.6" cy="12.6" r="2.1"/>
+                      <circle cx="14.6" cy="16.8" r="2.1"/>
+                      <circle cx="12.5" cy="14.7" r="2.1"/>
+                      <circle cx="16.7" cy="14.7" r="2.1"/>
+                    </g>
+                    <circle class="ip-green-deep" cx="5.4" cy="14.7" r="0.7"/>
+                    <circle class="ip-green-deep" cx="9.8" cy="12.7" r="0.7"/>
+                    <circle class="ip-green-deep" cx="14.6" cy="14.7" r="0.7"/>
+                  </g>
+                  <g data-plant-key="consistency">
+                    <path class="ip-green" d="M10 27 C7.6 23.4 6.4 19.4 6 15.2"/>
+                    <path class="ip-green" d="M10 27 C10 22 9.9 17.4 9.8 13.2"/>
+                    <path class="ip-green" d="M10 27 C12.6 23.6 13.9 19.8 14.3 15.6"/>
+                    <ellipse class="ip-purple" cx="6" cy="12.8" rx="1.6" ry="2.1"/>
+                    <ellipse class="ip-purple" cx="6" cy="9.6" rx="1.5" ry="2"/>
+                    <ellipse class="ip-purple" cx="6" cy="6.6" rx="1.4" ry="1.9"/>
+                    <ellipse class="ip-purple" cx="9.8" cy="10.8" rx="1.6" ry="2.1"/>
+                    <ellipse class="ip-purple" cx="9.8" cy="7.6" rx="1.5" ry="2"/>
+                    <ellipse class="ip-purple" cx="9.8" cy="4.6" rx="1.4" ry="1.9"/>
+                    <ellipse class="ip-purple" cx="14.3" cy="13" rx="1.6" ry="2.1"/>
+                    <ellipse class="ip-purple" cx="14.3" cy="9.8" rx="1.5" ry="2"/>
+                    <ellipse class="ip-purple" cx="14.3" cy="6.8" rx="1.4" ry="1.9"/>
+                    <path class="ip-green" d="M9.2 26.8 C7.6 26 6.4 25 5.6 23.6"/>
+                    <path class="ip-green" d="M10.8 26.8 C12.4 26 13.6 25 14.4 23.6"/>
+                  </g>
+                  <g data-plant-key="comeback">
+                    <path class="ip-green" d="M10 27 C9.4 20.4 9.8 14.2 10 9.2"/>
+                    <circle class="ip-cream" cx="10" cy="7.4" r="3.6"/>
+                    <circle class="ip-tan" cx="10" cy="7.4" r="1.1"/>
+                    <path class="ip-line" d="M10 4.4 L10 3.2 M13.6 5.4 L14.8 4.8 M14.9 9 L16.3 9.5 M13 12.2 L14 13.4 M6.4 5.4 L5.2 4.8 M5.1 9 L3.7 9.5 M7 12.2 L6 13.4 M10 11 L10 12.4"/>
+                    <path class="ip-line" d="M15.8 2.8 l1.5 -0.9"/>
+                    <circle class="ip-cream" cx="15.8" cy="2.8" r="0.9"/>
+                    <path class="ip-line" d="M3.4 5.4 l-1.3 -1"/>
+                    <circle class="ip-cream" cx="3.4" cy="5.4" r="0.8"/>
+                  </g>
+                  <g data-plant-key="explorer">
+                    <path class="ip-coral" d="M3 12.6 C3 6.4 17 6.4 17 12.6 Z"/>
+                    <ellipse class="ip-cream" cx="10" cy="12.6" rx="7" ry="2.4"/>
+                    <rect class="ip-cream" x="7.5" y="12.4" width="5" height="15" rx="2.3"/>
+                    <circle class="ip-cream" cx="7.2" cy="9.4" r="1.7"/>
+                    <circle class="ip-cream" cx="13" cy="9" r="1.4"/>
+                    <circle class="ip-cream" cx="10" cy="11.4" r="1.2"/>
+                  </g>
+                  <g data-plant-key="personal_best">
+                    <path class="ip-green" d="M9.4 27 L10.6 27 L10.4 15.5 L9.6 15.5 Z"/>
+                    <path class="ip-green-deep" d="M9.7 20.6 C7.8 20 6 19.9 4.7 20.6 C5.7 22.1 7.7 22.6 9.7 22 Z"/>
+                    <path class="ip-green-deep" d="M10.3 17.6 C12.2 17 14 16.9 15.3 17.6 C14.3 19.1 12.3 19.6 10.3 19 Z"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(0 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(45 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(90 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(135 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(180 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(225 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(270 10 8.6)"/>
+                    <ellipse class="ip-gold" cx="10" cy="3.6" rx="1.7" ry="2.6" transform="rotate(315 10 8.6)"/>
+                    <circle class="ip-gold" cx="10" cy="8.6" r="3.9"/>
+                    <circle class="ip-eye" cx="8.5" cy="7.9" r="0.7"/>
+                    <circle class="ip-eye" cx="11.5" cy="7.9" r="0.7"/>
+                    <path class="ip-line" d="M8.6 10.1 Q10 11.5 11.4 10.1"/>
+                  </g>
+                  <g data-plant-key="checkpoint_10">
+                    <path class="ip-green-deep" d="M10 26 C6.6 25.2 4.2 22.6 3.8 19.2 C6.4 19.2 9 21.2 10 24.6 Z"/>
+                    <path class="ip-green-deep" d="M10 26 C13.4 25.2 15.8 22.6 16.2 19.2 C13.6 19.2 11 21.2 10 24.6 Z"/>
+                    <path class="ip-green-deep" d="M10 26 C9 22.4 9 18.6 10 15.2 C11 18.6 11 22.4 10 26 Z"/>
+                    <path class="ip-green" d="M10 23.6 C7.8 23 6.4 21.4 6.1 19.2 C7.9 19.6 9.4 20.8 10 22.8 Z"/>
+                    <path class="ip-green" d="M10 23.6 C12.2 23 13.6 21.4 13.9 19.2 C12.1 19.6 10.6 20.8 10 22.8 Z"/>
+                    <path class="ip-green" d="M10 21.6 C9.4 20.6 9.4 19.2 10 18.2 C10.6 19.2 10.6 20.6 10 21.6 Z"/>
+                  </g>
+                  <g data-plant-key="checkpoint_25">
+                    <path class="ip-tan" d="M10.4 26.5 C8.2 24.6 7.4 21.8 7.8 18.8 C6.4 18.4 5.4 17 5.4 15.2 C5.4 13.4 6.4 12 7.8 11.6 C7.4 9.4 8.6 7 10.8 6 C12.6 7.2 13.4 9.6 12.8 11.8 C14.2 12.4 15 13.8 14.8 15.6 C14.6 17.4 13.4 18.6 12 19 C12.6 22.4 11.8 25 10.4 26.5 Z"/>
+                    <path class="ip-line" d="M10.2 26.5 C10 27.1 9.9 27.4 9.7 27.8"/>
+                    <path class="ip-line" d="M9.8 22.2 C10.2 20 10.4 17.6 10.6 15.6 M10.4 18.6 C9.2 18 8.4 16.9 7.9 15.4 M10.7 15.9 C11.9 15.1 12.8 14.1 13.2 12.6"/>
+                  </g>
+                  <g data-plant-key="checkpoint_50">
+                    <path class="ip-green" d="M10 8.4 C9.3 12 9.7 15.8 11.6 19.6"/>
+                    <circle class="ip-red" cx="9.4" cy="21.6" r="5.8"/>
+                    <path class="ip-green-deep" d="M10 9.2 C8.3 8.4 6.7 8.2 5.5 8.8 C6.5 10.2 8.4 10.8 10 10 Z"/>
+                    <ellipse class="ip-cream" cx="7.2" cy="19.4" rx="1.4" ry="2.2"/>
+                  </g>
+                  <g data-plant-key="checkpoint_75">
+                    <path class="ip-coral" d="M10 10.2 C8.4 8.2 6.4 8.2 5.5 9.6 C4.6 10.9 5.6 12.4 7.4 12.7 C8.4 12.9 9.3 12.4 10 11.6 Z"/>
+                    <path class="ip-coral" d="M10 10.2 C11.6 8.2 13.6 8.2 14.5 9.6 C15.4 10.9 14.4 12.4 12.6 12.7 C11.6 12.9 10.7 12.4 10 11.6 Z"/>
+                    <path class="ip-red" d="M10 8 C9.2 6.8 7.9 5.9 7 6.7 C6.2 7.4 6.7 8.9 8.5 9.5 C9.1 9.7 9.7 9.6 10 9.3 Z"/>
+                    <path class="ip-red" d="M10 10.8 C9.3 10.5 8.7 11 8.8 11.7 C8.9 12.4 9.8 12.6 10 11.8 Z"/>
+                    <path class="ip-green" d="M9.3 11.4 L10.7 11.4 L10.3 26.4 L9.7 26.4 Z"/>
+                    <path class="ip-green-deep" d="M9.7 19.4 C8.2 18.8 6.8 18.8 6 19.6 C7 21 8.8 21.4 9.8 20.8 Z"/>
+                    <path class="ip-green-deep" d="M10.3 16.8 C11.8 16.2 13.2 16.2 14 17 C13 18.4 11.2 18.8 10.2 18.2 Z"/>
+                  </g>
+                  <g data-plant-key="checkpoint_100">
+                    <path class="ip-red" d="M10 27 C4.6 26.2 3 21.2 3.4 16.6 C3.8 12.6 6.6 10 10 10.6 C13.4 10 16.2 12.6 16.6 16.6 C17 21.2 15.4 26.2 10 27 Z"/>
+                    <path class="ip-red" d="M8.7 10.4 C8.9 9.3 9.4 8.9 10 8.9 C10.6 8.9 11.1 9.3 11.3 10.4 C10.8 10 9.2 10 8.7 10.4 Z"/>
+                    <path class="ip-green" d="M10 8.9 C9.8 7.2 10 5.6 10.6 4.4"/>
+                    <path class="ip-green-deep" d="M10.6 6.6 C12.4 5.6 14.2 5.6 15.4 6.6 C14.6 8 12.4 8.4 10.6 7.4 Z"/>
+                    <ellipse class="ip-cream" cx="6.9" cy="19.2" rx="1.5" ry="2.6"/>
+                  </g>
+                  <g data-plant-key="meal_7">
+                    <circle class="ip-blue" cx="6.6" cy="21.4" r="3"/>
+                    <circle class="ip-blue" cx="13" cy="21.6" r="3"/>
+                    <circle class="ip-blue" cx="10" cy="25.2" r="3.1"/>
+                    <path class="ip-green-deep" d="M4.9 18.7 C5.7 18 7.5 18 8.3 18.7 C7.8 19.1 5.4 19.1 4.9 18.7 Z"/>
+                    <path class="ip-green-deep" d="M6 18.9 C4.6 18.3 3.5 18.1 3.1 18.7 C3.7 19.9 5.1 20.3 6.3 19.9 Z"/>
+                    <path class="ip-green-deep" d="M14.2 19.1 C15.6 18.5 16.7 18.3 17.1 18.9 C16.5 20.1 15.1 20.5 13.9 20.1 Z"/>
+                    <circle class="ip-cream" cx="5.4" cy="20.2" r="0.9"/>
+                    <circle class="ip-cream" cx="11.9" cy="20.4" r="0.9"/>
+                  </g>
+                  <g data-plant-key="meal_30">
+                    <path class="ip-green" d="M9.8 15.6 C9.7 13.6 10.5 11.8 12 10.6"/>
+                    <path class="ip-green" d="M12.4 11.6 C13.7 10.5 14.8 10.7 15.1 12 C15.3 12.9 14.5 13.6 13.7 13.2"/>
+                    <path class="ip-green-deep" d="M9.8 16.2 C8.2 15.4 6.9 15.2 6.1 15.8 C6.9 17.2 8.7 17.6 9.9 17 Z"/>
+                    <circle class="ip-purple" cx="6.4" cy="19.8" r="2.7"/>
+                    <circle class="ip-purple" cx="13.2" cy="19.8" r="2.7"/>
+                    <circle class="ip-purple" cx="9.8" cy="17.6" r="2.8"/>
+                    <circle class="ip-purple" cx="6.4" cy="24.4" r="2.7"/>
+                    <circle class="ip-purple" cx="13.2" cy="24.4" r="2.7"/>
+                    <circle class="ip-purple" cx="9.8" cy="22" r="2.8"/>
+                    <circle class="ip-purple" cx="9.8" cy="25.8" r="2.6"/>
+                  </g>
+                  <g data-plant-key="meal_100">
+                    <path class="ip-green-deep" d="M5.2 18.2 C3.8 17.4 2.8 17.2 2.4 17.8 C3 19.2 4.4 19.6 5.6 19.2 Z"/>
+                    <path class="ip-green-deep" d="M14.8 18.2 C16.2 17.4 17.2 17.2 17.6 17.8 C17 19.2 15.6 19.6 14.4 19.2 Z"/>
+                    <circle class="ip-red" cx="5.8" cy="19.8" r="2.7"/>
+                    <circle class="ip-red" cx="13.4" cy="19.8" r="2.7"/>
+                    <circle class="ip-red" cx="9.6" cy="22.4" r="2.7"/>
+                    <circle class="ip-red" cx="9.6" cy="26" r="2.6"/>
+                    <circle class="ip-cream" cx="4.9" cy="18.9" r="0.8"/>
+                    <circle class="ip-cream" cx="12.5" cy="18.9" r="0.8"/>
+                  </g>
+                  <g data-plant-key="weekly_quests">
+                    <path class="ip-tan" d="M10 27 C6.8 25.4 5.4 20.6 5.6 14.8 C5.8 10.4 7.6 7.4 10 6 C12.4 7.4 14.2 10.4 14.4 14.8 C14.6 20.6 13.2 25.4 10 27 Z"/>
+                    <path class="ip-line" d="M6.4 11.6 Q10 13.2 13.6 11.6 M6.2 15.4 Q10 17 13.8 15.4 M6.6 19.2 Q10 20.8 13.4 19.2 M7.2 23 Q10 24.6 12.8 23"/>
+                    <path class="ip-line" d="M9.7 27 L9.7 27.8 M10.3 27 L10.3 27.8"/>
+                  </g>
+                  <g data-plant-key="weekly_good_days">
+                    <path class="ip-tan" d="M9.6 24.6 C7 23.2 5 20.8 4.4 18 C6.6 18.4 8.6 20.2 9.6 23 Z"/>
+                    <path class="ip-green-deep" d="M10.4 24.6 C13 23.2 15 20.8 15.6 18 C13.4 18.4 11.4 20.2 10.4 23 Z"/>
+                    <path class="ip-green" d="M10 26.5 C8.8 21.5 8.8 16 10 11 C11.2 16 11.2 21.5 10 26.5 Z"/>
+                    <path class="ip-line" d="M10 25.8 C10 22 10 18.2 10 14.4 M9.4 23 C8.2 22.2 7.2 21 6.6 19.6 M10.6 23 C11.8 22.2 12.8 21 13.4 19.6"/>
+                    <path class="ip-line" d="M10 26.5 C10 27.2 10 27.6 10 27.9"/>
+                  </g>
+                </g>
               </defs>
               <g class="island-stage" data-stage="1" data-stage-name="sprout">
                 <rect class="island-stem" x="118.5" y="96" width="3" height="16" rx="1.5"/>
@@ -569,13 +750,6 @@
                 <circle class="island-flower" cx="76" cy="112" r="3"/>
                 <circle class="island-flower" cx="184" cy="116" r="3"/>
                 <use class="island-fox" href="#island-fox-symbol" width="64" height="64" transform="translate(154, 62) scale(0.68)"/>
-              </g>
-              <!-- latest-earn accent (r2-completion S5): small medallion pinned
-                   inside the island (not a floating badge), hidden/empty until
-                   app.js sets the latest earned key (spec R12). -->
-              <g id="world-latest-earn" class="world-latest-earn" data-key="" aria-label="" hidden>
-                <circle class="world-latest-earn-ring" cx="40" cy="112" r="9"/>
-                <path class="world-latest-earn-glyph" d="M40 108.5 L43.5 112 L40 115.5 L36.5 112 Z"/>
               </g>
             </svg>
             <p class="island-stage-name" id="world-stage-name">Sprout Isle</p>

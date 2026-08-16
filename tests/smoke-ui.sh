@@ -747,12 +747,14 @@ BACK_THEME="$(playwright-cli --raw eval 'document.documentElement.dataset.theme'
 [ "$BACK_THEME" = "light" ] && step_ok "theme restored after weekly assertions" || step_fail "theme restored after weekly assertions (got '$BACK_THEME')"
 playwright-cli unroute "**/api/weekly" >/dev/null 2>&1
 
-# ---- 5.19 collectibles shelf + World accent (r2-completion S5) -----------
+# ---- 5.19 collectibles shelf + World plants (r2-completion S5 / r2a Unit 2) ---
 # Mock /api/collectibles for the deterministic 16-entry catalogue (same keys
 # as constants.COLLECTIBLE_CATALOG); assert exact row order, earned
-# medallions + DD/MM/YY dates, locked silhouettes, the chronological World
-# accent, empty-accent clear, failure-scoped shelf preservation, the
-# first-earn signal seam consumed once into a toast (S6), no confetti; unroute.
+# medallions + DD/MM/YY dates, locked silhouettes, the World island plant
+# layer (current stage's spots rendered; mocked getting_started/moving_forward
+# earned, the rest locked silhouettes), all-locked clear, failure-scoped shelf
+# preservation, the first-earn signal seam consumed once into a toast (S6),
+# no confetti; unroute.
 echo "-- collectibles (mocked /api/collectibles)"
 mkdir -p artifacts/r2-completion-s5
 COLLECTIBLE_KEYS=(
@@ -824,11 +826,23 @@ COLLECTIBLE_STATE_TEXT="$(playwright-cli --raw eval "document.querySelector('#co
 COLLECTIBLE_ART_DIFFERS="$(playwright-cli --raw eval "(() => { const e = document.querySelector('#collectibles-card .collectible-row[data-state=\"earned\"] .collectible-art'); const l = document.querySelector('#collectibles-card .collectible-row[data-state=\"locked\"] .collectible-art'); const eb = getComputedStyle(e).backgroundColor; const lb = getComputedStyle(l).backgroundColor; const em = getComputedStyle(e, '::after').backgroundColor; const lm = getComputedStyle(l, '::after').backgroundColor; return String(!!e && !!l && e.getAttribute('aria-hidden') === 'true' && e.textContent.trim() === '' && eb !== lb && em !== lm); })()" 2>&1 | tr -d '"')"
 [ "$COLLECTIBLE_ART_DIFFERS" = "true" ] && step_ok "earned/locked art differ via computed styles, no text glyphs" || step_fail "earned/locked art differ via computed styles, no text glyphs (got '$COLLECTIBLE_ART_DIFFERS')"
 playwright-cli screenshot --filename="artifacts/r2-completion-s5/collectibles-journey-light.png" --full-page >/dev/null 2>&1
-# World accent: latest earn by date (05/08/26 crosses month over 31/07/26), not catalogue position.
+# World island plants: the current stage's ordered set renders in the plant
+# layer (5/8/12/14/16 spots); mocked getting_started + moving_forward are
+# earned (coloured fills), the rest locked (silhouette fill), all visible.
 playwright-cli click "[data-tab=world]" >/dev/null 2>&1
 sleep 1
-WORLD_ACCENT="$(playwright-cli --raw eval "(() => { const a = document.querySelector('#world-latest-earn'); return String((a?.dataset.key ?? '') + '|' + (a?.getAttribute('aria-label') ?? '') + '|' + (!a.hasAttribute('hidden') && getComputedStyle(a).display !== 'none')); })()" 2>&1 | tr -d '"')"
-[ "$WORLD_ACCENT" = "getting_started|Latest collectible: Getting Started|true" ] && step_ok "world accent marks the chronologically latest earn (key|label|visible: $WORLD_ACCENT)" || step_fail "world accent marks the chronologically latest earn (got '$WORLD_ACCENT')"
+WORLD_STAGE_AT="$(playwright-cli --raw eval "Number(document.querySelector('#world-island')?.dataset.currentStage ?? 1)" 2>&1 | tr -d '"')"
+case "$WORLD_STAGE_AT" in
+  1) PLANT_SET_COUNT=5;;
+  2) PLANT_SET_COUNT=8;;
+  3) PLANT_SET_COUNT=12;;
+  4) PLANT_SET_COUNT=14;;
+  5) PLANT_SET_COUNT=16;;
+  *) PLANT_SET_COUNT=-1;;
+esac
+PLANT_LOCKED_COUNT=$((PLANT_SET_COUNT - 2))
+WORLD_PLANTS="$(playwright-cli --raw eval "(() => { const plants = [...document.querySelectorAll('#island-plants .island-plant')]; const earned = plants.filter(p => p.dataset.earned === 'true').map(p => p.dataset.plantKey).join('|'); const locked = plants.filter(p => p.dataset.earned === 'false').length; const visible = plants.length > 0 && plants.every(p => getComputedStyle(p).display !== 'none'); const eLeaf = plants.find(p => p.dataset.earned === 'true')?.querySelector('.ip-green'); const lLeaf = plants.find(p => p.dataset.earned === 'false')?.querySelector('.ip-green'); const fillsDiffer = !!eLeaf && !!lLeaf && getComputedStyle(eLeaf).fill !== getComputedStyle(lLeaf).fill; return String(plants.length) + '|' + earned + '|' + locked + '|' + String(visible && fillsDiffer); })()" 2>&1 | tr -d '"')"
+[ "$WORLD_PLANTS" = "$PLANT_SET_COUNT|getting_started|moving_forward|$PLANT_LOCKED_COUNT|true" ] && step_ok "world plants: current-stage spots rendered, gs+mf earned, rest locked (stage $WORLD_STAGE_AT: $WORLD_PLANTS)" || step_fail "world plants: current-stage spots rendered, gs+mf earned, rest locked (got '$WORLD_PLANTS')"
 # Signal seam + queue: swap mock C + loadData() WITHOUT reload (prev set survives).
 playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_NEW_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli --raw eval "loadData()" >/dev/null 2>&1
@@ -843,12 +857,12 @@ playwright-cli --raw eval "loadData()" >/dev/null 2>&1
 sleep 1
 COLLECTIBLE_FAIL="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row').length + '|' + (!document.querySelector('#collectibles-error').hidden) + '|' + collectibleSignals.length" 2>&1 | tr -d '"')"
 [ "$COLLECTIBLE_FAIL" = "16|true|0" ] && step_ok "failed read preserves 16 rows, shows error, does not re-signal ($COLLECTIBLE_FAIL)" || step_fail "failed read preserves 16 rows, shows error, does not re-signal (got '$COLLECTIBLE_FAIL')"
-# All-locked fulfilled payload: 16 locked rows, accent hidden + key cleared.
+# All-locked fulfilled payload: 16 locked rows, current-stage plants all locked.
 playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_EMPTY_MOCK" --content-type=application/json >/dev/null 2>&1
 playwright-cli --raw eval "loadData()" >/dev/null 2>&1
 sleep 1
-COLLECTIBLE_LOCKED_ALL="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row[data-state=\"locked\"]').length + '|' + document.querySelector('#world-latest-earn').hasAttribute('hidden') + '|' + (!document.querySelector('#world-latest-earn').hasAttribute('data-key'))" 2>&1 | tr -d '"')"
-[ "$COLLECTIBLE_LOCKED_ALL" = "16|true|true" ] && step_ok "all-locked payload renders 16 locked rows and hides/clears the accent ($COLLECTIBLE_LOCKED_ALL)" || step_fail "all-locked payload renders 16 locked rows and hides/clears the accent (got '$COLLECTIBLE_LOCKED_ALL')"
+COLLECTIBLE_LOCKED_ALL="$(playwright-cli --raw eval "document.querySelectorAll('#collectibles-card .collectible-row[data-state=\"locked\"]').length + '|' + [...document.querySelectorAll('#island-plants .island-plant')].filter(p => p.dataset.earned === 'true').length + '|' + [...document.querySelectorAll('#island-plants .island-plant')].filter(p => p.dataset.earned === 'false').length" 2>&1 | tr -d '"')"
+[ "$COLLECTIBLE_LOCKED_ALL" = "16|0|$PLANT_SET_COUNT" ] && step_ok "all-locked payload renders 16 locked rows and current-stage plants all locked ($COLLECTIBLE_LOCKED_ALL)" || step_fail "all-locked payload renders 16 locked rows and current-stage plants all locked (got '$COLLECTIBLE_LOCKED_ALL')"
 # Dark theme: reload the 2-earned mock, then flip the toggle so the same DOM
 # re-themes through the dark tokens (no reload — the pref save is debounced).
 playwright-cli route "**/api/collectibles" --body="$COLLECTIBLE_MOCK" --content-type=application/json >/dev/null 2>&1
@@ -862,9 +876,9 @@ COLLECTIBLE_DARK="$(playwright-cli --raw eval "document.querySelectorAll('#colle
 [ "$COLLECTIBLE_DARK" = "16|2" ] && step_ok "collectibles renders 16 rows with 2 earned in dark theme ($COLLECTIBLE_DARK)" || step_fail "collectibles renders 16 rows with 2 earned in dark theme (got '$COLLECTIBLE_DARK')"
 playwright-cli click "[data-tab=world]" >/dev/null 2>&1
 sleep 1
-WORLD_ACCENT_DARK="$(playwright-cli --raw eval "(() => { const a = document.querySelector('#world-latest-earn'); return (a?.dataset.key ?? '') + '|' + (!a.hasAttribute('hidden') && getComputedStyle(a).display !== 'none'); })()" 2>&1 | tr -d '"')"
-[ "$WORLD_ACCENT_DARK" = "getting_started|true" ] && step_ok "world accent renders in dark theme ($WORLD_ACCENT_DARK)" || step_fail "world accent renders in dark theme (got '$WORLD_ACCENT_DARK')"
-playwright-cli resize 390 844 >/dev/null 2>&1 && playwright-cli screenshot --filename="artifacts/r2-completion-s5/collectibles-world-dark-mobile.png" --full-page >/dev/null 2>&1 && playwright-cli resize 1920 1080 >/dev/null 2>&1
+WORLD_PLANTS_DARK="$(playwright-cli --raw eval "(() => { const plants = [...document.querySelectorAll('#island-plants .island-plant')]; return String(plants.length) + '|' + plants.filter(p => p.dataset.earned === 'true').length + '|' + plants.filter(p => p.dataset.earned === 'false').length; })()" 2>&1 | tr -d '"')"
+[ "$WORLD_PLANTS_DARK" = "$PLANT_SET_COUNT|2|$PLANT_LOCKED_COUNT" ] && step_ok "world plants keep the 2-earned split in dark theme ($WORLD_PLANTS_DARK)" || step_fail "world plants keep the 2-earned split in dark theme (got '$WORLD_PLANTS_DARK')"
+playwright-cli resize 390 844 >/dev/null 2>&1 && playwright-cli screenshot --filename="artifacts/r2-completion-s5/plants-world-dark-mobile.png" --full-page >/dev/null 2>&1 && playwright-cli resize 1920 1080 >/dev/null 2>&1
 playwright-cli click "[data-tab=me]" >/dev/null 2>&1
 playwright-cli click 'input[name="appearance"][value="system"]' >/dev/null 2>&1 && playwright-cli click 'input[name="appearance"][value="light"]' >/dev/null 2>&1
 sleep 1
