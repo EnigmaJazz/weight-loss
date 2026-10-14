@@ -16,17 +16,25 @@ project-specific.
 ## Module map
 
 - `main.py` — FastAPI app factory (`create_app`) + lifespan wiring + `init_app_state`
-- `routes.py` — all `/api/*` endpoints, request-body validation, serialization
-- `database.py` — SQLite schema, `Database` class (single connection + lock), row → dataclass mapping, `run_db` thread helper
+- `routes.py` — all `/api/*` endpoints, request-body validation, serialization, `require_user` session dependency
+- `auth.py` — pure password (scrypt) + session/reset token helpers, no I/O
 - `database.py` — SQLite schema, `Database` class (single connection + lock), row → dataclass mapping, `run_db` thread helper, `_local_now` wall-clock timestamps, `active_rewards` reconciliation
 - `units.py` — pure conversions: `kg_to_lb`, `kg_to_stone`, `calculate_bmi`, `weight_display` (returns raw values; rounding for display is the SPA's job)
 - `rewards.py` — checkpoint rewards: `CHECKPOINTS` (10/25/50/75/100), `checkpoint_thresholds`, `active_checkpoints`, `next_checkpoint`, `progress_to_next_checkpoint`, `reward_state`, `compute_baseline`/`compute_current`/`compute_lost`, `remaining_to_target`
+- `quests.py` — daily quest generation/replacement/completion (`generate_quests`, `mark_done`)
+- `xp.py` — XP levels and titles (`level_from_xp`, `level_progress`, `title_for_level`)
+- `achievements.py` — achievement unlock-date detection from `AchievementFacts`
+- `streaks.py` — weight/exercise/meal streaks and first-run milestones (`streak_state`)
+- `momentum.py` — rolling-window day classification (`momentum_state`)
+- `weekly.py` — weekly goals and good-day counts (`goal_state`)
+- `collectibles.py` — island collectible states from checkpoint/weekly-token dates
+- `mailer.py` — SMTP password-reset email (`smtp_configured`, `send_reset_email`)
 - `notifications.py` — VAPID load/generate/persist (persisted payload loads via `_vapid_from_payload`), `send_push`, `send_to_all` (pywebpush)
 - `scheduler.py` — asyncio background loop, daily due-check, dedupe via `notifications_sent`
-- `constants.py` — logger factory (`get_logger`), defaults, DB path, VAPID path, notification messages
-- `models.py` — dataclasses: `WeightEntry`, `PushSubscription`, `ActiveCheckpoint`, `RewardState`, `AppSettings` (`height_cm`), `WeightDisplay`
-- `static/` — vanilla JS SPA (index.html, app.js, style.css, sw.js, manifest.webmanifest); formats the API's raw kg/lb/st/BMI values
-- `tests/` — conftest harness + weight/rewards/api/scheduler/notifications regression tests
+- `constants.py` — `.env` loading, logger factory (`get_logger`), env-driven paths/SMTP/cookie config, defaults, allowlists (`ACCENT_COLORS`, `QUEST_POOL`), notification messages
+- `models.py` — all dataclasses: users/sessions (`User`, `Session`, `ResetToken`), entries (`WeightEntry`, `ExerciseEntry`, `MealEntry`, `MoodEntry`, `HabitEntry`), `AppSettings`, and the `*Facts` / `*State` pairs feeding and returned by the pure domain modules
+- `static/` — vanilla JS SPA (index.html, app.js, auth.js, format.js, style.css, sw.js, manifest.webmanifest, icons/make_icons.py); formats the API's raw kg/lb/st/BMI values
+- `tests/` — conftest harness (`client`/`auth_client`/`onboarded_client`), per-module pytest suites, `frontend/*.test.mjs` (node --test), `smoke-ui.sh` browser smoke
 - `pyrightconfig.json` — pyright config pinned to the `.venv` interpreter (pythonPlatform linux)
 
 ## Hard rules
