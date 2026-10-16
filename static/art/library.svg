@@ -1,0 +1,466 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="art-library" width="0" height="0" aria-hidden="true">
+  <!-- Art library for future upgrades (not used by the live app yet).
+       Islands: one <g data-island-key> per theme on the live island's
+       240x150 frame and mound footprint, so the fox and plant placements
+       carry over; colours come from static/art/library.css tokens via
+       data-island-theme. Plants: keyed <g data-plant-key> artworks in the
+       live 20x28 box (base at 10,28), tagged with data-plant-theme, using
+       ip-* classes (static/style.css + library.css). Preview everything at
+       /static/art/gallery.html. Token classes only, no hex. -->
+  <g id="island-theme-defs">
+    <g data-island-key="dune" data-island-theme="dune" data-island-name="Sunset Dunes">
+      <rect class="island-sky" x="0" y="0" width="240" height="150" rx="12"/>
+      <path class="island-sky-low" d="M0 94 C60 90 180 90 240 94 L240 112 L0 112 Z"/>
+      <g class="island-stars"><circle class="island-star" cx="16" cy="14" r="1.1"/><circle class="island-star" cx="44" cy="46" r="0.8"/><circle class="island-star" cx="70" cy="10" r="1"/><circle class="island-star" cx="96" cy="32" r="0.8"/><circle class="island-star" cx="142" cy="12" r="1.1"/><circle class="island-star" cx="160" cy="40" r="0.8"/><circle class="island-star" cx="226" cy="58" r="0.9"/><circle class="island-star" cx="8" cy="60" r="0.8"/><circle class="island-star" cx="178" cy="8" r="0.8"/><circle class="island-star" cx="118" cy="50" r="0.7"/></g>
+      <circle class="island-sun-halo" cx="196" cy="58" r="23.25"/>
+      <circle class="island-sun" cx="196" cy="58" r="15"/>
+      <ellipse class="island-sun-light" cx="190.3" cy="51.7" rx="4.5" ry="3" transform="rotate(-35 190.3 51.7)"/>
+      <g transform="translate(26 26) scale(0.85)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <g transform="translate(120 18) scale(0.6)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <path class="island-bird" d="M92 30 q2.5 -2.5 5 0 q2.5 -2.5 5 0"/>
+      <g transform="translate(26 112) scale(1)"><path class="island-hill-far" d="M-22 0 L-15 -16 L13 -16 L20 0 Z"/><path class="isl-mesa-band" d="M-17.6 -10 L15.4 -10 L16.6 -7 L-18.8 -7 Z"/></g>
+      <g transform="translate(214 112) scale(0.8)"><path class="island-hill-far" d="M-22 0 L-15 -16 L13 -16 L20 0 Z"/><path class="isl-mesa-band" d="M-17.6 -10 L15.4 -10 L16.6 -7 L-18.8 -7 Z"/></g>
+      <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
+      <path class="island-sea-deep" d="M0 134 L240 134 L240 150 L0 150 Z"/>
+      <path class="island-wave" d="M1 118 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M228 119 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M4 126 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-sand" d="M2 150 C6 126 16 112 36 104 C78 88 162 88 204 104 C224 112 234 126 238 150 Z"/>
+      <path class="island-ground" d="M10 150 C14 128 22 116 40 108 C80 93 160 93 200 108 C218 116 226 128 230 150 Z"/>
+      <path class="island-ground-light" d="M44 106 C84 92 156 92 196 106 C156 98 84 98 44 106 Z"/>
+      <path class="isl-dune-line" d="M58 112 C78 106 96 106 114 112"/>
+      <path class="isl-dune-line" d="M132 126 C150 120 168 120 186 126"/>
+      <path class="isl-dune-line" d="M70 136 C86 131 100 131 116 136"/>
+      <ellipse class="isl-pool" cx="42" cy="110" rx="10" ry="2.8"/>
+      <ellipse class="isl-pool-light" cx="39" cy="109.4" rx="4" ry="0.9"/>
+      <g transform="translate(48 110) scale(0.8)"><path class="isl-palm-trunk" d="M-2 0 C0 -10 5 -20 3 -30 L6 -30 C8 -20 3 -10 2 0 Z"/><path class="isl-palm-leaf" d="M4.5 -30 C-3 -36 -11 -33 -15 -26 C-8 -31 -2 -31 4.5 -29 Z"/><path class="isl-palm-leaf" d="M4.5 -30 C12 -36 20 -33 24 -26 C17 -31 11 -31 4.5 -29 Z"/><path class="isl-palm-leaf-shade" d="M4.5 -30 C0 -38 -6 -40 -11 -38 C-5 -36 0 -33 4.5 -29 Z"/><path class="isl-palm-leaf-shade" d="M4.5 -30 C9 -38 15 -40 20 -38 C14 -36 9 -33 4.5 -29 Z"/><path class="isl-palm-leaf" d="M4.5 -30 C3 -38 5 -42 8 -44 C7 -40 6.5 -35 5.5 -29 Z"/><circle class="isl-coconut" cx="3" cy="-28.5" r="1.8"/><circle class="isl-coconut" cx="6" cy="-28" r="1.8"/></g>
+      <g transform="translate(212 116) scale(0.95)"><rect class="isl-cactus" x="-3" y="-26" width="6" height="26" rx="3"/><rect class="isl-cactus" x="-10" y="-18" width="4.5" height="11" rx="2.25"/><rect class="isl-cactus" x="-10" y="-10" width="8" height="4.5" rx="2.25"/><rect class="isl-cactus" x="5.5" y="-21" width="4.5" height="11" rx="2.25"/><rect class="isl-cactus" x="2" y="-13.5" width="8" height="4.5" rx="2.25"/><rect class="isl-cactus-shade" x="0.8" y="-25" width="2.2" height="25" rx="1.1"/><circle class="isl-flower-top" cx="0" cy="-26.5" r="1.8"/></g>
+      <g transform="translate(26 126) scale(0.7)"><rect class="isl-cactus" x="-3" y="-26" width="6" height="26" rx="3"/><rect class="isl-cactus" x="-10" y="-18" width="4.5" height="11" rx="2.25"/><rect class="isl-cactus" x="-10" y="-10" width="8" height="4.5" rx="2.25"/><rect class="isl-cactus" x="5.5" y="-21" width="4.5" height="11" rx="2.25"/><rect class="isl-cactus" x="2" y="-13.5" width="8" height="4.5" rx="2.25"/><rect class="isl-cactus-shade" x="0.8" y="-25" width="2.2" height="25" rx="1.1"/><circle class="isl-flower-top" cx="0" cy="-26.5" r="1.8"/></g>
+      <path class="island-rock" d="M4.4 142 C4.4 137.8 7.9 136.4 10.7 137.1 C14.2 136.75 15.6 139.9 15.6 142 Z"/>
+      <path class="island-rock-light" d="M6.15 139.9 C6.5 138.15 8.25 137.52 10 137.66 C8.6 138.22 7.48 138.92 6.15 139.9 Z"/>
+      <path class="island-rock" d="M222.2 143 C222.2 137.9 226.45 136.2 229.85 137.05 C234.1 136.62 235.8 140.45 235.8 143 Z"/>
+      <path class="island-rock-light" d="M224.32 140.45 C224.75 138.32 226.88 137.56 229 137.73 C227.3 138.41 225.94 139.26 224.32 140.45 Z"/>
+      <path class="island-grass" d="M147 104 Q147 100 148.6 99 Q149 102 150 97.5 Q151 102 151.6 99 Q153 100 153 104 Z"/>
+      <path class="island-grass" d="M95 146 Q95 142 96.6 141 Q97 144 98 139.5 Q99 144 99.6 141 Q101 142 101 146 Z"/>
+    </g>
+    <g data-island-key="frost" data-island-theme="frost" data-island-name="Frost Peak">
+      <rect class="island-sky" x="0" y="0" width="240" height="150" rx="12"/>
+      <path class="island-sky-low" d="M0 94 C60 90 180 90 240 94 L240 112 L0 112 Z"/>
+      <g class="island-stars"><circle class="island-star" cx="16" cy="14" r="1.1"/><circle class="island-star" cx="44" cy="46" r="0.8"/><circle class="island-star" cx="70" cy="10" r="1"/><circle class="island-star" cx="96" cy="32" r="0.8"/><circle class="island-star" cx="142" cy="12" r="1.1"/><circle class="island-star" cx="160" cy="40" r="0.8"/><circle class="island-star" cx="226" cy="58" r="0.9"/><circle class="island-star" cx="8" cy="60" r="0.8"/><circle class="island-star" cx="178" cy="8" r="0.8"/><circle class="island-star" cx="118" cy="50" r="0.7"/></g>
+      <circle class="island-sun-halo" cx="198" cy="28" r="17.05"/>
+      <circle class="island-sun" cx="198" cy="28" r="11"/>
+      <ellipse class="island-sun-light" cx="193.82" cy="23.38" rx="3.3" ry="2.2" transform="rotate(-35 193.82 23.38)"/>
+      <g transform="translate(22 30) scale(0.95)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <g transform="translate(130 20) scale(0.65)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <circle class="isl-flake" cx="60" cy="20" r="1"/>
+      <circle class="isl-flake" cx="84" cy="44" r="1"/>
+      <circle class="isl-flake" cx="110" cy="12" r="1"/>
+      <circle class="isl-flake" cx="150" cy="34" r="1"/>
+      <circle class="isl-flake" cx="176" cy="54" r="1"/>
+      <circle class="isl-flake" cx="34" cy="58" r="1"/>
+      <circle class="isl-flake" cx="226" cy="70" r="1"/>
+      <circle class="isl-flake" cx="96" cy="66" r="1"/>
+      <g transform="translate(24 112) scale(1)"><path class="island-hill-far" d="M-24 0 L0 -30 L24 0 Z"/><path class="isl-snow" d="M-8.6 -19.2 L0 -30 L8.6 -19.2 L4.4 -21.4 L1.6 -18.6 L-1.6 -21.8 L-4.6 -19.4 Z"/></g>
+      <g transform="translate(56 112) scale(0.7)"><path class="island-hill-far" d="M-24 0 L0 -30 L24 0 Z"/><path class="isl-snow" d="M-8.6 -19.2 L0 -30 L8.6 -19.2 L4.4 -21.4 L1.6 -18.6 L-1.6 -21.8 L-4.6 -19.4 Z"/></g>
+      <g transform="translate(212 112) scale(0.95)"><path class="island-hill-far" d="M-24 0 L0 -30 L24 0 Z"/><path class="isl-snow" d="M-8.6 -19.2 L0 -30 L8.6 -19.2 L4.4 -21.4 L1.6 -18.6 L-1.6 -21.8 L-4.6 -19.4 Z"/></g>
+      <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
+      <path class="island-sea-deep" d="M0 134 L240 134 L240 150 L0 150 Z"/>
+      <path class="island-wave" d="M1 118 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M228 119 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M4 126 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="isl-ice" d="M222 124 L234 124 L232 126.4 L224 126.4 Z"/>
+      <path class="isl-ice" d="M2 132 L11 132 L9 134.4 L4 134.4 Z"/>
+      <path class="island-sand" d="M2 150 C6 126 16 112 36 104 C78 88 162 88 204 104 C224 112 234 126 238 150 Z"/>
+      <path class="island-ground" d="M10 150 C14 128 22 116 40 108 C80 93 160 93 200 108 C218 116 226 128 230 150 Z"/>
+      <path class="island-ground-light" d="M44 106 C84 92 156 92 196 106 C156 98 84 98 44 106 Z"/>
+      <g transform="translate(36 116) scale(0.9)"><rect class="island-trunk" x="-1.5" y="-5" width="3" height="6" rx="1"/><path class="isl-pine" d="M-12 -3 L0 -14 L12 -3 Z"/><path class="isl-pine-shade" d="M0 -14 L12 -3 L2.4 -3 Z"/><path class="isl-snow" d="M-5.04 -9.4 L0 -14 L5.04 -9.4 L2.4 -10.4 L0 -9 L-2.4 -10.4 Z"/><path class="isl-pine" d="M-9.5 -11 L0 -22 L9.5 -11 Z"/><path class="isl-pine-shade" d="M0 -22 L9.5 -11 L1.9 -11 Z"/><path class="isl-snow" d="M-3.99 -17.4 L0 -22 L3.99 -17.4 L1.9 -18.4 L0 -17 L-1.9 -18.4 Z"/><path class="isl-pine" d="M-7 -19 L0 -30 L7 -19 Z"/><path class="isl-pine-shade" d="M0 -30 L7 -19 L1.4 -19 Z"/><path class="isl-snow" d="M-2.94 -25.4 L0 -30 L2.94 -25.4 L1.4 -26.4 L0 -25 L-1.4 -26.4 Z"/></g>
+      <g transform="translate(54 108) scale(0.7)"><rect class="island-trunk" x="-1.5" y="-5" width="3" height="6" rx="1"/><path class="isl-pine" d="M-12 -3 L0 -14 L12 -3 Z"/><path class="isl-pine-shade" d="M0 -14 L12 -3 L2.4 -3 Z"/><path class="isl-snow" d="M-5.04 -9.4 L0 -14 L5.04 -9.4 L2.4 -10.4 L0 -9 L-2.4 -10.4 Z"/><path class="isl-pine" d="M-9.5 -11 L0 -22 L9.5 -11 Z"/><path class="isl-pine-shade" d="M0 -22 L9.5 -11 L1.9 -11 Z"/><path class="isl-snow" d="M-3.99 -17.4 L0 -22 L3.99 -17.4 L1.9 -18.4 L0 -17 L-1.9 -18.4 Z"/><path class="isl-pine" d="M-7 -19 L0 -30 L7 -19 Z"/><path class="isl-pine-shade" d="M0 -30 L7 -19 L1.4 -19 Z"/><path class="isl-snow" d="M-2.94 -25.4 L0 -30 L2.94 -25.4 L1.4 -26.4 L0 -25 L-1.4 -26.4 Z"/></g>
+      <g transform="translate(222 120) scale(0.7)"><rect class="island-trunk" x="-1.5" y="-5" width="3" height="6" rx="1"/><path class="isl-pine" d="M-12 -3 L0 -14 L12 -3 Z"/><path class="isl-pine-shade" d="M0 -14 L12 -3 L2.4 -3 Z"/><path class="isl-snow" d="M-5.04 -9.4 L0 -14 L5.04 -9.4 L2.4 -10.4 L0 -9 L-2.4 -10.4 Z"/><path class="isl-pine" d="M-9.5 -11 L0 -22 L9.5 -11 Z"/><path class="isl-pine-shade" d="M0 -22 L9.5 -11 L1.9 -11 Z"/><path class="isl-snow" d="M-3.99 -17.4 L0 -22 L3.99 -17.4 L1.9 -18.4 L0 -17 L-1.9 -18.4 Z"/><path class="isl-pine" d="M-7 -19 L0 -30 L7 -19 Z"/><path class="isl-pine-shade" d="M0 -30 L7 -19 L1.4 -19 Z"/><path class="isl-snow" d="M-2.94 -25.4 L0 -30 L2.94 -25.4 L1.4 -26.4 L0 -25 L-1.4 -26.4 Z"/></g>
+      <g transform="translate(206 114) scale(0.95)"><circle class="isl-snow" cx="0" cy="-6" r="6.5"/><circle class="isl-snow-shade" cx="1.6" cy="-5.2" r="5.2"/><circle class="isl-snow" cx="-0.6" cy="-6.6" r="5.6"/><circle class="isl-snow" cx="0" cy="-16" r="4.6"/><circle class="isl-snow-shade" cx="1.2" cy="-15.4" r="3.6"/><circle class="isl-snow" cx="-0.4" cy="-16.4" r="4"/><circle class="isl-coal" cx="-1.5" cy="-17" r="0.7"/><circle class="isl-coal" cx="1.5" cy="-17" r="0.7"/><path class="isl-carrot" d="M0 -15.6 L5 -14.6 L0 -14.2 Z"/><circle class="isl-coal" cx="0" cy="-9" r="0.7"/><circle class="isl-coal" cx="0" cy="-6" r="0.7"/><rect class="isl-scarf" x="-4.4" y="-13" width="8.8" height="2.4" rx="1.2"/><rect class="isl-scarf" x="1.6" y="-12.4" width="2.4" height="5" rx="1.2"/></g>
+      <path class="island-rock" d="M4.4 142 C4.4 137.8 7.9 136.4 10.7 137.1 C14.2 136.75 15.6 139.9 15.6 142 Z"/>
+      <path class="island-rock-light" d="M6.15 139.9 C6.5 138.15 8.25 137.52 10 137.66 C8.6 138.22 7.48 138.92 6.15 139.9 Z"/>
+      <path class="island-rock" d="M222.2 143 C222.2 137.9 226.45 136.2 229.85 137.05 C234.1 136.62 235.8 140.45 235.8 143 Z"/>
+      <path class="island-rock-light" d="M224.32 140.45 C224.75 138.32 226.88 137.56 229 137.73 C227.3 138.41 225.94 139.26 224.32 140.45 Z"/>
+      <path class="island-grass" d="M95 146 Q95 142 96.6 141 Q97 144 98 139.5 Q99 144 99.6 141 Q101 142 101 146 Z"/>
+      <path class="island-grass" d="M137 140 Q137 136 138.6 135 Q139 138 140 133.5 Q141 138 141.6 135 Q143 136 143 140 Z"/>
+    </g>
+    <g data-island-key="lagoon" data-island-theme="lagoon" data-island-name="Coral Lagoon">
+      <rect class="island-sky" x="0" y="0" width="240" height="150" rx="12"/>
+      <path class="island-sky-low" d="M0 94 C60 90 180 90 240 94 L240 112 L0 112 Z"/>
+      <g class="island-stars"><circle class="island-star" cx="16" cy="14" r="1.1"/><circle class="island-star" cx="44" cy="46" r="0.8"/><circle class="island-star" cx="70" cy="10" r="1"/><circle class="island-star" cx="96" cy="32" r="0.8"/><circle class="island-star" cx="142" cy="12" r="1.1"/><circle class="island-star" cx="160" cy="40" r="0.8"/><circle class="island-star" cx="226" cy="58" r="0.9"/><circle class="island-star" cx="8" cy="60" r="0.8"/><circle class="island-star" cx="178" cy="8" r="0.8"/><circle class="island-star" cx="118" cy="50" r="0.7"/></g>
+      <circle class="island-sun-halo" cx="200" cy="26" r="18.6"/>
+      <circle class="island-sun" cx="200" cy="26" r="12"/>
+      <ellipse class="island-sun-light" cx="195.44" cy="20.96" rx="3.6" ry="2.4" transform="rotate(-35 195.44 20.96)"/>
+      <g transform="translate(118 18) scale(0.7)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <g transform="translate(160 46) scale(0.55)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <path class="island-bird" d="M140 30 q2.5 -2.5 5 0 q2.5 -2.5 5 0"/>
+      <g transform="translate(34 112) scale(1)"><path class="isl-volcano" d="M-26 0 L-7 -24 L7 -24 L26 0 Z"/><path class="isl-volcano-shade" d="M2 -24 L7 -24 L26 0 L12 0 Z"/><path class="isl-lava" d="M-7 -24 L7 -24 L5 -21 L2 -22.5 L-1 -19 L-3.6 -22 L-5.6 -20.6 Z"/><circle class="isl-smoke" cx="-2" cy="-30" r="3.6"/><circle class="isl-smoke" cx="3" cy="-34" r="4.2"/><circle class="isl-smoke" cx="-1" cy="-39" r="3.2"/></g>
+      <path class="island-hill-far" d="M196 112 C206 102 226 98 242 112 Z"/>
+      <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
+      <path class="island-sea-deep" d="M0 134 L240 134 L240 150 L0 150 Z"/>
+      <path class="island-wave" d="M1 118 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M228 119 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M4 126 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <g transform="translate(231 110) scale(0.5)"><path class="isl-boat" d="M-9 0 L9 0 L6 4 L-6 4 Z"/><rect class="isl-wood" x="-0.6" y="-13" width="1.2" height="13" rx="0.4"/><path class="isl-sail" d="M0.8 -12.5 L8 -1.5 L0.8 -1.5 Z"/><path class="isl-sail-shade" d="M-0.8 -10 L-6 -1.5 L-0.8 -1.5 Z"/></g>
+      <path class="island-sand" d="M2 150 C6 126 16 112 36 104 C78 88 162 88 204 104 C224 112 234 126 238 150 Z"/>
+      <path class="island-ground" d="M10 150 C14 128 22 116 40 108 C80 93 160 93 200 108 C218 116 226 128 230 150 Z"/>
+      <path class="island-ground-light" d="M44 106 C84 92 156 92 196 106 C156 98 84 98 44 106 Z"/>
+      <g transform="translate(40 114) scale(1)"><path class="isl-palm-trunk" d="M-2 0 C0 -10 5 -20 3 -30 L6 -30 C8 -20 3 -10 2 0 Z"/><path class="isl-palm-leaf" d="M4.5 -30 C-3 -36 -11 -33 -15 -26 C-8 -31 -2 -31 4.5 -29 Z"/><path class="isl-palm-leaf" d="M4.5 -30 C12 -36 20 -33 24 -26 C17 -31 11 -31 4.5 -29 Z"/><path class="isl-palm-leaf-shade" d="M4.5 -30 C0 -38 -6 -40 -11 -38 C-5 -36 0 -33 4.5 -29 Z"/><path class="isl-palm-leaf-shade" d="M4.5 -30 C9 -38 15 -40 20 -38 C14 -36 9 -33 4.5 -29 Z"/><path class="isl-palm-leaf" d="M4.5 -30 C3 -38 5 -42 8 -44 C7 -40 6.5 -35 5.5 -29 Z"/><circle class="isl-coconut" cx="3" cy="-28.5" r="1.8"/><circle class="isl-coconut" cx="6" cy="-28" r="1.8"/></g>
+      <g transform="translate(212 116) scale(0.95)"><path class="isl-palm-trunk" d="M-2 0 C-4 -10 -3 -20 -3 -30 L0 -30 C0 -20 -1 -10 2 0 Z"/><path class="isl-palm-leaf" d="M-1.5 -30 C-9 -36 -17 -33 -21 -26 C-14 -31 -8 -31 -1.5 -29 Z"/><path class="isl-palm-leaf" d="M-1.5 -30 C6 -36 14 -33 18 -26 C11 -31 5 -31 -1.5 -29 Z"/><path class="isl-palm-leaf-shade" d="M-1.5 -30 C-6 -38 -12 -40 -17 -38 C-11 -36 -6 -33 -1.5 -29 Z"/><path class="isl-palm-leaf-shade" d="M-1.5 -30 C3 -38 9 -40 14 -38 C8 -36 3 -33 -1.5 -29 Z"/><path class="isl-palm-leaf" d="M-1.5 -30 C-3 -38 -1 -42 2 -44 C1 -40 0.5 -35 -0.5 -29 Z"/><circle class="isl-coconut" cx="-3" cy="-28.5" r="1.8"/><circle class="isl-coconut" cx="0" cy="-28" r="1.8"/></g>
+      <g transform="translate(22 134) scale(0.8)"><path class="isl-starfish" d="M0 -4 L1 -1.38 L3.8 -1.24 L1.62 0.53 L2.35 3.24 L0 1.7 L-2.35 3.24 L-1.62 0.53 L-3.8 -1.24 L-1 -1.38 Z"/></g>
+      <g transform="translate(216 138) scale(0.65)"><path class="isl-starfish" d="M0 -4 L1 -1.38 L3.8 -1.24 L1.62 0.53 L2.35 3.24 L0 1.7 L-2.35 3.24 L-1.62 0.53 L-3.8 -1.24 L-1 -1.38 Z"/></g>
+      <path class="island-rock" d="M4.4 142 C4.4 137.8 7.9 136.4 10.7 137.1 C14.2 136.75 15.6 139.9 15.6 142 Z"/>
+      <path class="island-rock-light" d="M6.15 139.9 C6.5 138.15 8.25 137.52 10 137.66 C8.6 138.22 7.48 138.92 6.15 139.9 Z"/>
+      <path class="island-rock" d="M222.2 143 C222.2 137.9 226.45 136.2 229.85 137.05 C234.1 136.62 235.8 140.45 235.8 143 Z"/>
+      <path class="island-rock-light" d="M224.32 140.45 C224.75 138.32 226.88 137.56 229 137.73 C227.3 138.41 225.94 139.26 224.32 140.45 Z"/>
+      <path class="island-grass" d="M95 146 Q95 142 96.6 141 Q97 144 98 139.5 Q99 144 99.6 141 Q101 142 101 146 Z"/>
+      <path class="island-grass" d="M147 104 Q147 100 148.6 99 Q149 102 150 97.5 Q151 102 151.6 99 Q153 100 153 104 Z"/>
+    </g>
+    <g data-island-key="maple" data-island-theme="maple" data-island-name="Maple Hollow">
+      <rect class="island-sky" x="0" y="0" width="240" height="150" rx="12"/>
+      <path class="island-sky-low" d="M0 94 C60 90 180 90 240 94 L240 112 L0 112 Z"/>
+      <g class="island-stars"><circle class="island-star" cx="16" cy="14" r="1.1"/><circle class="island-star" cx="44" cy="46" r="0.8"/><circle class="island-star" cx="70" cy="10" r="1"/><circle class="island-star" cx="96" cy="32" r="0.8"/><circle class="island-star" cx="142" cy="12" r="1.1"/><circle class="island-star" cx="160" cy="40" r="0.8"/><circle class="island-star" cx="226" cy="58" r="0.9"/><circle class="island-star" cx="8" cy="60" r="0.8"/><circle class="island-star" cx="178" cy="8" r="0.8"/><circle class="island-star" cx="118" cy="50" r="0.7"/></g>
+      <circle class="island-sun-halo" cx="196" cy="30" r="18.6"/>
+      <circle class="island-sun" cx="196" cy="30" r="12"/>
+      <ellipse class="island-sun-light" cx="191.44" cy="24.96" rx="3.6" ry="2.4" transform="rotate(-35 191.44 24.96)"/>
+      <g transform="translate(24 26) scale(0.9)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <g transform="translate(124 16) scale(0.65)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <path class="island-bird" d="M86 30 q2.5 -2.5 5 0 q2.5 -2.5 5 0"/>
+      <path class="island-hill-far" d="M-2 112 C10 96 30 92 52 112 Z"/>
+      <path class="island-hill-far" d="M184 112 C200 96 224 94 242 112 Z"/>
+      <g transform="translate(80 100) scale(0.6)"><path class="isl-wood" d="M-4 0 L-2.6 -16 L2.6 -16 L4 0 Z"/><path class="isl-wood-shade" d="M0.6 0 L1.6 -16 L2.6 -16 L4 0 Z"/><path class="isl-roof" d="M-3.6 -15.6 L0 -20 L3.6 -15.6 Z"/><g transform="translate(0 -17.5) rotate(20)"><rect class="isl-sail" x="-1" y="-13" width="2" height="12" rx="0.6" transform="rotate(0)"/><rect class="isl-sail" x="-1" y="-13" width="2" height="12" rx="0.6" transform="rotate(90)"/><rect class="isl-sail" x="-1" y="-13" width="2" height="12" rx="0.6" transform="rotate(180)"/><rect class="isl-sail" x="-1" y="-13" width="2" height="12" rx="0.6" transform="rotate(270)"/></g><circle class="isl-wood-shade" cx="0" cy="-17.5" r="1"/></g>
+      <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
+      <path class="island-sea-deep" d="M0 134 L240 134 L240 150 L0 150 Z"/>
+      <path class="island-wave" d="M1 118 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M228 119 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M4 126 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-sand" d="M2 150 C6 126 16 112 36 104 C78 88 162 88 204 104 C224 112 234 126 238 150 Z"/>
+      <path class="island-ground" d="M10 150 C14 128 22 116 40 108 C80 93 160 93 200 108 C218 116 226 128 230 150 Z"/>
+      <path class="island-ground-light" d="M44 106 C84 92 156 92 196 106 C156 98 84 98 44 106 Z"/>
+      <g transform="translate(44 112) scale(1.05)"><rect class="island-trunk" x="-1.8" y="-16" width="3.6" height="16" rx="1.8"/><rect class="island-trunk-shade" x="0.2" y="-16" width="1.6" height="16" rx="0.8"/><circle class="isl-maple-shade" cx="-6" cy="-18" r="7"/><circle class="isl-maple-shade" cx="6" cy="-18" r="7"/><circle class="isl-maple-shade" cx="0" cy="-25" r="8.5"/><circle class="isl-maple" cx="-6.56" cy="-18.98" r="6.16"/><circle class="isl-maple" cx="5.44" cy="-18.98" r="6.16"/><circle class="isl-maple" cx="-0.68" cy="-26.19" r="7.48"/><ellipse class="isl-canopy-light" cx="-3" cy="-29" rx="2.6" ry="1.6" transform="rotate(-30 -3 -29)"/></g>
+      <g transform="translate(212 116) scale(0.95)"><rect class="island-trunk" x="-1.8" y="-16" width="3.6" height="16" rx="1.8"/><rect class="island-trunk-shade" x="0.2" y="-16" width="1.6" height="16" rx="0.8"/><circle class="isl-maple-alt-shade" cx="-6" cy="-18" r="7"/><circle class="isl-maple-alt-shade" cx="6" cy="-18" r="7"/><circle class="isl-maple-alt-shade" cx="0" cy="-25" r="8.5"/><circle class="isl-maple-alt" cx="-6.56" cy="-18.98" r="6.16"/><circle class="isl-maple-alt" cx="5.44" cy="-18.98" r="6.16"/><circle class="isl-maple-alt" cx="-0.68" cy="-26.19" r="7.48"/><ellipse class="isl-canopy-light" cx="-3" cy="-29" rx="2.6" ry="1.6" transform="rotate(-30 -3 -29)"/></g>
+      <rect class="isl-wood" x="16" y="124" width="2.4" height="8" rx="0.8"/>
+      <rect class="isl-wood" x="22" y="124" width="2.4" height="8" rx="0.8"/>
+      <rect class="isl-wood" x="28" y="124" width="2.4" height="8" rx="0.8"/>
+      <rect class="isl-wood" x="15" y="125.6" width="16.8" height="1.6" rx="0.6"/>
+      <rect class="isl-wood-shade" x="15" y="128.8" width="16.8" height="1.4" rx="0.6"/>
+      <ellipse class="isl-leaf-fall-alt" cx="70" cy="118" rx="1.6" ry="0.9" transform="rotate(20 70 118)"/>
+      <ellipse class="isl-leaf-fall" cx="96" cy="130" rx="1.6" ry="0.9" transform="rotate(-30 96 130)"/>
+      <ellipse class="isl-leaf-fall-alt" cx="128" cy="124" rx="1.6" ry="0.9" transform="rotate(40 128 124)"/>
+      <ellipse class="isl-leaf-fall" cx="176" cy="132" rx="1.6" ry="0.9" transform="rotate(-10 176 132)"/>
+      <ellipse class="isl-leaf-fall-alt" cx="40" cy="132" rx="1.6" ry="0.9" transform="rotate(60 40 132)"/>
+      <ellipse class="isl-leaf-fall" cx="112" cy="140" rx="1.6" ry="0.9" transform="rotate(10 112 140)"/>
+      <path class="island-rock" d="M4.4 142 C4.4 137.8 7.9 136.4 10.7 137.1 C14.2 136.75 15.6 139.9 15.6 142 Z"/>
+      <path class="island-rock-light" d="M6.15 139.9 C6.5 138.15 8.25 137.52 10 137.66 C8.6 138.22 7.48 138.92 6.15 139.9 Z"/>
+      <path class="island-rock" d="M222.2 143 C222.2 137.9 226.45 136.2 229.85 137.05 C234.1 136.62 235.8 140.45 235.8 143 Z"/>
+      <path class="island-rock-light" d="M224.32 140.45 C224.75 138.32 226.88 137.56 229 137.73 C227.3 138.41 225.94 139.26 224.32 140.45 Z"/>
+      <path class="island-grass" d="M137 144 Q137 140 138.6 139 Q139 142 140 137.5 Q141 142 141.6 139 Q143 140 143 144 Z"/>
+      <path class="island-grass" d="M79 106 Q79 102 80.6 101 Q81 104 82 99.5 Q83 104 83.6 101 Q85 102 85 106 Z"/>
+    </g>
+    <g data-island-key="blossom" data-island-theme="blossom" data-island-name="Blossom Isle">
+      <rect class="island-sky" x="0" y="0" width="240" height="150" rx="12"/>
+      <path class="island-sky-low" d="M0 94 C60 90 180 90 240 94 L240 112 L0 112 Z"/>
+      <g class="island-stars"><circle class="island-star" cx="16" cy="14" r="1.1"/><circle class="island-star" cx="44" cy="46" r="0.8"/><circle class="island-star" cx="70" cy="10" r="1"/><circle class="island-star" cx="96" cy="32" r="0.8"/><circle class="island-star" cx="142" cy="12" r="1.1"/><circle class="island-star" cx="160" cy="40" r="0.8"/><circle class="island-star" cx="226" cy="58" r="0.9"/><circle class="island-star" cx="8" cy="60" r="0.8"/><circle class="island-star" cx="178" cy="8" r="0.8"/><circle class="island-star" cx="118" cy="50" r="0.7"/></g>
+      <circle class="island-sun-halo" cx="198" cy="28" r="17.05"/>
+      <circle class="island-sun" cx="198" cy="28" r="11"/>
+      <ellipse class="island-sun-light" cx="193.82" cy="23.38" rx="3.3" ry="2.2" transform="rotate(-35 193.82 23.38)"/>
+      <g transform="translate(22 30) scale(0.9)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <g transform="translate(126 20) scale(0.6)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+      <ellipse class="isl-petal" cx="60" cy="30" rx="1.6" ry="1" transform="rotate(20 60 30)"/>
+      <ellipse class="isl-petal" cx="90" cy="50" rx="1.6" ry="1" transform="rotate(-40 90 50)"/>
+      <ellipse class="isl-petal" cx="150" cy="40" rx="1.6" ry="1" transform="rotate(60 150 40)"/>
+      <ellipse class="isl-petal" cx="172" cy="62" rx="1.6" ry="1" transform="rotate(10 172 62)"/>
+      <ellipse class="isl-petal" cx="36" cy="64" rx="1.6" ry="1" transform="rotate(-20 36 64)"/>
+      <ellipse class="isl-petal" cx="110" cy="22" rx="1.6" ry="1" transform="rotate(45 110 22)"/>
+      <path class="island-hill-far" d="M-2 112 C10 98 28 94 46 112 Z"/>
+      <path class="island-hill-far" d="M190 112 C204 100 226 96 242 112 Z"/>
+      <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
+      <path class="island-sea-deep" d="M0 134 L240 134 L240 150 L0 150 Z"/>
+      <path class="island-wave" d="M1 118 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M228 119 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-wave" d="M4 126 q2.5 -2 5 0 q2.5 2 5 0"/>
+      <path class="island-sand" d="M2 150 C6 126 16 112 36 104 C78 88 162 88 204 104 C224 112 234 126 238 150 Z"/>
+      <path class="island-ground" d="M10 150 C14 128 22 116 40 108 C80 93 160 93 200 108 C218 116 226 128 230 150 Z"/>
+      <path class="island-ground-light" d="M44 106 C84 92 156 92 196 106 C156 98 84 98 44 106 Z"/>
+      <g transform="translate(42 112) scale(1.05)"><rect class="island-trunk" x="-1.8" y="-16" width="3.6" height="16" rx="1.8"/><rect class="island-trunk-shade" x="0.2" y="-16" width="1.6" height="16" rx="0.8"/><circle class="isl-blossom-shade" cx="-6" cy="-18" r="7"/><circle class="isl-blossom-shade" cx="6" cy="-18" r="7"/><circle class="isl-blossom-shade" cx="0" cy="-25" r="8.5"/><circle class="isl-blossom" cx="-6.56" cy="-18.98" r="6.16"/><circle class="isl-blossom" cx="5.44" cy="-18.98" r="6.16"/><circle class="isl-blossom" cx="-0.68" cy="-26.19" r="7.48"/><ellipse class="isl-canopy-light" cx="-3" cy="-29" rx="2.6" ry="1.6" transform="rotate(-30 -3 -29)"/></g>
+      <g transform="translate(212 116) scale(0.9)"><rect class="island-trunk" x="-1.8" y="-16" width="3.6" height="16" rx="1.8"/><rect class="island-trunk-shade" x="0.2" y="-16" width="1.6" height="16" rx="0.8"/><circle class="isl-blossom-shade" cx="-6" cy="-18" r="7"/><circle class="isl-blossom-shade" cx="6" cy="-18" r="7"/><circle class="isl-blossom-shade" cx="0" cy="-25" r="8.5"/><circle class="isl-blossom" cx="-6.56" cy="-18.98" r="6.16"/><circle class="isl-blossom" cx="5.44" cy="-18.98" r="6.16"/><circle class="isl-blossom" cx="-0.68" cy="-26.19" r="7.48"/><ellipse class="isl-canopy-light" cx="-3" cy="-29" rx="2.6" ry="1.6" transform="rotate(-30 -3 -29)"/></g>
+      <g transform="translate(24 130) scale(0.85)"><rect class="island-rock" x="-3.4" y="-4" width="6.8" height="4" rx="1"/><rect class="island-rock" x="-1.4" y="-11" width="2.8" height="7" rx="0.8"/><rect class="island-rock" x="-4" y="-16" width="8" height="5.6" rx="1.2"/><rect class="isl-lantern-light" x="-2" y="-14.6" width="4" height="2.8" rx="0.8"/><path class="island-rock" d="M-6 -15.6 L0 -20 L6 -15.6 Z"/><path class="island-rock-light" d="M-6 -15.6 L0 -20 L-1 -15.6 Z"/></g>
+      <ellipse class="isl-petal" cx="76" cy="120" rx="1.5" ry="0.9" transform="rotate(30 76 120)"/>
+      <ellipse class="isl-petal" cx="118" cy="132" rx="1.5" ry="0.9" transform="rotate(-20 118 132)"/>
+      <ellipse class="isl-petal" cx="168" cy="126" rx="1.5" ry="0.9" transform="rotate(50 168 126)"/>
+      <ellipse class="isl-petal" cx="44" cy="136" rx="1.5" ry="0.9" transform="rotate(0 44 136)"/>
+      <ellipse class="isl-petal" cx="200" cy="136" rx="1.5" ry="0.9" transform="rotate(-40 200 136)"/>
+      <path class="island-rock" d="M4.4 142 C4.4 137.8 7.9 136.4 10.7 137.1 C14.2 136.75 15.6 139.9 15.6 142 Z"/>
+      <path class="island-rock-light" d="M6.15 139.9 C6.5 138.15 8.25 137.52 10 137.66 C8.6 138.22 7.48 138.92 6.15 139.9 Z"/>
+      <path class="island-rock" d="M222.2 143 C222.2 137.9 226.45 136.2 229.85 137.05 C234.1 136.62 235.8 140.45 235.8 143 Z"/>
+      <path class="island-rock-light" d="M224.32 140.45 C224.75 138.32 226.88 137.56 229 137.73 C227.3 138.41 225.94 139.26 224.32 140.45 Z"/>
+      <path class="island-grass" d="M95 146 Q95 142 96.6 141 Q97 144 98 139.5 Q99 144 99.6 141 Q101 142 101 146 Z"/>
+      <path class="island-grass" d="M137 140 Q137 136 138.6 135 Q139 138 140 133.5 Q141 138 141.6 135 Q143 136 143 140 Z"/>
+    </g>
+  </g>
+  <g id="plant-library-defs">
+    <g data-plant-key="saguaro_sprout" data-plant-theme="dune">
+      <ellipse class="ip-tan" cx="10" cy="27" rx="7" ry="1.8"/>
+      <rect class="ip-green" x="3.4" y="12" width="3.6" height="8" rx="1.8"/>
+      <rect class="ip-green" x="3.4" y="17.4" width="6" height="3.4" rx="1.7"/>
+      <rect class="ip-green" x="13" y="10" width="3.6" height="8" rx="1.8"/>
+      <rect class="ip-green" x="10.6" y="15.4" width="6" height="3.4" rx="1.7"/>
+      <rect class="ip-green" x="6.6" y="7" width="6.8" height="20" rx="3.4"/>
+      <path class="ip-line" d="M8.4 9.6 v15 M11.6 9.6 v15"/>
+      <ellipse class="ip-pink" cx="10" cy="5.2" rx="1.1" ry="1.4" transform="rotate(0 10 5.2)"/>
+      <ellipse class="ip-pink" cx="11.33" cy="6.17" rx="1.1" ry="1.4" transform="rotate(72 11.33 6.17)"/>
+      <ellipse class="ip-pink" cx="10.82" cy="7.73" rx="1.1" ry="1.4" transform="rotate(144 10.82 7.73)"/>
+      <ellipse class="ip-pink" cx="9.18" cy="7.73" rx="1.1" ry="1.4" transform="rotate(216 9.18 7.73)"/>
+      <ellipse class="ip-pink" cx="8.67" cy="6.17" rx="1.1" ry="1.4" transform="rotate(288 8.67 6.17)"/>
+      <circle class="ip-gold" cx="10" cy="6.6" r="0.9"/>
+      <circle class="ip-eye" cx="8.4" cy="13.4" r="0.75"/>
+      <circle class="ip-eye" cx="11.6" cy="13.4" r="0.75"/>
+      <path class="ip-line" d="M8.9 15 Q10 16 11.1 15"/>
+    </g>
+    <g data-plant-key="prickly_pear" data-plant-theme="dune">
+      <ellipse class="ip-green-deep" cx="10" cy="21.6" rx="5" ry="6"/>
+      <ellipse class="ip-green-deep" cx="5.8" cy="12.8" rx="3.6" ry="4.6" transform="rotate(-24 5.8 12.8)"/>
+      <ellipse class="ip-green-deep" cx="14" cy="12" rx="3.6" ry="4.6" transform="rotate(22 14 12)"/>
+      <ellipse class="ip-pink" cx="3.8" cy="7.6" rx="1.3" ry="1.7" transform="rotate(-20 3.8 7.6)"/>
+      <ellipse class="ip-pink" cx="8" cy="8.4" rx="1.2" ry="1.6" transform="rotate(10 8 8.4)"/>
+      <ellipse class="ip-pink" cx="16" cy="6.8" rx="1.3" ry="1.7" transform="rotate(25 16 6.8)"/>
+      <circle class="ip-cream" cx="8" cy="20" r="0.45"/>
+      <circle class="ip-cream" cx="12" cy="23" r="0.45"/>
+      <circle class="ip-cream" cx="10" cy="18" r="0.45"/>
+      <circle class="ip-cream" cx="11.6" cy="19.4" r="0.45"/>
+      <circle class="ip-cream" cx="8.6" cy="24" r="0.45"/>
+      <circle class="ip-cream" cx="5" cy="12" r="0.45"/>
+      <circle class="ip-cream" cx="7" cy="14.4" r="0.45"/>
+      <circle class="ip-cream" cx="13" cy="11" r="0.45"/>
+      <circle class="ip-cream" cx="15.4" cy="13" r="0.45"/>
+    </g>
+    <g data-plant-key="agave" data-plant-theme="dune">
+      <path class="ip-teal" d="M10 27 Q15.1 18.5 10 10 Q4.9 18.5 10 27 Z"/>
+      <path class="ip-teal" d="M10 27 Q10.67 18.72 3.43 14.64 Q2.76 22.92 10 27 Z"/>
+      <path class="ip-teal" d="M10 27 Q17.24 22.92 16.57 14.64 Q9.33 18.72 10 27 Z"/>
+      <path class="ip-teal" d="M10 27 Q7.97 21.18 1.81 21.26 Q3.84 27.08 10 27 Z"/>
+      <path class="ip-teal" d="M10 27 Q16.16 27.08 18.19 21.26 Q12.03 21.18 10 27 Z"/>
+      <path class="ip-green-deep" d="M10 27 Q11.87 20.98 7.71 16.24 Q5.84 22.26 10 27 Z"/>
+      <path class="ip-green-deep" d="M10 27 Q14.16 22.26 12.29 16.24 Q8.13 20.98 10 27 Z"/>
+    </g>
+    <g data-plant-key="desert_marigold" data-plant-theme="dune">
+      <path class="ip-stem" d="M10 27 C9 21 6 16 5 11"/>
+      <path class="ip-stem" d="M10 27 C10.4 20 11 13 11 7"/>
+      <path class="ip-stem" d="M10 27 C12 22 14.6 18 15.6 14"/>
+      <path class="ip-green" d="M10 25 Q9.43 21.78 6.17 21.79 Q6.74 25 10 25 Z"/>
+      <path class="ip-green" d="M10 24 Q13.26 24 13.83 20.79 Q10.57 20.78 10 24 Z"/>
+      <ellipse class="ip-gold" cx="5" cy="8" rx="0.9" ry="1.5" transform="rotate(0 5 8)"/>
+      <ellipse class="ip-gold" cx="6.41" cy="8.59" rx="0.9" ry="1.5" transform="rotate(45 6.41 8.59)"/>
+      <ellipse class="ip-gold" cx="7" cy="10" rx="0.9" ry="1.5" transform="rotate(90 7 10)"/>
+      <ellipse class="ip-gold" cx="6.41" cy="11.41" rx="0.9" ry="1.5" transform="rotate(135 6.41 11.41)"/>
+      <ellipse class="ip-gold" cx="5" cy="12" rx="0.9" ry="1.5" transform="rotate(180 5 12)"/>
+      <ellipse class="ip-gold" cx="3.59" cy="11.41" rx="0.9" ry="1.5" transform="rotate(225 3.59 11.41)"/>
+      <ellipse class="ip-gold" cx="3" cy="10" rx="0.9" ry="1.5" transform="rotate(270 3 10)"/>
+      <ellipse class="ip-gold" cx="3.59" cy="8.59" rx="0.9" ry="1.5" transform="rotate(315 3.59 8.59)"/>
+      <circle class="ip-orange" cx="5" cy="10" r="1.3"/>
+      <ellipse class="ip-gold" cx="11" cy="4.2" rx="1" ry="1.6" transform="rotate(0 11 4.2)"/>
+      <ellipse class="ip-gold" cx="12.56" cy="4.84" rx="1" ry="1.6" transform="rotate(45 12.56 4.84)"/>
+      <ellipse class="ip-gold" cx="13.2" cy="6.4" rx="1" ry="1.6" transform="rotate(90 13.2 6.4)"/>
+      <ellipse class="ip-gold" cx="12.56" cy="7.96" rx="1" ry="1.6" transform="rotate(135 12.56 7.96)"/>
+      <ellipse class="ip-gold" cx="11" cy="8.6" rx="1" ry="1.6" transform="rotate(180 11 8.6)"/>
+      <ellipse class="ip-gold" cx="9.44" cy="7.96" rx="1" ry="1.6" transform="rotate(225 9.44 7.96)"/>
+      <ellipse class="ip-gold" cx="8.8" cy="6.4" rx="1" ry="1.6" transform="rotate(270 8.8 6.4)"/>
+      <ellipse class="ip-gold" cx="9.44" cy="4.84" rx="1" ry="1.6" transform="rotate(315 9.44 4.84)"/>
+      <circle class="ip-orange" cx="11" cy="6.4" r="1.4"/>
+      <ellipse class="ip-gold" cx="15.6" cy="11.2" rx="0.8" ry="1.3" transform="rotate(0 15.6 11.2)"/>
+      <ellipse class="ip-gold" cx="16.87" cy="11.73" rx="0.8" ry="1.3" transform="rotate(45 16.87 11.73)"/>
+      <ellipse class="ip-gold" cx="17.4" cy="13" rx="0.8" ry="1.3" transform="rotate(90 17.4 13)"/>
+      <ellipse class="ip-gold" cx="16.87" cy="14.27" rx="0.8" ry="1.3" transform="rotate(135 16.87 14.27)"/>
+      <ellipse class="ip-gold" cx="15.6" cy="14.8" rx="0.8" ry="1.3" transform="rotate(180 15.6 14.8)"/>
+      <ellipse class="ip-gold" cx="14.33" cy="14.27" rx="0.8" ry="1.3" transform="rotate(225 14.33 14.27)"/>
+      <ellipse class="ip-gold" cx="13.8" cy="13" rx="0.8" ry="1.3" transform="rotate(270 13.8 13)"/>
+      <ellipse class="ip-gold" cx="14.33" cy="11.73" rx="0.8" ry="1.3" transform="rotate(315 14.33 11.73)"/>
+      <circle class="ip-orange" cx="15.6" cy="13" r="1.1"/>
+    </g>
+    <g data-plant-key="snow_fir" data-plant-theme="frost">
+      <rect class="ip-tan" x="8.8" y="23" width="2.4" height="4.6" rx="0.8"/>
+      <path class="ip-green-deep" d="M2.6 24 L10 13 L17.4 24 Z"/>
+      <path class="ip-green-deep" d="M4 18 L10 7.6 L16 18 Z"/>
+      <path class="ip-green-deep" d="M5.6 12 L10 3 L14.4 12 Z"/>
+      <path class="ip-snow" d="M6.4 9.2 L10 3 L13.6 9.2 L11.8 8.2 L10 9.6 L8.2 8.2 Z"/>
+      <path class="ip-snow" d="M5.4 15.4 L7.6 12 L10 13.6 L12.4 12 L14.6 15.4 L12.2 14.6 L10 16 L7.8 14.6 Z"/>
+      <path class="ip-snow" d="M3.8 21.6 L6 18.4 L10 19.8 L14 18.4 L16.2 21.6 L13 20.8 L10 22 L7 20.8 Z"/>
+      <circle class="ip-gold" cx="10" cy="2.6" r="1.2"/>
+    </g>
+    <g data-plant-key="frost_fern" data-plant-theme="frost">
+      <path class="ip-stem" d="M10 27 L10 4"/>
+      <path class="ip-ice" d="M10 22 Q8.34 18.74 4.7 19.18 Q6.37 22.45 10 22 Z"/>
+      <path class="ip-ice" d="M10 22 Q13.63 22.45 15.3 19.18 Q11.66 18.74 10 22 Z"/>
+      <path class="ip-ice" d="M10 16.6 Q8.71 13.57 5.42 13.74 Q6.71 16.77 10 16.6 Z"/>
+      <path class="ip-ice" d="M10 16.6 Q13.29 16.77 14.58 13.74 Q11.29 13.57 10 16.6 Z"/>
+      <path class="ip-ice" d="M10 11.4 Q9.18 8.72 6.38 8.57 Q7.2 11.25 10 11.4 Z"/>
+      <path class="ip-ice" d="M10 11.4 Q12.8 11.25 13.62 8.57 Q10.82 8.72 10 11.4 Z"/>
+      <path class="ip-ice" d="M10 7 Q11.84 4.7 10 2.4 Q8.16 4.7 10 7 Z"/>
+      <circle class="ip-snow" cx="4.4" cy="18.4" r="0.55"/>
+      <circle class="ip-snow" cx="15.6" cy="13.6" r="0.55"/>
+      <circle class="ip-snow" cx="5.8" cy="9" r="0.55"/>
+      <circle class="ip-snow" cx="14.6" cy="21.4" r="0.55"/>
+    </g>
+    <g data-plant-key="snowdrop" data-plant-theme="frost">
+      <path class="ip-stem" d="M8 27 C8 18 8 12 6 9"/>
+      <path class="ip-stem" d="M12 27 C12 20 13 15 15 12"/>
+      <path class="ip-green" d="M9 27 Q10.5 21.66 7.26 17.15 Q5.77 22.49 9 27 Z"/>
+      <path class="ip-green" d="M11 27 Q14.18 23.16 13.18 18.27 Q9.99 22.11 11 27 Z"/>
+      <path class="ip-snow" d="M6 9.6 C3.6 10 3 13.6 4 16.4 C5 15.4 7 15.4 8 16.4 C9 13.6 8.4 10 6 9.6 Z"/>
+      <path class="ip-snow" d="M15 12.6 C12.6 13 12 16.6 13 19.4 C14 18.4 16 18.4 17 19.4 C18 16.6 17.4 13 15 12.6 Z"/>
+      <path class="ip-ice" d="M6 12 C5 12.4 4.8 14.4 5.2 15.8 C5.8 15.4 6.2 15.4 6.8 15.8 C7.2 14.4 7 12.4 6 12 Z"/>
+      <path class="ip-ice" d="M15 15 C14 15.4 13.8 17.4 14.2 18.8 C14.8 18.4 15.2 18.4 15.8 18.8 C16.2 17.4 16 15.4 15 15 Z"/>
+      <ellipse class="ip-green" cx="6" cy="9.6" rx="1.2" ry="0.8"/>
+      <ellipse class="ip-green" cx="15" cy="12.6" rx="1.2" ry="0.8"/>
+    </g>
+    <g data-plant-key="holly_berry" data-plant-theme="frost">
+      <path class="ip-green-deep" d="M10 21 C7 21 4 20 2 17 L4 16.4 L3.4 14.4 L5.6 14.6 L6 12.6 L8 14 C9.4 15.6 10 18 10 21 Z"/>
+      <path class="ip-green-deep" d="M10 21 C13 21 16 20 18 17 L16 16.4 L16.6 14.4 L14.4 14.6 L14 12.6 L12 14 C10.6 15.6 10 18 10 21 Z"/>
+      <path class="ip-stem" d="M10 27 L10 21"/>
+      <circle class="ip-red" cx="8.6" cy="19.4" r="2"/>
+      <circle class="ip-red" cx="11.6" cy="19.6" r="2"/>
+      <circle class="ip-red" cx="10" cy="17" r="2"/>
+      <circle class="ip-snow" cx="8" cy="18.8" r="0.55"/>
+      <circle class="ip-snow" cx="11" cy="19" r="0.55"/>
+      <circle class="ip-snow" cx="9.4" cy="16.4" r="0.55"/>
+    </g>
+    <g data-plant-key="pineapple" data-plant-theme="lagoon">
+      <path class="ip-green" d="M10 12 Q12.7 7.5 10 3 Q7.3 7.5 10 12 Z"/>
+      <path class="ip-green" d="M10 12 Q10.22 7.26 6 5.07 Q5.78 9.82 10 12 Z"/>
+      <path class="ip-green" d="M10 12 Q14.22 9.82 14 5.07 Q9.78 7.26 10 12 Z"/>
+      <path class="ip-green-deep" d="M10 12 Q8.71 8.61 5.09 8.56 Q6.37 11.95 10 12 Z"/>
+      <path class="ip-green-deep" d="M10 12 Q13.63 11.95 14.91 8.56 Q11.29 8.61 10 12 Z"/>
+      <ellipse class="ip-gold" cx="10" cy="20" rx="6" ry="7.6"/>
+      <circle class="ip-orange" cx="6.4" cy="15.6" r="0.5"/>
+      <circle class="ip-orange" cx="13.6" cy="15.6" r="0.5"/>
+      <circle class="ip-orange" cx="5.4" cy="22" r="0.5"/>
+      <circle class="ip-orange" cx="14.6" cy="22" r="0.5"/>
+      <circle class="ip-orange" cx="7.4" cy="25.6" r="0.5"/>
+      <circle class="ip-orange" cx="12.6" cy="25.6" r="0.5"/>
+      <circle class="ip-orange" cx="10" cy="14.2" r="0.5"/>
+      <circle class="ip-orange" cx="10" cy="26.4" r="0.5"/>
+      <circle class="ip-eye" cx="8.24" cy="19.4" r="0.83"/>
+      <circle class="ip-eye" cx="11.76" cy="19.4" r="0.83"/>
+      <path class="ip-line" d="M8.79 21.16 Q10 22.26 11.21 21.16"/>
+    </g>
+    <g data-plant-key="hibiscus" data-plant-theme="lagoon">
+      <path class="ip-stem" d="M10 27 C10 22 9.6 18 10 14"/>
+      <path class="ip-green-deep" d="M10 24 Q8.37 19.83 3.94 20.5 Q5.57 24.67 10 24 Z"/>
+      <path class="ip-green-deep" d="M10 22 Q14.43 22.67 16.06 18.5 Q11.63 17.83 10 22 Z"/>
+      <ellipse class="ip-pink" cx="10" cy="6.4" rx="3" ry="3.8" transform="rotate(0 10 6.4)"/>
+      <ellipse class="ip-pink" cx="13.42" cy="8.89" rx="3" ry="3.8" transform="rotate(72 13.42 8.89)"/>
+      <ellipse class="ip-pink" cx="12.12" cy="12.91" rx="3" ry="3.8" transform="rotate(144 12.12 12.91)"/>
+      <ellipse class="ip-pink" cx="7.88" cy="12.91" rx="3" ry="3.8" transform="rotate(216 7.88 12.91)"/>
+      <ellipse class="ip-pink" cx="6.58" cy="8.89" rx="3" ry="3.8" transform="rotate(288 6.58 8.89)"/>
+      <circle class="ip-red" cx="10" cy="10" r="2"/>
+      <path class="ip-stem" d="M10 10 L13.4 5.6"/>
+      <circle class="ip-gold" cx="13.6" cy="5.4" r="0.9"/>
+    </g>
+    <g data-plant-key="bird_of_paradise" data-plant-theme="lagoon">
+      <path class="ip-stem" d="M10 27 C10 20 10 16 9 13"/>
+      <path class="ip-green-deep" d="M10 27 Q10.17 20.24 4.74 16.21 Q4.57 22.97 10 27 Z"/>
+      <path class="ip-green-deep" d="M10 27 Q15.23 23.67 15.5 17.47 Q10.27 20.81 10 27 Z"/>
+      <path class="ip-green-deep" d="M4 14 C7 12.4 11 12 16 13 C12 14.6 7 15 4 14 Z"/>
+      <path class="ip-orange" d="M8 13.4 Q8.32 8.49 4.92 4.94 Q4.6 9.85 8 13.4 Z"/>
+      <path class="ip-orange" d="M9.6 13.2 Q11.88 8.48 9.94 3.61 Q7.66 8.33 9.6 13.2 Z"/>
+      <path class="ip-orange" d="M11.2 13.2 Q14.6 10.11 14.62 5.53 Q11.22 8.61 11.2 13.2 Z"/>
+      <path class="ip-blue" d="M9.4 13.4 Q12.49 12.33 13 9.11 Q9.91 10.18 9.4 13.4 Z"/>
+    </g>
+    <g data-plant-key="coconut_sprout" data-plant-theme="lagoon">
+      <ellipse class="ip-brown" cx="10" cy="23" rx="6.4" ry="5"/>
+      <circle class="ip-cream" cx="7.8" cy="21.6" r="0.7"/>
+      <circle class="ip-cream" cx="10" cy="20.6" r="0.7"/>
+      <circle class="ip-cream" cx="12.2" cy="21.6" r="0.7"/>
+      <path class="ip-stem" d="M10 18.4 L10 11"/>
+      <path class="ip-green" d="M10 11.4 Q8.29 6.44 3.11 5.61 Q4.82 10.58 10 11.4 Z"/>
+      <path class="ip-green" d="M10 11.4 Q15.18 10.58 16.89 5.61 Q11.71 6.44 10 11.4 Z"/>
+      <path class="ip-green" d="M10 11.4 Q11.67 7.04 8.61 3.52 Q6.94 7.88 10 11.4 Z"/>
+      <path class="ip-green-deep" d="M10 11.4 Q12.72 9.2 12.05 5.76 Q9.33 7.97 10 11.4 Z"/>
+    </g>
+    <g data-plant-key="pumpkin" data-plant-theme="maple">
+      <path class="ip-stem" d="M10 14 C10 12 11 10 12.6 9.4"/>
+      <path class="ip-green" d="M11 11 Q14.47 11.61 15.68 8.3 Q12.2 7.69 11 11 Z"/>
+      <ellipse class="ip-orange" cx="5.6" cy="21" rx="4.4" ry="5.6"/>
+      <ellipse class="ip-orange" cx="14.4" cy="21" rx="4.4" ry="5.6"/>
+      <ellipse class="ip-orange" cx="10" cy="21" rx="5" ry="6.4"/>
+      <rect class="ip-green-deep" x="9" y="12.4" width="2" height="3.4" rx="0.8"/>
+      <circle class="ip-eye" cx="8.24" cy="20.4" r="0.83"/>
+      <circle class="ip-eye" cx="11.76" cy="20.4" r="0.83"/>
+      <path class="ip-line" d="M8.79 22.16 Q10 23.26 11.21 22.16"/>
+    </g>
+    <g data-plant-key="maple_sapling" data-plant-theme="maple">
+      <rect class="ip-tan" x="9.2" y="14" width="1.6" height="13.4" rx="0.8"/>
+      <path class="ip-red" d="M10 2.6 L11.6 6.4 L14.4 4.8 L14 8.6 L17.6 8.6 L15.4 11.4 L17.6 13.4 L13.4 13.6 L12.6 16 L10 14.6 L7.4 16 L6.6 13.6 L2.4 13.4 L4.6 11.4 L2.4 8.6 L6 8.6 L5.6 4.8 L8.4 6.4 Z"/>
+      <path class="ip-line" d="M10 14.6 L10 6 M10 11 L13.6 8.4 M10 11 L6.4 8.4"/>
+      <ellipse class="ip-orange" cx="4.4" cy="24.6" rx="1.8" ry="1" transform="rotate(30 4.4 24.6)"/>
+      <ellipse class="ip-red" cx="15.6" cy="25.6" rx="1.8" ry="1" transform="rotate(-20 15.6 25.6)"/>
+    </g>
+    <g data-plant-key="acorn" data-plant-theme="maple">
+      <path class="ip-stem" d="M10 27 L10 19"/>
+      <path class="ip-green" d="M10 22 Q8.66 17.81 4.27 17.98 Q5.61 22.17 10 22 Z"/>
+      <path class="ip-green" d="M10 21 Q14.02 21.16 15.24 17.33 Q11.23 17.17 10 21 Z"/>
+      <ellipse class="ip-tan" cx="10" cy="13.4" rx="4.6" ry="5.4"/>
+      <path class="ip-brown" d="M4.6 11 C4.6 7 15.4 7 15.4 11 C13 12.2 7 12.2 4.6 11 Z"/>
+      <path class="ip-line" d="M6.6 9 L8 10.8 M9.4 8.4 L10.6 10.6 M12.4 8.6 L13.2 10.6"/>
+      <rect class="ip-brown" x="9.4" y="5.4" width="1.2" height="2.6" rx="0.5"/>
+      <circle class="ip-eye" cx="8.56" cy="14.2" r="0.68"/>
+      <circle class="ip-eye" cx="11.44" cy="14.2" r="0.68"/>
+      <path class="ip-line" d="M9.01 15.64 Q10 16.54 10.99 15.64"/>
+    </g>
+    <g data-plant-key="cattail" data-plant-theme="maple">
+      <path class="ip-stem" d="M7 27 L7 9"/>
+      <path class="ip-stem" d="M12.6 27 L12.6 6"/>
+      <rect class="ip-brown" x="5.4" y="10" width="3.2" height="8" rx="1.6"/>
+      <rect class="ip-brown" x="11" y="7" width="3.2" height="8.4" rx="1.6"/>
+      <path class="ip-green" d="M9.6 27 Q9.83 19.56 5.27 13.69 Q5.04 21.12 9.6 27 Z"/>
+      <path class="ip-green" d="M10 27 Q14.47 22.34 14.5 15.87 Q10.02 20.54 10 27 Z"/>
+      <path class="ip-green-deep" d="M10 27 Q8.62 22.28 4.21 20.11 Q5.59 24.83 10 27 Z"/>
+    </g>
+    <g data-plant-key="cherry_sapling" data-plant-theme="blossom">
+      <path class="ip-tan" d="M9 27.6 L11 27.6 L10.8 16 L13.6 12.6 L12.8 12 L10.2 14.6 L7.6 11.4 L6.8 12 L9.2 15.6 Z"/>
+      <circle class="ip-pink" cx="6" cy="10" r="4"/>
+      <circle class="ip-pink" cx="14" cy="10" r="4"/>
+      <circle class="ip-pink" cx="10" cy="6.4" r="4.6"/>
+      <circle class="ip-snow" cx="5" cy="9" r="0.8"/>
+      <circle class="ip-snow" cx="8.6" cy="4.6" r="0.8"/>
+      <circle class="ip-snow" cx="12.4" cy="6" r="0.8"/>
+      <circle class="ip-snow" cx="15" cy="10.4" r="0.8"/>
+      <circle class="ip-snow" cx="7.4" cy="12" r="0.8"/>
+      <circle class="ip-snow" cx="11" cy="9" r="0.8"/>
+      <ellipse class="ip-pink" cx="4" cy="25.4" rx="1.4" ry="0.8" transform="rotate(20 4 25.4)"/>
+      <ellipse class="ip-pink" cx="15.4" cy="26" rx="1.4" ry="0.8" transform="rotate(-30 15.4 26)"/>
+    </g>
+    <g data-plant-key="tulip" data-plant-theme="blossom">
+      <path class="ip-stem" d="M10 27 L10 13"/>
+      <path class="ip-green" d="M10 27 Q10.98 20.54 5.53 16.95 Q4.55 23.41 10 27 Z"/>
+      <path class="ip-green" d="M10 27 Q14.56 24.22 13.95 18.91 Q9.38 21.69 10 27 Z"/>
+      <path class="ip-red" d="M5 7 L7.6 9.6 L10 5.6 L12.4 9.6 L15 7 C15.6 12 13.6 15 10 15 C6.4 15 4.4 12 5 7 Z"/>
+      <path class="ip-pink" d="M7.6 9.6 L10 5.6 L12.4 9.6 C12 12.6 8 12.6 7.6 9.6 Z"/>
+    </g>
+    <g data-plant-key="lotus" data-plant-theme="blossom">
+      <ellipse class="ip-green" cx="10" cy="26" rx="8.6" ry="2.2"/>
+      <path class="ip-green-deep" d="M10 26 L14 24.4 L14.6 25.2 Z"/>
+      <path class="ip-pink" d="M10 24.4 Q8.52 19.16 3.11 18.61 Q4.59 23.85 10 24.4 Z"/>
+      <path class="ip-pink" d="M10 24.4 Q15.41 23.85 16.89 18.61 Q11.48 19.16 10 24.4 Z"/>
+      <path class="ip-pink" d="M10 24.4 Q11.61 17.82 5.88 14.2 Q4.27 20.78 10 24.4 Z"/>
+      <path class="ip-pink" d="M10 24.4 Q15.73 20.78 14.12 14.2 Q8.39 17.82 10 24.4 Z"/>
+      <path class="ip-snow" d="M10 24.4 Q14.18 18.6 10 12.8 Q5.82 18.6 10 24.4 Z"/>
+      <circle class="ip-gold" cx="10" cy="21.4" r="1.2"/>
+    </g>
+    <g data-plant-key="strawberry" data-plant-theme="blossom">
+      <path class="ip-red" d="M10 26.6 C5 23 3.4 18.4 4.4 15.4 C5.4 12.6 8 12.4 10 13.6 C12 12.4 14.6 12.6 15.6 15.4 C16.6 18.4 15 23 10 26.6 Z"/>
+      <path class="ip-green" d="M10 13.6 Q8.93 10.86 6.02 11.3 Q7.09 14.04 10 13.6 Z"/>
+      <path class="ip-green" d="M10 13.6 Q12.91 14.04 13.98 11.3 Q11.07 10.86 10 13.6 Z"/>
+      <path class="ip-green" d="M10 13.6 Q11.68 11.6 10 9.6 Q8.32 11.6 10 13.6 Z"/>
+      <path class="ip-stem" d="M10 10 L10 7"/>
+      <ellipse class="ip-gold" cx="6.6" cy="17" rx="0.35" ry="0.55"/>
+      <ellipse class="ip-gold" cx="13.4" cy="17" rx="0.35" ry="0.55"/>
+      <ellipse class="ip-gold" cx="7.6" cy="21.4" rx="0.35" ry="0.55"/>
+      <ellipse class="ip-gold" cx="12.4" cy="21.4" rx="0.35" ry="0.55"/>
+      <ellipse class="ip-gold" cx="10" cy="24" rx="0.35" ry="0.55"/>
+      <circle class="ip-eye" cx="8.4" cy="18" r="0.75"/>
+      <circle class="ip-eye" cx="11.6" cy="18" r="0.75"/>
+      <path class="ip-line" d="M8.9 19.6 Q10 20.6 11.1 19.6"/>
+    </g>
+  </g>
+</svg>
