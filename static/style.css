@@ -50,34 +50,74 @@
   /* r2-world-xp-island S2: semantic island tokens (spec 'Island Evolution and
    * Appearance'). --island-foliage-deep stays lockstep with the brand accent
    * (#2f7d54) so the island palette can never drift from the game palette. */
-  --island-sky: #dbeafe;
-  --island-sea: #9ed9c2;
-  --island-ground: #8fbf6f;
-  --island-foliage: #58a97e;
+  --island-sky: #c4e8ff;
+  --island-sea: #6cc5e8;
+  --island-ground: #8fcf5f;
+  --island-foliage: #6cc04a;
   --island-foliage-deep: #2f7d54;
   --island-trunk: #a9743f;
-  --island-flower: #f5c518;
-  --island-sun: #fde68a;
+  --island-flower: #ff8fb1;
+  --island-sun: #ffd84d;
+  /* Duolingo-style art pass: backdrop, scenery and shading tokens. */
+  --island-sky-low: #e2f4ff;
+  --island-star: transparent;  /* stars only appear at night (dark) */
+  --island-sun-halo: #fff1b8;
+  --island-sun-light: #fff8dc;
+  --island-cloud: #ffffff;
+  --island-cloud-shade: #dcebf7;
+  --island-bird: #5a6b80;
+  --island-hill-far: #9fd3bd;
+  --island-sea-deep: #4aa9d6;
+  --island-wave: #e9f8ff;
+  --island-sand: #f6dfa4;
+  --island-ground-light: #a8de7a;
+  --island-ground-shade: #6fae47;
+  --island-grass: #6fae47;
+  --island-rock: #b8b3a8;
+  --island-rock-light: #dcd8cf;
+  --island-foliage-shade: #4f9f37;
+  --island-foliage-light: #9adb75;
+  --island-bush: #3f9a4f;
+  --island-trunk-shade: #8a5a2e;
+  --island-flower-center: #ffd84d;
+  /* Quest domain badge colours (Duolingo-style art pass). */
+  --qi-exercise: #ff9600;
+  --qi-nutrition: #58cc02;
+  --qi-movement: #1cb0f6;
+  --qi-routine: #ce82ff;
+  --qi-wellbeing: #ff86d0;
+  --qi-weight: #ffc800;
+  --qi-strength: #ff4b4b;
+  --qi-sleep: #7c6cff;
+  --qi-recovery: #2bc2a8;
+  --qi-glyph: #ffffff;
   --island-fox-face: #fff0cf;  /* cream cheeks / chin / belly */
   --island-fox-face-shade: #f3d9a8; /* cream shade under the chin */
   --island-fox-eye-white: #ffffff;  /* big cartoon eye whites + gleams */
   --island-fox-eye: #3a2214;    /* dark expressive eyes / nose */
-   /* r2a-island-polish Unit 2: compact illustrated plant tokens (muted warm
-    * palette, warm-brown rounded outlines). --island-plant-locked is the
-    * muted-sage silhouette fill for unearned plants — grayer + lighter than
-    * --island-ground so locked spots stay visibly distinct in both themes. */
-   --island-plant-outline: #7c4a26;
-   --island-plant-locked: #adbd9e;
-  --island-plant-eye: #4a2c18;
-  --island-plant-green: #7ba35a;
-  --island-plant-green-deep: #55804a;
-  --island-plant-cream: #f7e8c9;
-  --island-plant-coral: #e37a5e;
-  --island-plant-red: #c9664f;
-  --island-plant-gold: #eeb95c;
-  --island-plant-purple: #9b7ab4;
-  --island-plant-blue: #7e92c3;
-  --island-plant-tan: #c58d52;
+   /* Plant tokens (Duolingo-style art pass): saturated flat fills, each with a darker -shade tone for its edge; --island-plant-locked is the muted-sage silhouette, grayer + lighter than --island-ground. */
+  --island-plant-outline: #9a6a3a;  /* soft detail lines (veins, scales) */
+  --island-plant-locked: #adbd9e;
+  --island-plant-locked-shade: #93a585;
+  --island-plant-eye: #3a2214;
+  --island-plant-green: #7cc843;
+  --island-plant-green-shade: #58a52c;
+  --island-plant-green-deep: #4fa14a;
+  --island-plant-green-deep-shade: #3a7f37;
+  --island-plant-cream: #fff3d6;
+  --island-plant-cream-shade: #e8cf9f;
+  --island-plant-coral: #ff8a65;
+  --island-plant-coral-shade: #e0643f;
+  --island-plant-red: #ff5a5f;
+  --island-plant-red-shade: #d93f45;
+  --island-plant-gold: #ffc93c;
+  --island-plant-gold-shade: #e0a514;
+  --island-plant-purple: #b07fe0;
+  --island-plant-purple-shade: #8a5bbf;
+  --island-plant-blue: #5aa9ff;
+  --island-plant-blue-shade: #3a86d9;
+  --island-plant-tan: #d9a066;
+  --island-plant-tan-shade: #b07a42;
 }
 
 /* Accent colour overrides (r2b-accent-colour Unit 2).
@@ -138,33 +178,63 @@
   --toast-text: #e2e8f0;
   /* r2-world-xp-island S2: island tokens in the dark palette; foliage-deep
    * stays lockstep with --accent in both themes. */
-  --island-sky: #16233a;
-  --island-sea: #1d4a40;
+  --island-sky: #172554;
+  --island-sea: #1d4a6b;
   --island-ground: #3f6b46;
-  --island-foliage: #58a97e;
+  --island-foliage: #4f9a5c;
   --island-foliage-deep: #2f7d54;
   --island-trunk: #8a5a33;
-  --island-flower: #fbd34a;
-  --island-sun: #fcd34d;
+  --island-flower: #f49ab6;
+  --island-sun: #fde68a;
+  /* Duolingo-style art pass: night backdrop, scenery and shading tokens. */
+  --island-sky-low: #1e3a6b;
+  --island-star: #fef3c7;
+  --island-sun-halo: #2c4a7c;
+  --island-sun-light: #fff7d6;
+  --island-cloud: #33507f;
+  --island-cloud-shade: #2a4370;
+  --island-bird: #9fb3d1;
+  --island-hill-far: #1f4a5a;
+  --island-sea-deep: #163a57;
+  --island-wave: #4f7fa3;
+  --island-sand: #a08b5f;
+  --island-ground-light: #4d7d52;
+  --island-ground-shade: #2f5537;
+  --island-grass: #2f5537;
+  --island-rock: #6b6a72;
+  --island-rock-light: #85848c;
+  --island-foliage-shade: #3b7a47;
+  --island-foliage-light: #6fb978;
+  --island-bush: #3f8a50;
+  --island-trunk-shade: #6e4626;
+  --island-flower-center: #fbd34a;
   --island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
   --island-fox-face-shade: #e9cf9d; /* chin shade on dark surfaces */
   --island-fox-eye-white: #ffffff;  /* eye whites stay pure white */
   --island-fox-eye: #241509;    /* deeper eye/nose for dark surfaces */
-   /* r2a-island-polish Unit 2: plant tokens in the dark palette (lightened for
-    * contrast on dark surfaces); locked is a muted sage, lighter + grayer than
-    * the dark ground so silhouettes stay distinct. */
-   --island-plant-outline: #a06a3c;
-   --island-plant-locked: #7e8c78;
+   /* Plant tokens, dark palette: brighter fills + tone-on-tone shades; locked is a muted sage, lighter + grayer than the dark ground. */
+  --island-plant-outline: #c08a55;  /* soft detail lines (veins, scales) */
+  --island-plant-locked: #7e8c78;
+  --island-plant-locked-shade: #68755f;
   --island-plant-eye: #241509;
-  --island-plant-green: #8fae68;
-  --island-plant-green-deep: #63905a;
-  --island-plant-cream: #f8ecd2;
-  --island-plant-coral: #e98a70;
-  --island-plant-red: #d77a63;
-  --island-plant-gold: #f2c46c;
-  --island-plant-purple: #ad8fc4;
-  --island-plant-blue: #93a6d1;
-  --island-plant-tan: #cf9c63;
+  --island-plant-green: #86c955;
+  --island-plant-green-shade: #5f9e3a;
+  --island-plant-green-deep: #5aa955;
+  --island-plant-green-deep-shade: #3f8240;
+  --island-plant-cream: #fff4dc;
+  --island-plant-cream-shade: #d9c08f;
+  --island-plant-coral: #ff9a7a;
+  --island-plant-coral-shade: #d96a48;
+  --island-plant-red: #ff7075;
+  --island-plant-red-shade: #d24a50;
+  --island-plant-gold: #ffd25a;
+  --island-plant-gold-shade: #d9a42a;
+  --island-plant-purple: #bf94e8;
+  --island-plant-purple-shade: #9468c4;
+  --island-plant-blue: #74b6ff;
+  --island-plant-blue-shade: #4a8fd6;
+  --island-plant-tan: #e0ad78;
+  --island-plant-tan-shade: #b5844f;
 }
 
 /* Accent colour swatch previews — each swatch uses its own CSS token so the
@@ -322,15 +392,46 @@ main {
 
 /* island fills — semantic tokens only (light/dark via the blocks above). */
 .island-sky { fill: var(--island-sky); }
+.island-sky-low { fill: var(--island-sky-low); }
+.island-star { fill: var(--island-star); }
 .island-sun { fill: var(--island-sun); }
+.island-sun-halo { fill: var(--island-sun-halo); }
+.island-sun-light { fill: var(--island-sun-light); }
+.island-cloud { fill: var(--island-cloud); }
+.island-cloud-shade { fill: var(--island-cloud-shade); }
+.island-hill-far { fill: var(--island-hill-far); }
 .island-sea { fill: var(--island-sea); }
+.island-sea-deep { fill: var(--island-sea-deep); }
+.island-sand { fill: var(--island-sand); }
 .island-ground { fill: var(--island-ground); }
+.island-ground-light { fill: var(--island-ground-light); }
+.island-ground-shade { fill: var(--island-ground-shade); }
+.island-grass { fill: var(--island-grass); }
+.island-rock { fill: var(--island-rock); }
+.island-rock-light { fill: var(--island-rock-light); }
+.island-bird,
+.island-wave {
+  fill: none;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.island-bird { stroke: var(--island-bird); }
+.island-wave { stroke: var(--island-wave); }
 .island-stem,
 .island-leaf,
 .island-foliage { fill: var(--island-foliage); }
+.island-leaf-shade,
+.island-foliage-shade { fill: var(--island-foliage-shade); }
+.island-foliage-light { fill: var(--island-foliage-light); }
+/* Bushes keep the brand-green lockstep token as their shade tone. */
+.island-bush { fill: var(--island-bush); }
+.island-bush-shade,
 .island-foliage-deep { fill: var(--island-foliage-deep); }
 .island-trunk { fill: var(--island-trunk); }
+.island-trunk-shade { fill: var(--island-trunk-shade); }
 .island-flower { fill: var(--island-flower); }
+.island-flower-center { fill: var(--island-flower-center); }
 /* Fox mascot: one shared head symbol (plus the full-body island pose that
  * reuses it). Duolingo-style flat fills with no contour; depth comes from
  * the darker fur shade and the cream chin shade. */
@@ -348,40 +449,50 @@ main {
   stroke-linejoin: round;
 }
 
-/* r2a-island-polish Unit 2: plant artwork classes. Every ip-* rule consumes
- * plant tokens only — muted warm fills + warm-brown rounded outline; stroke
- * -only detail lines (veins/spines/scales) use .ip-line. */
+/* Plant artwork classes (Duolingo-style art pass): flat saturated fills,
+ * no outline; each colour keeps a thin edge in its own darker -shade tone
+ * so tiny clusters (berries, grapes) stay readable. Open stems use
+ * .ip-stem; detail lines (veins/spines/scales) use .ip-line. Tokens only. */
 .ip-green, .ip-green-deep, .ip-cream, .ip-coral, .ip-red, .ip-gold,
 .ip-purple, .ip-blue, .ip-tan {
-  stroke: var(--island-plant-outline);
-  stroke-width: 1.6;
+  stroke-width: 0.8;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.ip-green { fill: var(--island-plant-green); }
-.ip-green-deep { fill: var(--island-plant-green-deep); }
-.ip-cream { fill: var(--island-plant-cream); }
-.ip-coral { fill: var(--island-plant-coral); }
-.ip-red { fill: var(--island-plant-red); }
-.ip-gold { fill: var(--island-plant-gold); }
-.ip-purple { fill: var(--island-plant-purple); }
-.ip-blue { fill: var(--island-plant-blue); }
-.ip-tan { fill: var(--island-plant-tan); }
+.ip-green { fill: var(--island-plant-green); stroke: var(--island-plant-green-shade); }
+.ip-green-deep { fill: var(--island-plant-green-deep); stroke: var(--island-plant-green-deep-shade); }
+.ip-cream { fill: var(--island-plant-cream); stroke: var(--island-plant-cream-shade); }
+.ip-coral { fill: var(--island-plant-coral); stroke: var(--island-plant-coral-shade); }
+.ip-red { fill: var(--island-plant-red); stroke: var(--island-plant-red-shade); }
+.ip-gold { fill: var(--island-plant-gold); stroke: var(--island-plant-gold-shade); }
+.ip-purple { fill: var(--island-plant-purple); stroke: var(--island-plant-purple-shade); }
+.ip-blue { fill: var(--island-plant-blue); stroke: var(--island-plant-blue-shade); }
+.ip-tan { fill: var(--island-plant-tan); stroke: var(--island-plant-tan-shade); }
 .ip-eye { fill: var(--island-plant-eye); }
+.ip-stem {
+  fill: none;
+  stroke: var(--island-plant-green-shade);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
 .ip-line {
   fill: none;
   stroke: var(--island-plant-outline);
-  stroke-width: 1.1;
+  stroke-width: 0.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 /* Island plants layer (r2a-island-polish Unit 2): clones sit above the ground
  * and below the stage groups so fox/tree stay legible. Earned = full colour;
- * locked = silhouette fill (--island-plant-locked) with the warm outline
- * retained. Token-only. */
+ * locked = flat sage silhouette with a tone-on-tone edge. Token-only. */
 #island-plants .island-plant[data-earned="false"] * {
   fill: var(--island-plant-locked);
+  stroke: var(--island-plant-locked-shade);
+}
+#island-plants .island-plant[data-earned="false"] .ip-stem,
+#island-plants .island-plant[data-earned="false"] .ip-line {
+  fill: none;
 }
 
 /* stage name + progress (static stage-1 defaults; Slice 3 renders live). */
@@ -901,10 +1012,30 @@ button.link:hover { color: var(--accent); background: none; }
   flex: 0 0 auto;
 }
 .quest-domain-icon svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   display: block;
-  color: var(--fox);
+}
+/* Quest badges: currentColor is the domain colour; lip shade, shine and the
+ * white glyph come from these token-only rules. */
+.qi-exercise { color: var(--qi-exercise); }
+.qi-nutrition { color: var(--qi-nutrition); }
+.qi-movement { color: var(--qi-movement); }
+.qi-routine { color: var(--qi-routine); }
+.qi-wellbeing { color: var(--qi-wellbeing); }
+.qi-weight { color: var(--qi-weight); }
+.qi-strength { color: var(--qi-strength); }
+.qi-sleep { color: var(--qi-sleep); }
+.qi-recovery { color: var(--qi-recovery); }
+.qi-shade { fill: black; fill-opacity: 0.22; }
+.qi-shine { fill: var(--qi-glyph); fill-opacity: 0.35; }
+.qi-glyph { fill: var(--qi-glyph); }
+.qi-glyph-line {
+  fill: none;
+  stroke: var(--qi-glyph);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .quest-actions {
@@ -1035,7 +1166,7 @@ button.link:hover { color: var(--accent); background: none; }
 /* collectible art (r2a-island-polish): cloned island plant SVG in a 20x28
  * box sized to the row. Earned rows keep the full ip-* fills; locked rows
  * silhouette every descendant fill to --island-plant-locked exactly like the
- * island layer, retaining the warm outline. Token-only, no text glyphs. */
+ * island layer, with a tone-on-tone edge. Token-only, no text glyphs. */
 .collectible-art {
   display: inline-flex;
   align-items: center;
@@ -1051,6 +1182,11 @@ button.link:hover { color: var(--accent); background: none; }
 }
 .collectible-row[data-state="locked"] .collectible-art * {
   fill: var(--island-plant-locked);
+  stroke: var(--island-plant-locked-shade);
+}
+.collectible-row[data-state="locked"] .collectible-art .ip-stem,
+.collectible-row[data-state="locked"] .collectible-art .ip-line {
+  fill: none;
 }
 
 
