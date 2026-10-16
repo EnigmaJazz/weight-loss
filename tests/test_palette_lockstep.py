@@ -37,6 +37,16 @@ def _accent_from_css() -> str:
     return _normalize(match.group(1))
 
 
+def _brand_green_from_css() -> str:
+    """The dedicated brand token (r2a-island-polish Issue 3): the mascot tile
+    and the green swatch consume this instead of re-copying the hex, so it
+    must stay lockstep with the root --accent default."""
+    css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
+    match = re.search(r"--brand-green\s*:\s*(#[0-9a-fA-F]{6})", css)
+    assert match is not None, "style.css :root must declare --brand-green"
+    return _normalize(match.group(1))
+
+
 def _accent_from_html() -> str:
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     match = re.search(r'name="theme-color"\s+content="(#[0-9a-fA-F]{6})"', html)
@@ -60,17 +70,21 @@ def _accent_from_icon_script() -> str:
 
 
 def test_four_accent_locations_each_equal_brand_accent() -> None:
-    """Every location individually must carry the exact #2f7d54 brand accent."""
+    """Every location individually must carry the exact #2f7d54 brand accent.
+    The dedicated --brand-green token (Issue 3) must equal the same green."""
     assert _accent_from_css() == EXPECTED_ACCENT
+    assert _brand_green_from_css() == EXPECTED_ACCENT
     assert _accent_from_html() == EXPECTED_ACCENT
     assert _accent_from_manifest() == EXPECTED_ACCENT
     assert _accent_from_icon_script() == EXPECTED_ACCENT
 
 
 def test_four_accent_locations_are_lockstep() -> None:
-    """The four locations must agree with each other (no cross-file drift)."""
+    """The four locations must agree with each other (no cross-file drift);
+    the dedicated --brand-green token must agree too."""
     accents = {
         _accent_from_css(),
+        _brand_green_from_css(),
         _accent_from_html(),
         _accent_from_manifest(),
         _accent_from_icon_script(),
@@ -142,18 +156,23 @@ def test_accent_values_are_distinct_and_swatches_match_tokens() -> None:
 def test_green_uses_default_palette_without_an_override_block() -> None:
     css = (ROOT / "static" / "style.css").read_text(encoding="utf-8")
     assert '[data-accent="green"]' not in css
-    # Green's swatch must consume the default token, not re-copy the hex.
-    assert re.search(r"\.swatch-green\s*\{\s*--swatch:\s*var\(--accent\)", css), (
-        "green swatch must derive from var(--accent)"
+    # Green's swatch must consume the dedicated brand token (lockstep with the
+    # :root --accent default), not re-copy the hex.
+    assert re.search(r"\.swatch-green\s*\{\s*--swatch:\s*var\(--brand-green\)", css), (
+        "green swatch must derive from var(--brand-green)"
     )
+    assert _brand_green_from_css() == EXPECTED_ACCENT
 
 
 def test_component_files_do_not_carry_hex_colour_literals() -> None:
     for relative in ("static/index.html", "static/app.js", "static/format.js"):
         body = (ROOT / relative).read_text(encoding="utf-8")
         if relative == "static/index.html":
-            # The pinned PWA theme-color and legacy inline fox mascot predate
+            # The pinned PWA theme-color and the favicon data-URI predate
             # accent selection and are separately gate-locked brand assets.
+            # The header mascot now references the shared island fox symbol
+            # (token fills, no hex), so the strip below is a belt-and-braces
+            # guard against any future inline geometry.
             body = body.replace(f'content="{EXPECTED_ACCENT}"', 'content="brand-accent"')
             body = re.sub(
                 r'<span class="mascot"[^>]*>.*?</span>',
