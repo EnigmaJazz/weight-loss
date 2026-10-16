@@ -58,7 +58,7 @@
   --island-trunk: #a9743f;
   --island-flower: #ff8fb1;
   --island-sun: #ffd84d;
-    /* Duolingo-style art pass: backdrop, scenery and shading tokens. */
+  /* Duolingo-style art pass: backdrop, scenery and shading tokens. */
   --island-sky-low: #e2f4ff;
   --island-star: transparent;  /* stars only appear at night (dark) */
   --island-sun-halo: #fff1b8;
@@ -80,7 +80,18 @@
   --island-bush: #3f9a4f;
   --island-trunk-shade: #8a5a2e;
   --island-flower-center: #ffd84d;
---island-fox-face: #fff0cf;  /* cream cheeks / chin / belly */
+  /* Quest domain badge colours (Duolingo-style art pass). */
+  --qi-exercise: #ff9600;
+  --qi-nutrition: #58cc02;
+  --qi-movement: #1cb0f6;
+  --qi-routine: #ce82ff;
+  --qi-wellbeing: #ff86d0;
+  --qi-weight: #ffc800;
+  --qi-strength: #ff4b4b;
+  --qi-sleep: #7c6cff;
+  --qi-recovery: #2bc2a8;
+  --qi-glyph: #ffffff;
+  --island-fox-face: #fff0cf;  /* cream cheeks / chin / belly */
   --island-fox-face-shade: #f3d9a8; /* cream shade under the chin */
   --island-fox-eye-white: #ffffff;  /* big cartoon eye whites + gleams */
   --island-fox-eye: #3a2214;    /* dark expressive eyes / nose */
@@ -175,7 +186,7 @@
   --island-trunk: #8a5a33;
   --island-flower: #f49ab6;
   --island-sun: #fde68a;
-    /* Duolingo-style art pass: night backdrop, scenery and shading tokens. */
+  /* Duolingo-style art pass: night backdrop, scenery and shading tokens. */
   --island-sky-low: #1e3a6b;
   --island-star: #fef3c7;
   --island-sun-halo: #2c4a7c;
@@ -197,7 +208,7 @@
   --island-bush: #3f8a50;
   --island-trunk-shade: #6e4626;
   --island-flower-center: #fbd34a;
---island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
+  --island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
   --island-fox-face-shade: #e9cf9d; /* chin shade on dark surfaces */
   --island-fox-eye-white: #ffffff;  /* eye whites stay pure white */
   --island-fox-eye: #241509;    /* deeper eye/nose for dark surfaces */
@@ -1001,10 +1012,30 @@ button.link:hover { color: var(--accent); background: none; }
   flex: 0 0 auto;
 }
 .quest-domain-icon svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
   display: block;
-  color: var(--fox);
+}
+/* Quest badges: currentColor is the domain colour; lip shade, shine and the
+ * white glyph come from these token-only rules. */
+.qi-exercise { color: var(--qi-exercise); }
+.qi-nutrition { color: var(--qi-nutrition); }
+.qi-movement { color: var(--qi-movement); }
+.qi-routine { color: var(--qi-routine); }
+.qi-wellbeing { color: var(--qi-wellbeing); }
+.qi-weight { color: var(--qi-weight); }
+.qi-strength { color: var(--qi-strength); }
+.qi-sleep { color: var(--qi-sleep); }
+.qi-recovery { color: var(--qi-recovery); }
+.qi-shade { fill: black; fill-opacity: 0.22; }
+.qi-shine { fill: var(--qi-glyph); fill-opacity: 0.35; }
+.qi-glyph { fill: var(--qi-glyph); }
+.qi-glyph-line {
+  fill: none;
+  stroke: var(--qi-glyph);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .quest-actions {
