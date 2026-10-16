@@ -50,15 +50,37 @@
   /* r2-world-xp-island S2: semantic island tokens (spec 'Island Evolution and
    * Appearance'). --island-foliage-deep stays lockstep with the brand accent
    * (#2f7d54) so the island palette can never drift from the game palette. */
-  --island-sky: #dbeafe;
-  --island-sea: #9ed9c2;
-  --island-ground: #8fbf6f;
-  --island-foliage: #58a97e;
+  --island-sky: #c4e8ff;
+  --island-sea: #6cc5e8;
+  --island-ground: #8fcf5f;
+  --island-foliage: #6cc04a;
   --island-foliage-deep: #2f7d54;
   --island-trunk: #a9743f;
-  --island-flower: #f5c518;
-  --island-sun: #fde68a;
-  --island-fox-face: #fff0cf;  /* cream cheeks / chin / belly */
+  --island-flower: #ff8fb1;
+  --island-sun: #ffd84d;
+    /* Duolingo-style art pass: backdrop, scenery and shading tokens. */
+  --island-sky-low: #e2f4ff;
+  --island-star: transparent;  /* stars only appear at night (dark) */
+  --island-sun-halo: #fff1b8;
+  --island-sun-light: #fff8dc;
+  --island-cloud: #ffffff;
+  --island-cloud-shade: #dcebf7;
+  --island-bird: #5a6b80;
+  --island-hill-far: #9fd3bd;
+  --island-sea-deep: #4aa9d6;
+  --island-wave: #e9f8ff;
+  --island-sand: #f6dfa4;
+  --island-ground-light: #a8de7a;
+  --island-ground-shade: #6fae47;
+  --island-grass: #6fae47;
+  --island-rock: #b8b3a8;
+  --island-rock-light: #dcd8cf;
+  --island-foliage-shade: #4f9f37;
+  --island-foliage-light: #9adb75;
+  --island-bush: #3f9a4f;
+  --island-trunk-shade: #8a5a2e;
+  --island-flower-center: #ffd84d;
+--island-fox-face: #fff0cf;  /* cream cheeks / chin / belly */
   --island-fox-face-shade: #f3d9a8; /* cream shade under the chin */
   --island-fox-eye-white: #ffffff;  /* big cartoon eye whites + gleams */
   --island-fox-eye: #3a2214;    /* dark expressive eyes / nose */
@@ -138,15 +160,37 @@
   --toast-text: #e2e8f0;
   /* r2-world-xp-island S2: island tokens in the dark palette; foliage-deep
    * stays lockstep with --accent in both themes. */
-  --island-sky: #16233a;
-  --island-sea: #1d4a40;
+  --island-sky: #172554;
+  --island-sea: #1d4a6b;
   --island-ground: #3f6b46;
-  --island-foliage: #58a97e;
+  --island-foliage: #4f9a5c;
   --island-foliage-deep: #2f7d54;
   --island-trunk: #8a5a33;
-  --island-flower: #fbd34a;
-  --island-sun: #fcd34d;
-  --island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
+  --island-flower: #f49ab6;
+  --island-sun: #fde68a;
+    /* Duolingo-style art pass: night backdrop, scenery and shading tokens. */
+  --island-sky-low: #1e3a6b;
+  --island-star: #fef3c7;
+  --island-sun-halo: #2c4a7c;
+  --island-sun-light: #fff7d6;
+  --island-cloud: #33507f;
+  --island-cloud-shade: #2a4370;
+  --island-bird: #9fb3d1;
+  --island-hill-far: #1f4a5a;
+  --island-sea-deep: #163a57;
+  --island-wave: #4f7fa3;
+  --island-sand: #a08b5f;
+  --island-ground-light: #4d7d52;
+  --island-ground-shade: #2f5537;
+  --island-grass: #2f5537;
+  --island-rock: #6b6a72;
+  --island-rock-light: #85848c;
+  --island-foliage-shade: #3b7a47;
+  --island-foliage-light: #6fb978;
+  --island-bush: #3f8a50;
+  --island-trunk-shade: #6e4626;
+  --island-flower-center: #fbd34a;
+--island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
   --island-fox-face-shade: #e9cf9d; /* chin shade on dark surfaces */
   --island-fox-eye-white: #ffffff;  /* eye whites stay pure white */
   --island-fox-eye: #241509;    /* deeper eye/nose for dark surfaces */
@@ -322,15 +366,46 @@ main {
 
 /* island fills — semantic tokens only (light/dark via the blocks above). */
 .island-sky { fill: var(--island-sky); }
+.island-sky-low { fill: var(--island-sky-low); }
+.island-star { fill: var(--island-star); }
 .island-sun { fill: var(--island-sun); }
+.island-sun-halo { fill: var(--island-sun-halo); }
+.island-sun-light { fill: var(--island-sun-light); }
+.island-cloud { fill: var(--island-cloud); }
+.island-cloud-shade { fill: var(--island-cloud-shade); }
+.island-hill-far { fill: var(--island-hill-far); }
 .island-sea { fill: var(--island-sea); }
+.island-sea-deep { fill: var(--island-sea-deep); }
+.island-sand { fill: var(--island-sand); }
 .island-ground { fill: var(--island-ground); }
+.island-ground-light { fill: var(--island-ground-light); }
+.island-ground-shade { fill: var(--island-ground-shade); }
+.island-grass { fill: var(--island-grass); }
+.island-rock { fill: var(--island-rock); }
+.island-rock-light { fill: var(--island-rock-light); }
+.island-bird,
+.island-wave {
+  fill: none;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.island-bird { stroke: var(--island-bird); }
+.island-wave { stroke: var(--island-wave); }
 .island-stem,
 .island-leaf,
 .island-foliage { fill: var(--island-foliage); }
+.island-leaf-shade,
+.island-foliage-shade { fill: var(--island-foliage-shade); }
+.island-foliage-light { fill: var(--island-foliage-light); }
+/* Bushes keep the brand-green lockstep token as their shade tone. */
+.island-bush { fill: var(--island-bush); }
+.island-bush-shade,
 .island-foliage-deep { fill: var(--island-foliage-deep); }
 .island-trunk { fill: var(--island-trunk); }
+.island-trunk-shade { fill: var(--island-trunk-shade); }
 .island-flower { fill: var(--island-flower); }
+.island-flower-center { fill: var(--island-flower-center); }
 /* Fox mascot: one shared head symbol (plus the full-body island pose that
  * reuses it). Duolingo-style flat fills with no contour; depth comes from
  * the darker fur shade and the cream chin shade. */

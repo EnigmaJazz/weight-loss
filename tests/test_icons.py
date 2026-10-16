@@ -58,7 +58,9 @@ def test_committed_icons_decode_to_expected_size(make_icons: ModuleType) -> None
         assert len(raw) == size * (size * 4 + 1)
 
 
-def test_regenerated_icons_match_committed_artifacts(make_icons: ModuleType) -> None:
+def test_regenerated_icons_match_committed_artifacts(
+    make_icons: ModuleType, tmp_path: Path
+) -> None:
     # A committed icon must decode to the exact same content as what the
     # generator produces today (deterministic output, no timestamps), so the
     # installable PWA assets and the generator cannot drift apart.
@@ -68,13 +70,7 @@ def test_regenerated_icons_match_committed_artifacts(make_icons: ModuleType) -> 
     # different compressed streams for identical raw pixels, which would
     # otherwise make this test flaky across environments.
     for size in (192, 512):
-        import io
-
-        buf = io.BytesIO()
-        make_icons.write_png(
-            Path("/tmp") / f"icon-{size}.png", size, make_icons.render(size)
-        )
-        generated = Path("/tmp") / f"icon-{size}.png"
+        generated = tmp_path / f"icon-{size}.png"
         make_icons.write_png(generated, size, make_icons.render(size))
         committed = ICON_DIR / f"icon-{size}.png"
         assert _decode_png(generated) == _decode_png(committed)
