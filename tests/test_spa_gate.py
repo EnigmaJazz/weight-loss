@@ -752,6 +752,21 @@ _ISLAND_TOKENS = (
     "--island-foliage-deep", "--island-trunk", "--island-flower",
     "--island-sun", "--fox", "--fox-dark", "--fox-outline",
     "--island-fox-face", "--island-fox-eye",
+    # r2a-island-polish Unit 2 plant token family (muted warm palette).
+    "--island-plant-outline", "--island-plant-locked", "--island-plant-eye",
+    "--island-plant-green", "--island-plant-green-deep", "--island-plant-cream",
+    "--island-plant-coral", "--island-plant-red", "--island-plant-gold",
+    "--island-plant-purple", "--island-plant-blue", "--island-plant-tan",
+)
+
+# r2a-island-polish Unit 2: exact ordered stage sets the island renders
+# (declared in app.js as ISLAND_PLANT_STAGES).
+_PLANT_STAGE_SETS = (
+    ("getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests"),
+    ("getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30"),
+    ("getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30", "comeback", "explorer", "checkpoint_50", "weekly_good_days"),
+    ("getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30", "comeback", "explorer", "checkpoint_50", "weekly_good_days", "personal_best", "checkpoint_75"),
+    ("getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30", "comeback", "explorer", "checkpoint_50", "weekly_good_days", "personal_best", "checkpoint_75", "checkpoint_100", "meal_100"),
 )
 _STAGE_NAMES = ("sprout", "sapling", "tree", "lush", "thriving")
 
@@ -801,6 +816,15 @@ async def test_index_html_world_panel_ships_xp_island(client):
     assert re.search(r'class="island-', svg) is not None
     assert "Your adventure map is coming soon." not in world
 
+    # Plant layer (r2a-island-polish Unit 2): an aria-hidden dynamic layer
+    # sibling to the keyed artwork defs; #world-latest-earn is fully removed.
+    assert re.search(r'<g id="island-plants" class="island-plants" aria-hidden="true">', world)
+    assert re.search(r'<g id="island-plant-defs">', world) is not None
+    plant_defs = re.findall(r'<g data-plant-key="([^"]+)">', world)
+    assert len(plant_defs) == 16, "island must define exactly 16 plant artworks"
+    assert len(set(plant_defs)) == 16, "plant artwork keys must be unique"
+    assert "world-latest-earn" not in world, "#world-latest-earn must be removed"
+
     # CSS: island tokens in :root + dark; foliage-deep lockstep with brand.
     css = (await client.get("/static/style.css")).text
     root = _root_block(css)
@@ -810,6 +834,14 @@ async def test_index_html_world_panel_ships_xp_island(client):
         assert re.search(rf"{token}\s*:", root) is not None
         assert re.search(rf"{token}\s*:", dark.group(1)) is not None
     assert re.search(r"--island-foliage-deep\s*:\s*#2f7d54", root) is not None
+    # Plant locked silhouette must differ from the ground in both themes.
+    locked_root = re.search(r"--island-plant-locked\s*:\s*(#[0-9a-fA-F]{6})", root)
+    ground_root = re.search(r"--island-ground\s*:\s*(#[0-9a-fA-F]{6})", root)
+    locked_dark = re.search(r"--island-plant-locked\s*:\s*(#[0-9a-fA-F]{6})", dark.group(1))
+    ground_dark = re.search(r"--island-ground\s*:\s*(#[0-9a-fA-F]{6})", dark.group(1))
+    assert locked_root and ground_root and locked_dark and ground_dark
+    assert locked_root.group(1).lower() != ground_root.group(1).lower()
+    assert locked_dark.group(1).lower() != ground_dark.group(1).lower()
 
     # One stage visible per data-current-stage.
     assert re.search(
@@ -826,8 +858,14 @@ async def test_index_html_world_panel_ships_xp_island(client):
     assert island_rules, "style.css must declare island SVG rules"
     for rule in island_rules:
         assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None
+    # Plant artwork classes (.ip-*) are token-only too.
+    plant_rules = list(re.finditer(r"\.ip-[a-z-]+\s*\{[^}]*}", css))
+    assert plant_rules, "style.css must declare plant artwork rules"
+    for rule in plant_rules:
+        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None
     media = css[css.index("@media (prefers-reduced-motion: reduce)"):]
     assert re.search(r"\.island-stage[^}]*animation\s*:\s*none", media)
+    assert re.search(r"\.island-plant[^}]*animation\s*:\s*none", media)
 
 
 @pytest.mark.asyncio
@@ -1476,6 +1514,29 @@ async def test_app_js_ships_world_island_runtime_wiring(client):
         "loadQuestsAndXp() must invoke stageChanged() inside the fulfilled "
         "/api/xp branch"
     )
+    # Plant rendering (r2a-island-polish Unit 2): the stage->ordered-key
+    # declaration ships, renderIslandPlants() exists, and renderWorld draws
+    # the current stage's set from the single prevCollectibleKeys cache.
+    assert re.search(
+        r"const ISLAND_PLANT_STAGES = \[", body
+    ), "app.js must declare ISLAND_PLANT_STAGES"
+    world_fn = _js_fn_body(body, "renderWorld")
+    assert "renderIslandPlants(" in world_fn, (
+        "renderWorld() must render island plants"
+    )
+    assert "prevCollectibleKeys" in world_fn, (
+        "renderWorld() must reuse prevCollectibleKeys for plant earned state"
+    )
+    assert re.search(
+        r"function renderIslandPlants\s*\(stageKeys, earnedSet\)", body
+    ), "app.js must define renderIslandPlants(stageKeys, earnedSet)"
+    plants_fn = _js_fn_body(body, "renderIslandPlants")
+    assert "cloneNode(true)" in plants_fn, (
+        "renderIslandPlants() must clone the keyed <g> definitions"
+    )
+    assert "dataset.earned" in plants_fn, (
+        "renderIslandPlants() must set the data-earned rendering seam"
+    )
 
 # ---- r2-completion S1 gate additions (quest-icons spec R1/R4) ------------
 # The format.js QUEST_DOMAIN_ICONS array-of-pairs literal (ast.literal_eval
@@ -1594,10 +1655,12 @@ async def test_style_css_ships_weekly_rules_token_only(client):
 # ---- r2-completion S5 gate additions (collectibles UI) ------------------
 # The collectibles shelf ships inside Journey after #achievements-card (before
 # #quest-history-card), Journey-only (R12) — data-driven rows + scoped error
-# slot; the World island SVG ships a hidden default latest-earn accent. app.js
+# slot; the World island SVG ships the plant layer + 16 keyed artwork defs
+# (r2a-island-polish Unit 2) and no longer ships #world-latest-earn. app.js
 # fetches /api/collectibles in loadJourneyCards' allSettled, keeps
 # prevCollectibleKeys, queues collectibleSignals (collectible_first_earn) on
-# fulfilled reads, and never clears the shelf on failure. CSS token-only.
+# fulfilled reads, recolours the island plants on success, and never clears
+# the shelf on failure. CSS token-only.
 
 
 @pytest.mark.asyncio
@@ -1624,12 +1687,16 @@ async def test_journey_collectibles_surface(client):
     assert 'id="collectibles-error"' in card
     # Shelf is Journey-only (R12): the World panel must not ship the card.
     assert 'id="collectibles-card"' not in world
-    # World SVG latest-earn accent: present inside the island, hidden + empty
-    # (data-key/aria-label blank) by default.
+    # Plant artwork defs ship with the island for the World layer to clone.
+    assert len(re.findall(r'<g data-plant-key="([^"]+)">', world)) == 16
+    # World SVG plant layer (r2a-island-polish Unit 2): the dynamic rendered
+    # layer ships inside the island, and the removed latest-earn accent is gone.
     island = world[world.index("<svg") : world.index("</svg>") + len("</svg>")]
-    assert 'id="world-latest-earn"' in island
-    assert re.search(r'id="world-latest-earn"[^>]*\shidden', island) is not None
-    assert re.search(r'id="world-latest-earn"[^>]*data-key=""', island) is not None
+    assert 'id="island-plants"' in island
+    assert 'aria-hidden="true"' in island
+    assert "world-latest-earn" not in world, (
+        "#world-latest-earn must be fully removed from the World panel"
+    )
 
     app = await client.get("/static/app.js")
     assert app.status_code == 200
@@ -1646,6 +1713,16 @@ async def test_journey_collectibles_surface(client):
     # Card-scoped failure copy that preserves the shelf (static error slot).
     assert "Could not load collectibles" in body
     assert '$("collectibles-error")' in body
+    # Plant recolour on success (r2a-island-polish Unit 2): the fulfilled
+    # branch updates prevCollectibleKeys, keeps the shelf, then recolours the
+    # island plants; the removed World accent helpers are gone from app.js.
+    coll_fn = _js_fn_body(body, "renderCollectibles")
+    assert "prevCollectibleKeys = earned" in coll_fn
+    assert "renderCollectibleShelf(collectibles)" in coll_fn
+    assert "renderIslandPlantsForCurrentStage()" in coll_fn
+    assert "renderWorldLatestEarn" not in body
+    assert "ddMmYyKey" not in body
+    assert "world-latest-earn" not in body
 
     css = await client.get("/static/style.css")
     assert css.status_code == 200
@@ -1659,19 +1736,13 @@ async def test_journey_collectibles_surface(client):
         assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
             "collectible CSS must be token-only (no hex literals)"
         )
-    accent_rules = list(re.finditer(r"\.world-latest-earn[a-z-]*\s*\{[^}]*}", sheet))
-    assert len(accent_rules) > 0, "style.css must declare World accent rules"
-    for rule in accent_rules:
-        assert re.search(r"#[0-9a-fA-F]{3,8}\b", rule.group(0)) is None, (
-            "World accent CSS must be token-only (no hex literals)"
-        )
-    # Mobile (<=480px must not clip) + reduced-motion (card/art/accent static).
+    # Mobile (<=480px must not clip) + reduced-motion (card/art/plants static).
     mobile = sheet[sheet.index("@media (max-width: 480px)"):]
     assert re.search(r"\.collectible-row[^}]*flex-wrap", mobile) is not None
     block = sheet[sheet.index("@media (prefers-reduced-motion: reduce)"):]
     assert re.search(r"\.collectibles-card[^}]*transition\s*:\s*none", block) is not None
     assert re.search(r"\.collectible-art[^}]*animation\s*:\s*none", block) is not None
-    assert re.search(r"\.world-latest-earn[^}]*animation\s*:\s*none", block) is not None
+    assert re.search(r"\.island-plant[^}]*animation\s*:\s*none", block) is not None
 # ---- r2-completion S6 celebration queue gate (R14-R18) ----------------
 
 

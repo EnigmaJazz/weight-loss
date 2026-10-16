@@ -1868,11 +1868,12 @@ function renderAchievements(achRes) {
   el.append(list);
 }
 
-/* ---- collectibles shelf + World accent (r2-completion S5) -------------- */
+/* ---- collectibles shelf + island plants (r2-completion S5 / r2a Unit 2) -- */
 
 /* Card-scoped and recovery-safe: a rejected read surfaces the static
  * #collectibles-error while prior shelf rows stay intact; success re-renders
- * the shelf + World accent. */
+ * the shelf and recolours the island plants. Failure returns before touching
+ * prevCollectibleKeys or the plant layer. */
 function renderCollectibles(collRes) {
   const err = $("collectibles-error");
   if (collRes.status !== "fulfilled") {
@@ -1893,7 +1894,7 @@ function renderCollectibles(collRes) {
   }
   prevCollectibleKeys = earned;
   renderCollectibleShelf(collectibles);
-  renderWorldLatestEarn(collectibles);
+  renderIslandPlantsForCurrentStage();
 }
 
 function renderCollectibleShelf(collectibles) {
@@ -1919,32 +1920,7 @@ function renderCollectibleShelf(collectibles) {
   }
 }
 
-/* DD/MM/YY -> numeric YYMMDD key (31/07/26 < 05/08/26); unmatched -> 0. */
-function ddMmYyKey(dateStr) {
-  const m = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec(String(dateStr));
-  return m ? Number(m[3] + m[2] + m[1]) : 0;
-}
 
-/* World accent (spec R12): most recent earn wins by DD/MM/YY chronology
- * (numeric YYMMDD key); ties keep the earliest catalogue entry. */
-function renderWorldLatestEarn(collectibles) {
-  const accent = $("world-latest-earn");
-  if (!accent) return;
-  const earned = collectibles.filter((c) => c.earned && c.unlocked_at != null);
-  if (earned.length === 0) {
-    accent.setAttribute("hidden", "");
-    accent.removeAttribute("data-key");
-    accent.setAttribute("aria-label", "");
-    return;
-  }
-  let latest = earned[0];
-  for (const c of earned) {
-    if (ddMmYyKey(c.unlocked_at) > ddMmYyKey(latest.unlocked_at)) latest = c;
-  }
-  accent.removeAttribute("hidden");
-  accent.dataset.key = latest.key;
-  accent.setAttribute("aria-label", `Latest collectible: ${latest.title}`);
-}
 
 function renderQuestHistory(questsPayload) {
   const el = $("quest-history-content");
@@ -2468,7 +2444,93 @@ function renderWorld(xp) {
     label.textContent = `${xp.total_xp - start} / ${next - start}`;
     fill.style.width = `${pct}%`;
   }
+  // Island plants (r2a-island-polish Unit 2): render the current stage's set
+  // from the single prevCollectibleKeys cache (null => no earned => all
+  // locked); renderCollectibles recolours it after a successful read.
+  renderIslandPlants(
+    ISLAND_PLANT_STAGES[currentStage - 1] ?? [],
+    new Set(prevCollectibleKeys ?? [])
+  );
   return currentStage;
+}
+
+/* ---- island plants (r2a-island-polish Unit 2) ------------------------- */
+
+/* Progressive ordered stage sets: each stage renders its own cumulative list
+ * (declared once, used exactly). Artwork <g> definitions with matching
+ * data-plant-key live in #world-island <defs> (index.html). */
+const ISLAND_PLANT_STAGES = [
+  ["getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests"],
+  ["getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30"],
+  ["getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30", "comeback", "explorer", "checkpoint_50", "weekly_good_days"],
+  ["getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30", "comeback", "explorer", "checkpoint_50", "weekly_good_days", "personal_best", "checkpoint_75"],
+  ["getting_started", "moving_forward", "checkpoint_10", "meal_7", "weekly_quests", "consistency", "checkpoint_25", "meal_30", "comeback", "explorer", "checkpoint_50", "weekly_good_days", "personal_best", "checkpoint_75", "checkpoint_100", "meal_100"],
+];
+
+/* Stable placement: [x, y, scale, rotation] — each plant's local artwork
+ * baseline (10, 28) is translated to the island coordinate (x, y) while the
+ * scale and rotation apply around that baseline. Three depth bands keep the
+ * island from reading as an inventory row: back accents at y102-112 (scale
+ * .68-.85), slope plants at y116-126 (.8-1.0), and foreground focal forms at
+ * y130-138 (.95-1.15), with uneven clusters and subtle rotations (-6..6).
+ * Stage-1 anchors clear the fox (x78-107, y70-99) and central sprout
+ * (x111-129, down to y112); later-stage plants may tuck behind the fox/tree
+ * because the plant layer renders below the stage groups. */
+const ISLAND_PLANT_PLACEMENT = {
+  getting_started: [28, 112, 0.85, -3],
+  moving_forward: [55, 132, 1.05, 4],
+  consistency: [44, 107, 0.72, 5],
+  comeback: [118, 103, 0.7, -2],
+  explorer: [76, 123, 0.85, 3],
+  personal_best: [184, 135, 1.1, 2],
+  checkpoint_10: [90, 118, 1.0, 2],
+  checkpoint_25: [196, 106, 0.74, -5],
+  checkpoint_50: [144, 120, 0.95, -2],
+  checkpoint_75: [156, 136, 1.05, -5],
+  checkpoint_100: [38, 135, 0.98, 3],
+  meal_7: [168, 134, 1.05, -4],
+  meal_30: [128, 119, 0.88, 4],
+  meal_100: [112, 137, 1.05, -4],
+  weekly_quests: [210, 111, 0.8, 3],
+  weekly_good_days: [103, 124, 0.82, -3],
+};
+
+/* Render a stage's plant set into #island-plants by cloning the keyed <g>
+ * definitions (so the locked override can restyle descendant fills). Earned
+ * comes from the single prevCollectibleKeys cache; null/empty => all locked. */
+function renderIslandPlants(stageKeys, earnedSet) {
+  const layer = $("island-plants");
+  if (!layer) return;
+  layer.innerHTML = "";
+  const defs = $("island-plant-defs");
+  if (!defs) return;
+  for (const key of stageKeys) {
+    const def = defs.querySelector('[data-plant-key="' + key + '"]');
+    if (!def) continue;
+    const clone = def.cloneNode(true);
+    clone.classList.add("island-plant");
+    clone.dataset.plantKey = key;
+    clone.dataset.earned = earnedSet.has(key) ? "true" : "false";
+    const [px, py, pscale = 1, prot = 0] = ISLAND_PLANT_PLACEMENT[key] ?? [10, 28];
+    // Anchor the local artwork baseline (10, 28) at (px, py); scale and
+    // rotation apply around that baseline point.
+    clone.setAttribute(
+      "transform",
+      "translate(" + px + ", " + py + ") rotate(" + prot + ") scale(" + pscale + ") translate(-10, -28)"
+    );
+    layer.append(clone);
+  }
+}
+
+/* Recolour plants for the stage renderWorld last drew (used after a successful
+ * collectibles read; renderWorld drives the same helper during XP renders). */
+function renderIslandPlantsForCurrentStage() {
+  const island = $("world-island");
+  const stage = Number(island?.dataset.currentStage) || 1;
+  renderIslandPlants(
+    ISLAND_PLANT_STAGES[stage - 1] ?? [],
+    new Set(prevCollectibleKeys ?? [])
+  );
 }
 
 /* ---- settings ---------------------------------------------------------- */
