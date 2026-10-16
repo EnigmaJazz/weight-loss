@@ -504,24 +504,39 @@
                    plants here. Rendered between ground and stage groups so the
                    fox/tree stay legible; aria-hidden (decorative). -->
               <g id="island-plants" class="island-plants" aria-hidden="true"></g>
-              <!-- Fox mascot (r2a-island-polish Unit 1): ONE shared definition;
-                   each stage group references it with its own transform/scale,
-                   so poses differ only by placement, never by duplicated
-                   geometry (spec R-R2A-1/R-R2A-2). Flat token fills, no hex. -->
+              <!-- Fox mascot: ONE shared head definition (header tile, PWA
+                   icon via static/icons/make_icons.py, which parses this
+                   symbol) plus a full-body island pose that reuses the head
+                   through <use>, so the face never exists twice (spec
+                   R-R2A-1/R-R2A-2). Duolingo-style flat shapes: no outline,
+                   depth from a darker fur shade; token fills only, no hex. -->
               <defs>
                 <symbol id="island-fox-symbol" viewBox="0 0 64 64">
-                  <path class="island-fox-body" d="M11 4 C13 5 15 9 16 15 C13 18 11 25 11 32 C11 42 18 52 27 54 C29 55 35 55 37 54 C46 52 53 42 53 32 C53 25 51 18 48 15 C49 9 51 5 53 4 C49 5 45 9 42 16 C39 21 36 23 32 23 C28 23 25 21 22 16 C19 9 15 5 11 4 Z"/>
-                  <path class="island-fox-ear-inner" d="M17 14 L13 7 L21 13 Z"/>
-                  <path class="island-fox-ear-inner" d="M47 14 L51 7 L43 13 Z"/>
-                  <path class="island-fox-muzzle" d="M32 38 C24 36 17 39 16 45 C15 51 22 54 32 54 C42 54 49 51 48 45 C47 39 40 36 32 38 Z"/>
-                  <path class="island-fox-brow" d="M20.5 28.5 Q24.5 27.5 28.5 28.5"/>
-                  <path class="island-fox-brow" d="M35.5 28.5 Q39.5 27.5 43.5 28.5"/>
-                  <ellipse class="island-fox-eye" cx="24.5" cy="34.5" rx="3.2" ry="4"/>
-                  <ellipse class="island-fox-eye" cx="39.5" cy="34.5" rx="3.2" ry="4"/>
-                  <circle class="island-fox-eye-gleam" cx="23.4" cy="33.2" r="1.35"/>
-                  <circle class="island-fox-eye-gleam" cx="38.6" cy="33.2" r="1.35"/>
-                  <ellipse class="island-fox-nose" cx="32" cy="40.5" rx="2.8" ry="2"/>
-                  <path class="island-fox-mouth" d="M32 43 V45.5 M32 45.5 Q28 47.5 26 45 M32 45.5 Q36 47.5 38 45"/>
+                  <path class="island-fox-fur" d="M11.76 31 C9.12 22.2 9.12 12.52 11.76 6.36 C17.92 8.12 24.96 13.4 28.48 20.44 Z"/>
+                  <path class="island-fox-fur" d="M52.24 31 C54.88 22.2 54.88 12.52 52.24 6.36 C46.08 8.12 39.04 13.4 35.52 20.44 Z"/>
+                  <path class="island-fox-shade" d="M14.84 25.72 C13.52 19.56 13.52 14.28 14.84 10.76 C18.8 12.52 22.32 16.04 24.52 20.44 Z"/>
+                  <path class="island-fox-shade" d="M49.16 25.72 C50.48 19.56 50.48 14.28 49.16 10.76 C45.2 12.52 41.68 16.04 39.48 20.44 Z"/>
+                  <path class="island-fox-fur" d="M32 16.92 C42.56 16.92 50.48 22.2 52.24 31 C53.12 34.52 54.88 38.04 57.52 41.56 C54 42.44 52.24 43.32 50.92 44.64 C46.96 52.12 39.92 55.64 32 55.64 C24.08 55.64 17.04 52.12 13.08 44.64 C11.76 43.32 10 42.44 6.48 41.56 C9.12 38.04 10.88 34.52 11.76 31 C13.52 22.2 21.44 16.92 32 16.92 Z"/>
+                  <path class="island-fox-shade" d="M27.6 17.45 C29.36 19.56 31.12 20.44 32 22.2 C32.88 20.44 34.64 19.56 36.4 17.45 C34.64 17.1 29.36 17.1 27.6 17.45 Z"/>
+                  <path class="island-fox-face" d="M6.48 41.56 C11.76 38.92 17.04 38.48 21.88 40.68 C25.84 42.44 29.36 42 32 38.48 C34.64 42 38.16 42.44 42.12 40.68 C46.96 38.48 52.24 38.92 57.52 41.56 C54 42.44 52.24 43.32 50.92 44.64 C46.96 52.12 39.92 55.64 32 55.64 C24.08 55.64 17.04 52.12 13.08 44.64 C11.76 43.32 10 42.44 6.48 41.56 Z"/>
+                  <path class="island-fox-face-shade" d="M16.16 49.48 C20.56 53.88 25.84 55.64 32 55.64 C38.16 55.64 43.44 53.88 47.84 49.48 C43.44 52.12 38.16 53.35 32 53.35 C25.84 53.35 20.56 52.12 16.16 49.48 Z"/>
+                  <ellipse class="island-fox-eye-white" cx="23.64" cy="32.76" rx="5.81" ry="6.69"/>
+                  <ellipse class="island-fox-eye-white" cx="40.36" cy="32.76" rx="5.81" ry="6.69"/>
+                  <ellipse class="island-fox-eye" cx="24.96" cy="33.82" rx="3.52" ry="4.31"/>
+                  <ellipse class="island-fox-eye" cx="39.04" cy="33.82" rx="3.52" ry="4.31"/>
+                  <circle class="island-fox-eye-white" cx="26.19" cy="32.06" r="1.41"/>
+                  <circle class="island-fox-eye-white" cx="40.27" cy="32.06" r="1.41"/>
+                  <path class="island-fox-eye" d="M29.01 41.74 C29.01 40.15 34.99 40.15 34.99 41.74 C34.99 43.32 33.41 44.73 32 44.73 C30.59 44.73 29.01 43.32 29.01 41.74 Z"/>
+                  <path class="island-fox-mouth" d="M32 44.73 V46.31 M28.13 46.14 Q30.06 48.6 32 46.31 Q33.94 48.6 35.87 46.14"/>
+                </symbol>
+                <symbol id="island-fox-full-symbol" viewBox="0 0 64 82">
+                  <path class="island-fox-fur" d="M37.28 74.12 C51.36 79.4 61.92 70.6 59.28 56.52 C57.52 47.72 51.36 43.32 45.2 45.08 C50.48 52.12 50.48 62.68 39.04 65.32 Z"/>
+                  <path class="island-fox-face" d="M59.28 56.52 C57.52 47.72 51.36 43.32 45.2 45.08 C47.84 48.6 49.6 52.12 50.13 56.52 C53.12 55.64 56.64 55.64 59.28 56.52 Z"/>
+                  <path class="island-fox-fur" d="M32 47.72 C22.32 47.72 17.04 56.52 17.04 66.2 C17.04 74.12 23.2 78.08 32 78.08 C40.8 78.08 46.96 74.12 46.96 66.2 C46.96 56.52 41.68 47.72 32 47.72 Z"/>
+                  <ellipse class="island-fox-face" cx="32" cy="67.08" rx="8.36" ry="9.24"/>
+                  <ellipse class="island-fox-shade" cx="24.52" cy="78.08" rx="5.72" ry="2.82"/>
+                  <ellipse class="island-fox-shade" cx="39.48" cy="78.08" rx="5.72" ry="2.82"/>
+                  <use href="#island-fox-symbol" width="64" height="64"/>
                 </symbol>
                 <!-- Plant artwork (r2a-island-polish Unit 2): 16 compact
                      botanical motifs matching the reference set, each a <g>
@@ -704,14 +719,14 @@
                 <rect class="island-stem" x="118.5" y="96" width="3" height="16" rx="1.5"/>
                 <path class="island-leaf" d="M120 96 C113 90 111 82 113 75 C119 80 120 88 120 96 Z"/>
                 <path class="island-leaf" d="M120 96 C127 90 129 82 127 75 C121 80 120 88 120 96 Z"/>
-                <use class="island-fox" href="#island-fox-symbol" width="64" height="64" transform="translate(78, 70) scale(0.45)"/>
+                <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(78.6, 66.5) scale(0.42)"/>
               </g>
               <g class="island-stage" data-stage="2" data-stage-name="sapling">
                 <rect class="island-trunk" x="118" y="84" width="4" height="30" rx="2"/>
                 <circle class="island-foliage" cx="113" cy="76" r="10"/>
                 <circle class="island-foliage" cx="127" cy="76" r="10"/>
                 <circle class="island-foliage" cx="120" cy="66" r="12"/>
-                <use class="island-fox" href="#island-fox-symbol" width="64" height="64" transform="translate(150, 66) scale(0.55)"/>
+                <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(152.6, 63.7) scale(0.48)"/>
               </g>
               <g class="island-stage" data-stage="3" data-stage-name="tree">
                 <rect class="island-trunk" x="118" y="78" width="4" height="36" rx="2"/>
@@ -719,7 +734,7 @@
                 <circle class="island-foliage" cx="130" cy="70" r="13"/>
                 <circle class="island-foliage" cx="120" cy="58" r="15"/>
                 <circle class="island-foliage-deep" cx="88" cy="106" r="7"/>
-                <use class="island-fox" href="#island-fox-symbol" width="64" height="64" transform="translate(150, 64) scale(0.6)"/>
+                <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(153.4, 60.8) scale(0.52)"/>
               </g>
               <g class="island-stage" data-stage="4" data-stage-name="lush">
                 <rect class="island-trunk" x="120" y="80" width="4" height="34" rx="2"/>
@@ -733,7 +748,7 @@
                 <circle class="island-foliage-deep" cx="158" cy="102" r="8"/>
                 <circle class="island-flower" cx="150" cy="114" r="3"/>
                 <circle class="island-flower" cx="76" cy="112" r="3"/>
-                <use class="island-fox" href="#island-fox-symbol" width="64" height="64" transform="translate(164, 66) scale(0.6)"/>
+                <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(166.4, 63.1) scale(0.52)"/>
               </g>
               <g class="island-stage" data-stage="5" data-stage-name="thriving">
                 <rect class="island-trunk" x="120" y="76" width="4" height="38" rx="2"/>
@@ -749,7 +764,7 @@
                 <circle class="island-flower" cx="150" cy="114" r="3"/>
                 <circle class="island-flower" cx="76" cy="112" r="3"/>
                 <circle class="island-flower" cx="184" cy="116" r="3"/>
-                <use class="island-fox" href="#island-fox-symbol" width="64" height="64" transform="translate(154, 62) scale(0.68)"/>
+                <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(157.9, 58.5) scale(0.56)"/>
               </g>
             </svg>
             <p class="island-stage-name" id="world-stage-name">Sprout Isle</p>

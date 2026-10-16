@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """Generate PWA icons for the Weight Loss Tracker (pure stdlib, no deps).
 
-Draws the island fox mascot — the exact <symbol id="island-fox-symbol">
-geometry from static/index.html — on the app's green background. The SVG's
-cubic body and muzzle paths are sampled into polygons, scaled from 64-space
-onto the icon canvas, and painted with the token palette: warm fox-orange
-fur, darker inner ears, a cream lower-face muzzle, dark oval eyes with cream
-gleams, short curved brows, a small nose, and a smiling mouth, all wrapped
-in the warm-brown contour. Flat token fills, no gradients, no shading.
-Writes a PNG with the stdlib zlib+struct writer (zero-dependency approach).
+Draws the island fox mascot on the app's green background by parsing the
+shared <symbol id="island-fox-symbol"> straight out of static/index.html, so
+the icon can never drift from the in-app fox: there is no second copy of
+the geometry here. Each <path>/<ellipse>/<circle> is filled (or, for the
+mouth, stroked) with the colour mapped from its CSS class, in document
+order, on a supersampled canvas that is box-filtered down for smooth
+anti-aliased edges. Writes a PNG with the stdlib zlib+struct writer.
+
+Supported path commands are the absolute M, L, H, V, C, Q and Z the symbol
+uses; anything else raises ValueError instead of rendering silently wrong.
 
 Usage: python3 make_icons.py [output_dir]
 """
 
+import functools
 import logging
 import math
+import re
 import struct
 import sys
 import zlib
@@ -22,299 +26,272 @@ from pathlib import Path
 
 log = logging.getLogger("make_icons")
 
-# Fox palette (mirrors the CSS tokens; the background stays the brand accent
-# #2f7d54 so the palette lockstep test keeps all four locations in agreement).
-BG = (47, 125, 84)          # #2f7d54 brand green (palette lockstep)
-FOX = (244, 124, 44)        # #f47c2c reference fox orange (--fox)
-FOX_DARK = (216, 102, 44)   # #d8662c deeper inner-ear orange (--fox-dark)
-OUTLINE = (120, 55, 31)     # #78371f warm-brown contour (--fox-outline)
-CREAM = (255, 240, 207)     # #fff0cf cream muzzle / gleams (--island-fox-face)
-EYE = (58, 34, 20)          # #3a2214 dark expressive eyes / nose (--island-fox-eye)
+INDEX_HTML = Path(__file__).resolve().parents[1] / "index.html"
+SYMBOL_ID = "island-fox-symbol"
 
-# --- island-fox-symbol geometry (64-space, static/index.html) ---------------
-# The fox body and cream muzzle are closed cubic paths; each is sampled into
-# a polygon with _closed_polygon(). The remaining features are the symbol's
-# exact shapes scaled to the canvas.
+# Fox palette (mirrors the light-theme CSS tokens; the background stays the
+# brand accent #2f7d54 so the palette lockstep test keeps all four locations
+# in agreement).
+BG = (47, 125, 84)              # #2f7d54 brand green (palette lockstep)
+FOX = (244, 124, 44)            # #f47c2c fur (--fox)
+FOX_DARK = (216, 102, 44)       # #d8662c fur shade (--fox-dark)
+OUTLINE = (120, 55, 31)         # #78371f mouth line (--fox-outline)
+CREAM = (255, 240, 207)         # #fff0cf cheeks / chin (--island-fox-face)
+CREAM_SHADE = (243, 217, 168)   # #f3d9a8 chin shade (--island-fox-face-shade)
+EYE_WHITE = (255, 255, 255)     # #ffffff eye whites (--island-fox-eye-white)
+EYE = (58, 34, 20)              # #3a2214 pupils / nose (--island-fox-eye)
 
-# Body silhouette: left ear -> left cheek -> chin -> right cheek -> right ear
-# -> crown between the ears -> back to the left ear tip.
-BODY_CUBICS: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]] = [
-    ((11, 4), (13, 5), (15, 9), (16, 15)),
-    ((16, 15), (13, 18), (11, 25), (11, 32)),
-    ((11, 32), (11, 42), (18, 52), (27, 54)),
-    ((27, 54), (29, 55), (35, 55), (37, 54)),
-    ((37, 54), (46, 52), (53, 42), (53, 32)),
-    ((53, 32), (53, 25), (51, 18), (48, 15)),
-    ((48, 15), (49, 9), (51, 5), (53, 4)),
-    ((53, 4), (49, 5), (45, 9), (42, 16)),
-    ((42, 16), (39, 21), (36, 23), (32, 23)),
-    ((32, 23), (28, 23), (25, 21), (22, 16)),
-    ((22, 16), (19, 9), (15, 5), (11, 4)),
-]
+CLASS_FILL: dict[str, tuple[int, int, int]] = {
+    "island-fox-fur": FOX,
+    "island-fox-shade": FOX_DARK,
+    "island-fox-face": CREAM,
+    "island-fox-face-shade": CREAM_SHADE,
+    "island-fox-eye-white": EYE_WHITE,
+    "island-fox-eye": EYE,
+}
+# Stroked classes: colour and stroke-width in 64-space (style.css).
+CLASS_STROKE: dict[str, tuple[tuple[int, int, int], float]] = {
+    "island-fox-mouth": (OUTLINE, 1.4),
+}
 
-# Cream lower-face mask tucked into the body (its own closed cubic path).
-MUZZLE_CUBICS: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]] = [
-    ((32, 38), (24, 36), (17, 39), (16, 45)),
-    ((16, 45), (15, 51), (22, 54), (32, 54)),
-    ((32, 54), (42, 54), (49, 51), (48, 45)),
-    ((48, 45), (47, 39), (40, 36), (32, 38)),
-]
+VIEWBOX = 64.0
+# The head's 64-space bbox is centred on x=32 but sits on y≈31; nudge it
+# down one unit so the icon's vertical centre matches the canvas centre.
+OFFSET_Y = 1.0
+SUPERSAMPLE = 3
+CURVE_STEPS = 16
+ELLIPSE_STEPS = 48
 
-# Dark inner-ear triangles (fill --fox-dark).
-INNER_L = ((17, 14), (13, 7), (21, 13))
-INNER_R = ((47, 14), (51, 7), (43, 13))
+Point = tuple[float, float]
+Color = tuple[int, int, int]
 
-# Oval eyes, cream gleams, nose (fill --island-fox-eye / --island-fox-face).
-EYE_L = (24.5, 34.5, 3.2, 4.0)      # (cx, cy, rx, ry)
-EYE_R = (39.5, 34.5, 3.2, 4.0)
-GLEAM_L = (23.4, 33.2, 1.35)        # (cx, cy, r)
-GLEAM_R = (38.6, 33.2, 1.35)
-NOSE = (32.0, 40.5, 2.8, 2.0)
-
-# Brows and mouth: outline-brown strokes (stroke-width 1.4 in the symbol).
-# Quadratic curves are (start, control, end); the mouth stem is a straight
-# segment encoded as a degenerate quadratic.
-BROW_L = ((20.5, 28.5), (24.5, 27.5), (28.5, 28.5))
-BROW_R = ((35.5, 28.5), (39.5, 27.5), (43.5, 28.5))
-MOUTH_STEM = ((32.0, 43.0), (32.0, 44.25), (32.0, 45.5))
-MOUTH_L = ((32.0, 45.5), (28.0, 47.5), (26.0, 45.0))
-MOUTH_R = ((32.0, 45.5), (36.0, 47.5), (38.0, 45.0))
-STROKE_HALF = 0.7  # 64-space half-width of the symbol's 1.4-unit strokes
+_ELEMENT_RE = re.compile(r"<(path|ellipse|circle)\b([^>]*?)/>")
+_ATTR_RE = re.compile(r'([\w-]+)="([^"]*)"')
+_PATH_TOKEN_RE = re.compile(r"[A-Za-z]|-?\d*\.?\d+(?:e-?\d+)?")
 
 
-def point_in_triangle(
-    px: float,
-    py: float,
-    a: tuple[float, float],
-    b: tuple[float, float],
-    c: tuple[float, float],
-) -> bool:
-    def sign(p1: tuple[float, float], p2: tuple[float, float], p3: tuple[float, float]) -> float:
-        return (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1])
-
-    d1 = sign((px, py), a, b)
-    d2 = sign((px, py), b, c)
-    d3 = sign((px, py), c, a)
-    has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
-    has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
-    return not (has_neg and has_pos)
+def load_symbol(html: str, symbol_id: str = SYMBOL_ID) -> str:
+    """Return the inner markup of ``<symbol id=symbol_id>`` in ``html``."""
+    match = re.search(
+        rf'<symbol id="{re.escape(symbol_id)}"[^>]*>(.*?)</symbol>', html, re.S
+    )
+    if match is None:
+        raise ValueError(f"symbol {symbol_id!r} not found")
+    return match.group(1)
 
 
-def point_in_polygon(
-    px: float, py: float, points: list[tuple[float, float]]
-) -> bool:
-    """Ray-casting point-in-polygon for arbitrary convex/concave polygons."""
-    inside = False
-    n = len(points)
-    for i in range(n):
-        x1, y1 = points[i]
-        x2, y2 = points[(i + 1) % n]
-        if (y1 > py) != (y2 > py):
-            x_cross = x1 + (py - y1) * (x2 - x1) / (y2 - y1)
-            if px < x_cross:
-                inside = not inside
-    return inside
-
-
-def in_circle(
-    px: float, py: float, cx: float, cy: float, r: float
-) -> bool:
-    return (px - cx) ** 2 + (py - cy) ** 2 <= r * r
-
-
-def in_ellipse(
-    px: float, py: float, cx: float, cy: float, rx: float, ry: float
-) -> bool:
-    return ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1.0
-
-
-def _cubic_points(
-    p0: tuple[float, float],
-    c1: tuple[float, float],
-    c2: tuple[float, float],
-    p1: tuple[float, float],
-    steps: int,
-) -> list[tuple[float, float]]:
-    """Sample one cubic Bezier (64-space) into ``steps + 1`` points."""
-    pts: list[tuple[float, float]] = []
-    for i in range(steps + 1):
-        t = i / steps
+def _cubic(p0: Point, c1: Point, c2: Point, p1: Point) -> list[Point]:
+    pts: list[Point] = []
+    for i in range(1, CURVE_STEPS + 1):
+        t = i / CURVE_STEPS
         mt = 1.0 - t
         pts.append(
             (
-                mt**3 * p0[0] + 3.0 * mt**2 * t * c1[0] + 3.0 * mt * t**2 * c2[0] + t**3 * p1[0],
-                mt**3 * p0[1] + 3.0 * mt**2 * t * c1[1] + 3.0 * mt * t**2 * c2[1] + t**3 * p1[1],
+                mt**3 * p0[0] + 3 * mt**2 * t * c1[0] + 3 * mt * t**2 * c2[0] + t**3 * p1[0],
+                mt**3 * p0[1] + 3 * mt**2 * t * c1[1] + 3 * mt * t**2 * c2[1] + t**3 * p1[1],
             )
         )
     return pts
 
 
-def _closed_polygon(
-    cubics: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float], tuple[float, float]]],
-    steps: int,
-) -> list[tuple[float, float]]:
-    """Sample a closed cubic path into a polygon (shared endpoints deduped)."""
-    pts: list[tuple[float, float]] = []
-    for p0, c1, c2, p1 in cubics:
-        pts.extend(_cubic_points(p0, c1, c2, p1, steps)[:-1])
-    pts.append(pts[0])
-    return pts
-
-
-def _scale(
-    points: list[tuple[float, float]], u: float, ox: float, oy: float
-) -> list[tuple[float, float]]:
-    return [(x * u + ox, y * u + oy) for x, y in points]
-
-
-def _quad_points(
-    p0: tuple[float, float],
-    c: tuple[float, float],
-    p1: tuple[float, float],
-    steps: int = 8,
-) -> list[tuple[float, float]]:
-    """Sample one quadratic Bezier (64-space) into ``steps + 1`` points."""
-    pts: list[tuple[float, float]] = []
-    for i in range(steps + 1):
-        t = i / steps
+def _quad(p0: Point, c: Point, p1: Point) -> list[Point]:
+    pts: list[Point] = []
+    for i in range(1, CURVE_STEPS + 1):
+        t = i / CURVE_STEPS
         mt = 1.0 - t
         pts.append(
             (
-                mt**2 * p0[0] + 2.0 * mt * t * c[0] + t**2 * p1[0],
-                mt**2 * p0[1] + 2.0 * mt * t * c[1] + t**2 * p1[1],
+                mt**2 * p0[0] + 2 * mt * t * c[0] + t**2 * p1[0],
+                mt**2 * p0[1] + 2 * mt * t * c[1] + t**2 * p1[1],
             )
         )
     return pts
 
 
-def _dist_to_segment(
-    px: float, py: float, ax: float, ay: float, bx: float, by: float
-) -> float:
-    dx = bx - ax
-    dy = by - ay
+def parse_path(d: str) -> list[list[Point]]:
+    """Flatten absolute path data into polylines, one per subpath."""
+    tokens = _PATH_TOKEN_RE.findall(d)
+    subpaths: list[list[Point]] = []
+    current: list[Point] = []
+    pos: Point = (0.0, 0.0)
+    cmd = ""
+    i = 0
+
+    def nums(count: int) -> list[float]:
+        nonlocal i
+        values = [float(tok) for tok in tokens[i : i + count]]
+        if len(values) != count:
+            raise ValueError(f"truncated path data: {d!r}")
+        i += count
+        return values
+
+    while i < len(tokens):
+        if tokens[i].isalpha():
+            cmd = tokens[i]
+            i += 1
+            if cmd == "Z":
+                if current:
+                    subpaths.append(current)
+                current = []
+                continue
+        if cmd == "M":
+            if current:
+                subpaths.append(current)
+            x, y = nums(2)
+            pos = (x, y)
+            current = [pos]
+            cmd = "L"  # implicit lineto for further coordinate pairs
+        elif cmd == "L":
+            x, y = nums(2)
+            pos = (x, y)
+            current.append(pos)
+        elif cmd == "H":
+            (x,) = nums(1)
+            pos = (x, pos[1])
+            current.append(pos)
+        elif cmd == "V":
+            (y,) = nums(1)
+            pos = (pos[0], y)
+            current.append(pos)
+        elif cmd == "C":
+            x1, y1, x2, y2, x, y = nums(6)
+            current.extend(_cubic(pos, (x1, y1), (x2, y2), (x, y)))
+            pos = (x, y)
+        elif cmd == "Q":
+            x1, y1, x, y = nums(4)
+            current.extend(_quad(pos, (x1, y1), (x, y)))
+            pos = (x, y)
+        else:
+            raise ValueError(f"unsupported path command {cmd!r} in {d!r}")
+    if current:
+        subpaths.append(current)
+    return subpaths
+
+
+def _ellipse(cx: float, cy: float, rx: float, ry: float) -> list[Point]:
+    return [
+        (cx + rx * math.cos(2 * math.pi * k / ELLIPSE_STEPS),
+         cy + ry * math.sin(2 * math.pi * k / ELLIPSE_STEPS))
+        for k in range(ELLIPSE_STEPS)
+    ]
+
+
+def parse_shapes(symbol: str) -> list[tuple[str, list[list[Point]]]]:
+    """Return ``(css_class, polylines)`` for every shape, in paint order."""
+    shapes: list[tuple[str, list[list[Point]]]] = []
+    for tag, raw_attrs in _ELEMENT_RE.findall(symbol):
+        attrs = dict(_ATTR_RE.findall(raw_attrs))
+        cls = attrs.get("class", "")
+        if tag == "path":
+            polylines = parse_path(attrs["d"])
+        elif tag == "ellipse":
+            polylines = [_ellipse(float(attrs["cx"]), float(attrs["cy"]),
+                                  float(attrs["rx"]), float(attrs["ry"]))]
+        else:
+            r = float(attrs["r"])
+            polylines = [_ellipse(float(attrs["cx"]), float(attrs["cy"]), r, r)]
+        shapes.append((cls, polylines))
+    return shapes
+
+
+def _fill(buf: bytearray, n: int, polys: list[list[Point]], index: int) -> None:
+    """Even-odd scanline fill of closed polygons into the index buffer."""
+    edges: list[tuple[float, float, float, float]] = []
+    for poly in polys:
+        for k, (x1, y1) in enumerate(poly):
+            x2, y2 = poly[(k + 1) % len(poly)]
+            if y1 != y2:
+                edges.append((x1, y1, x2, y2))
+    ys = [y for poly in polys for _, y in poly]
+    row0 = max(0, int(min(ys)))
+    row1 = min(n - 1, int(max(ys)) + 1)
+    fill_byte = bytes((index,))
+    for row in range(row0, row1 + 1):
+        sy = row + 0.5
+        xs = sorted(
+            x1 + (sy - y1) * (x2 - x1) / (y2 - y1)
+            for x1, y1, x2, y2 in edges
+            if (y1 > sy) != (y2 > sy)
+        )
+        base = row * n
+        for a, b in zip(xs[0::2], xs[1::2]):
+            start = max(0, math.ceil(a - 0.5))
+            stop = min(n, math.ceil(b - 0.5))
+            if stop > start:
+                buf[base + start : base + stop] = fill_byte * (stop - start)
+
+
+def _dist_to_segment(px: float, py: float, a: Point, b: Point) -> float:
+    dx = b[0] - a[0]
+    dy = b[1] - a[1]
     length_sq = dx * dx + dy * dy
     if length_sq == 0.0:
-        return math.hypot(px - ax, py - ay)
-    t = ((px - ax) * dx + (py - ay) * dy) / length_sq
-    t = max(0.0, min(1.0, t))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+        return math.hypot(px - a[0], py - a[1])
+    t = max(0.0, min(1.0, ((px - a[0]) * dx + (py - a[1]) * dy) / length_sq))
+    return math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy))
 
 
-def _near_stroke(
-    x: float, y: float, segments: list[tuple[float, float, float, float]], half: float
-) -> bool:
-    """True when (x, y) lies within ``half`` of any stroke segment."""
-    for ax, ay, bx, by in segments:
-        if _dist_to_segment(x, y, ax, ay, bx, by) <= half:
-            return True
-    return False
+def _stroke(buf: bytearray, n: int, polys: list[list[Point]], half: float, index: int) -> None:
+    """Round-capped stroke of open polylines into the index buffer."""
+    segments = [(p[k], p[k + 1]) for p in polys for k in range(len(p) - 1)]
+    xs = [x for p in polys for x, _ in p]
+    ys = [y for p in polys for _, y in p]
+    x0 = max(0, int(min(xs) - half))
+    x1 = min(n - 1, int(max(xs) + half) + 1)
+    y0 = max(0, int(min(ys) - half))
+    y1 = min(n - 1, int(max(ys) + half) + 1)
+    for row in range(y0, y1 + 1):
+        sy = row + 0.5
+        for col in range(x0, x1 + 1):
+            sx = col + 0.5
+            if any(_dist_to_segment(sx, sy, a, b) <= half for a, b in segments):
+                buf[row * n + col] = index
 
 
-def _stroke_segments(
-    quads: list[tuple[tuple[float, float], tuple[float, float], tuple[float, float]]],
-    u: float,
-    ox: float,
-    oy: float,
-) -> list[tuple[float, float, float, float]]:
-    """Sample the symbol's stroke curves into scaled line segments."""
-    segments: list[tuple[float, float, float, float]] = []
-    for p0, c, p1 in quads:
-        pts = _scale(_quad_points(p0, c, p1), u, ox, oy)
-        segments.extend(
-            (pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1])
-            for i in range(len(pts) - 1)
-        )
-    return segments
-
-
-def _on_outline(x: int, y: int, size: int, mask: bytearray) -> bool:
-    """True when a fox pixel touches a non-fox pixel (warm-brown contour)."""
-    for dy in (-1, 0, 1):
-        ny = y + dy
-        if ny < 0 or ny >= size:
-            return True
-        for dx in (-1, 0, 1):
-            nx = x + dx
-            if nx < 0 or nx >= size:
-                return True
-            if not mask[ny * size + nx]:
-                return True
-    return False
-
-
+@functools.cache
 def render(size: int) -> bytes:
-    """Return raw RGBA pixels for the island fox icon at `size` square.
+    """Return raw RGBA pixels for the island fox icon at ``size`` square.
 
-    The symbol geometry lives in 64-space and scales with ``size / 64.0``,
-    so the same face renders identically at 192 and 512 (pinned by
-    tests/test_icons.py's fox probes). A silhouette mask (the sampled body
-    polygon) drives a 1px warm-brown contour around the fox.
+    The symbol lives in 64-space and scales with ``size / 64``, so the same
+    face renders at 192 and 512 (pinned by tests/test_icons.py's probes).
     """
-    u = size / 64.0
-    # The fox's 64-space bbox is x 11..53 (centred) and y 4..55; nudge it
-    # down so the icon's vertical centre matches the canvas centre.
-    ox = 0.0
-    oy = 2.5 * u
+    shapes = parse_shapes(load_symbol(INDEX_HTML.read_text(encoding="utf-8")))
+    n = size * SUPERSAMPLE
+    unit = n / VIEWBOX
 
-    body = _scale(_closed_polygon(BODY_CUBICS, 24), u, ox, oy)
-    muzzle = _scale(_closed_polygon(MUZZLE_CUBICS, 24), u, ox, oy)
+    palette: list[Color] = [BG]
+    buf = bytearray(n * n)
+    for cls, polylines in shapes:
+        scaled = [[(x * unit, (y + OFFSET_Y) * unit) for x, y in poly] for poly in polylines]
+        if cls in CLASS_STROKE:
+            color, width = CLASS_STROKE[cls]
+            palette.append(color)
+            _stroke(buf, n, scaled, width * unit / 2, len(palette) - 1)
+        elif cls in CLASS_FILL:
+            palette.append(CLASS_FILL[cls])
+            _fill(buf, n, scaled, len(palette) - 1)
+        else:
+            raise ValueError(f"no icon colour for class {cls!r}")
 
-    inner_l = _scale(list(INNER_L), u, ox, oy)
-    inner_r = _scale(list(INNER_R), u, ox, oy)
-
-    eye_l = (EYE_L[0] * u + ox, EYE_L[1] * u + oy, EYE_L[2] * u, EYE_L[3] * u)
-    eye_r = (EYE_R[0] * u + ox, EYE_R[1] * u + oy, EYE_R[2] * u, EYE_R[3] * u)
-    gleam_l = (GLEAM_L[0] * u + ox, GLEAM_L[1] * u + oy, GLEAM_L[2] * u)
-    gleam_r = (GLEAM_R[0] * u + ox, GLEAM_R[1] * u + oy, GLEAM_R[2] * u)
-    nose = (NOSE[0] * u + ox, NOSE[1] * u + oy, NOSE[2] * u, NOSE[3] * u)
-
-    strokes = _stroke_segments([BROW_L, BROW_R, MOUTH_STEM, MOUTH_L, MOUTH_R], u, ox, oy)
-    half_stroke = STROKE_HALF * u
-
-    # Bounding box of the body polygon: everything outside is brand green.
-    xs = [p[0] for p in body]
-    ys = [p[1] for p in body]
-    bx0 = max(0, int(min(xs)))
-    bx1 = min(size - 1, int(max(xs)))
-    by0 = max(0, int(min(ys)))
-    by1 = min(size - 1, int(max(ys)))
-
-    # Pass 1: silhouette mask (the fox body polygon).
-    mask = bytearray(size * size)
-    for y in range(by0, by1 + 1):
-        base = y * size
-        for x in range(bx0, bx1 + 1):
-            if point_in_polygon(x, y, body):
-                mask[base + x] = 1
-
-    # Pass 2: colour each pixel, features over the base fill, contour last.
-    bg_pixel = bytes(BG) + b"\xff"
-    px = bytearray(bg_pixel * size * size)
-    for y in range(by0, by1 + 1):
-        base = y * size
-        for x in range(bx0, bx1 + 1):
-            idx = base + x
-            if not mask[idx]:
-                continue
-            color = FOX
-            if point_in_triangle(x, y, *inner_l) or point_in_triangle(x, y, *inner_r):
-                color = FOX_DARK
-            if point_in_polygon(x, y, muzzle):
-                color = CREAM
-            if in_ellipse(x, y, *eye_l) or in_ellipse(x, y, *eye_r):
-                color = EYE
-            if in_circle(x, y, *gleam_l) or in_circle(x, y, *gleam_r):
-                color = CREAM
-            if in_ellipse(x, y, *nose):
-                color = EYE
-            if _near_stroke(x, y, strokes, half_stroke):
-                color = OUTLINE
-            if _on_outline(x, y, size, mask):
-                color = OUTLINE
-            o = idx * 4
-            px[o] = color[0]
-            px[o + 1] = color[1]
-            px[o + 2] = color[2]
+    # Box-filter each SUPERSAMPLE x SUPERSAMPLE block down to one pixel.
+    area = SUPERSAMPLE * SUPERSAMPLE
+    px = bytearray(size * size * 4)
+    for y in range(size):
+        rows = [buf[(y * SUPERSAMPLE + j) * n : (y * SUPERSAMPLE + j + 1) * n] for j in range(SUPERSAMPLE)]
+        for x in range(size):
+            r = g = b = 0
+            lo = x * SUPERSAMPLE
+            for row in rows:
+                for idx in row[lo : lo + SUPERSAMPLE]:
+                    cr, cg, cb = palette[idx]
+                    r += cr
+                    g += cg
+                    b += cb
+            o = (y * size + x) * 4
+            px[o] = (r + area // 2) // area
+            px[o + 1] = (g + area // 2) // area
+            px[o + 2] = (b + area // 2) // area
+            px[o + 3] = 255
     return bytes(px)
 
 

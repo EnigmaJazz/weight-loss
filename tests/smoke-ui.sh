@@ -388,11 +388,12 @@ if [ "$QUEST_ICON_OK" = "true" ]; then
 else
   step_fail "quest rows lead with a decorative inline domain icon (got '$QUEST_ICON_OK')"
 fi
-# The header mascot must be the cartoon fox — its round-head ellipse structure
-# (not merely .mascot existence) pins the r2-completion S1 rework (spec R2).
-MASCOT_CARTOON="$(playwright-cli --raw eval "(() => { const svg = document.querySelector('.header-row .mascot svg'); return String(!!svg && !!svg.querySelector('ellipse')); })()" 2>&1 | tr -d '"')"
+# The header mascot must be the cartoon fox: it references the shared
+# island-fox-symbol, whose face carries the big cartoon eye whites (not
+# merely .mascot existence; spec R2 + R-R2A-1 single shared definition).
+MASCOT_CARTOON="$(playwright-cli --raw eval "(() => { const use = document.querySelector('.header-row .mascot svg use[href=\"#island-fox-symbol\"]'); const sym = document.getElementById('island-fox-symbol'); return String(!!use && !!sym && sym.querySelectorAll('ellipse.island-fox-eye-white').length === 2); })()" 2>&1 | tr -d '"')"
 if [ "$MASCOT_CARTOON" = "true" ]; then
-  step_ok "header mascot is the cartoon fox (round-head ellipse)"
+  step_ok "header mascot is the cartoon fox (shared symbol, cartoon eyes)"
 else
   step_fail "header mascot is the cartoon fox (got '$MASCOT_CARTOON')"
 fi
