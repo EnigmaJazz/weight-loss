@@ -243,8 +243,9 @@ async def test_style_css_ships_design_tokens_and_font_faces(client):
         assert re.search(rf"{token}\s*:", root) is not None, (
             f":root must declare {token}"
         )
-    # Pinned token values (design §Token Architecture).
-    assert re.search(r"--fox\s*:\s*#eb892c", root) is not None
+    # Pinned token values (design §Token Architecture; fox redraw R2A Unit 1
+    # moved --fox to the reference orange #f47c2c).
+    assert re.search(r"--fox\s*:\s*#f47c2c", root) is not None
     assert re.search(r"--gold\s*:\s*#f5c518", root) is not None
     assert re.search(r"--radius-sm\s*:\s*8px", root) is not None
     assert re.search(r"--radius-md\s*:\s*12px", root) is not None
@@ -467,7 +468,7 @@ _DARK_TOKENS = {
     "--border": "#334155",
     "--accent-dark": "#58a97e",
     "--danger": "#f06a5d",
-    "--fox": "#f5a850",
+    "--fox": "#f6a24e",  # lightened reference orange for dark surfaces
     "--gold": "#fbd34a",
     "--gold-deep": "#e0b020",
     "--toast-bg": "#1e293b",
@@ -743,12 +744,14 @@ async def test_index_html_journey_panel_absorbs_charts_and_history(client):
 
 
 # ---- r2-world-xp-island S2 gate additions: static XP island --------------
-# One accessible SVG, five ordered data-stage groups, fox at the terminal
-# stage, token fills (never raw hex) (spec 'Island Evolution and Appearance').
+# One accessible SVG, five ordered data-stage groups, fox at EVERY stage (a
+# single <defs> symbol referenced per stage group), token fills (never raw
+# hex) (spec 'Island Evolution and Appearance' + R2A fox redraw R-R2A-1/2).
 _ISLAND_TOKENS = (
     "--island-sky", "--island-sea", "--island-ground", "--island-foliage",
     "--island-foliage-deep", "--island-trunk", "--island-flower",
-    "--island-sun", "--island-fox-face", "--island-fox-eye",
+    "--island-sun", "--fox", "--fox-dark", "--fox-outline",
+    "--island-fox-face", "--island-fox-eye",
 )
 _STAGE_NAMES = ("sprout", "sapling", "tree", "lush", "thriving")
 
@@ -756,9 +759,10 @@ _STAGE_NAMES = ("sprout", "sapling", "tree", "lush", "thriving")
 @pytest.mark.asyncio
 async def test_index_html_world_panel_ships_xp_island(client):
     """World panel ships #world-card with one accessible #world-island SVG at
-    stage 1, five ordered data-stage groups, fox only in stage 5, token-only
-    fills, no placeholder; CSS declares island tokens in :root + dark, one
-    stage per data-current-stage, and kills island motion on reduced-motion."""
+    stage 1, five ordered data-stage groups, the fox referenced in EVERY stage
+    (single <defs> symbol, per-stage transform), token-only fills, no
+    placeholder; CSS declares island + fox tokens in :root + dark, one stage
+    per data-current-stage, and kills island motion on reduced-motion."""
     resp = await client.get("/")
     assert resp.status_code == 200
     html = resp.text
@@ -779,7 +783,7 @@ async def test_index_html_world_panel_ships_xp_island(client):
     svg = world[world.index("<svg") : world.index("</svg>") + len("</svg>")]
     assert 'role="img"' in svg and "aria-label=" in svg
 
-    # Five stage groups in order; fox only inside the stage-5 group.
+    # Five stage groups in order; fox reference inside every stage group.
     stages = re.findall(
         r'<g[^>]*data-stage="([^"]+)" data-stage-name="([^"]+)">', world
     )
@@ -790,7 +794,7 @@ async def test_index_html_world_panel_ships_xp_island(client):
         start = world.index(f'data-stage="{num}"')
         end_marker = f'data-stage="{int(num) + 1}"' if int(num) < 5 else "</svg>"
         fox_in[num] = "island-fox" in world[start : world.index(end_marker, start)]
-    assert fox_in == {"1": False, "2": False, "3": False, "4": False, "5": True}
+    assert fox_in == {"1": True, "2": True, "3": True, "4": True, "5": True}
 
     # Fills are token classes, never raw hex; no placeholder copy.
     assert re.search(r'fill\s*=\s*["\']#', svg) is None

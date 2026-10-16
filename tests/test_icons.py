@@ -78,21 +78,35 @@ def test_regenerated_icons_match_committed_artifacts(make_icons: ModuleType) -> 
         committed = ICON_DIR / f"icon-{size}.png"
         assert _decode_png(generated) == _decode_png(committed)
 
-# ---- cartoon-fox rework pins (r2-completion S1, spec R2) ------------------
-# Deterministic probes at both sizes pin the round cartoon face (bulging
-# cheeks, wide white muzzle, expressive eyes/nose/mouth); the old geometric
-# fox fails every probe (verified in the RED pass), so a regression cannot
-# pass silently. Palette constants unchanged.
+# ---- fox redraw pins (r2a-island-polish Unit 1, R-R2A-1/R-R2A-9) ----------
+# Deterministic probes at both sizes pin the reference-style fox: oversized
+# pointed ears, dark inner-ear shading, orange fur with a warm-brown contour,
+# cream muzzle/chin, dark expressive eyes with cream gleams, nose and smile.
+# Palette constants mirror make_icons.py (which mirrors the CSS fox tokens);
+# the previous cartoon fox fails every probe (verified in the RED pass), so a
+# regression cannot pass silently.
 
-_FOX = (235, 137, 44)
-_WHITE = (252, 248, 240)
-_NOSE = (38, 32, 30)
+_FOX = (244, 124, 44)       # #f47c2c reference orange (--fox)
+_FOX_DARK = (216, 102, 44)  # #d8662c inner-ear orange (--fox-dark)
+_OUTLINE = (120, 55, 31)    # #78371f warm-brown contour (--fox-outline)
+_CREAM = (255, 240, 207)    # #fff0cf cream muzzle / gleams (--island-fox-face)
+_EYE = (58, 34, 20)         # #3a2214 dark eyes / nose (--island-fox-eye)
+_BG = (47, 125, 84)         # #2f7d54 brand green (palette lockstep)
 
-# 512-space probes -> (nx, ny, expected color), scaled by size/512.
+# 512-space probes -> (nx, ny, expected color), scaled by size/512. All points
+# sit well inside their feature (interior probes, not boundary pixels), except
+# the head-edge contour probe which pins the warm-brown outline itself.
 _CARTOON_FOX_PROBES = [
-    (130, 330, _FOX), (382, 330, _FOX), (96, 320, _FOX), (420, 320, _FOX),
-    (256, 200, _FOX), (256, 450, _WHITE), (220, 385, _WHITE), (330, 385, _WHITE),
-    (211, 295, _NOSE), (201, 291, _WHITE), (256, 420, _NOSE), (256, 456, _NOSE),
+    # oversized ears: orange fur + dark inner-ear shading
+    (142, 60, _FOX), (184, 125, _FOX_DARK), (328, 125, _FOX_DARK),
+    # face: orange fur; warm-brown contour at the right cheek's edge
+    (256, 220, _FOX), (396, 300, _FOX), (427, 315, _OUTLINE),
+    # cream muzzle/chin below the smile; eyes + cream gleams above the muzzle
+    (256, 464, _CREAM), (200, 292, _EYE), (196, 285, _CREAM),
+    # nose on the cream + the smile arc (outline-brown)
+    (256, 415, _EYE), (256, 461, _OUTLINE),
+    # brand green background untouched beside the fox
+    (60, 300, _BG),
 ]
 
 
