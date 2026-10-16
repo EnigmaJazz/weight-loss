@@ -27,7 +27,8 @@ Shipped:
 - [x] **Journey screen (R1)** — quest history, XP/level, successful-day momentum and XP stats beyond the Today dashboard. PRs #43–#51.
 
 Backlog:
-- [ ] **Island theme polish (R2A)** — fresh pass on the mascot icon (cartoon fox) and collectibles as unique island plants matching the World scene; presentation-only (collectible catalogue/API/engine unchanged, R10); strategy §RELEASE 2A. **Blocked on maintainer reference images.**
+- [ ] **Island theme polish (R2A)** — fresh pass on the mascot icon (cartoon fox) and collectibles as unique island plants matching the World scene; presentation-only (collectible catalogue/API/engine unchanged, R10); strategy §RELEASE 2A. **In progress — branch `feat/r2a-island-polish`, Unit 1 (fox redraw) + Unit 2 (progressive plants) committed, Unit 3 (smoke pins + mapping gate) next.**
 - [x] **Accent colour selection (R2B)** — per-user accent colour (purple explicitly requested by a user, plus a small curated set: teal/blue/green/orange), token-only, extends the three-state theme preference; strategy §RELEASE 2B. **Done — PR #67.**
 - [ ] Mascot personality pass — reuse the fox from `static/icons/`; reaction states on milestones/streaks (strategy: World/Coach surfaces, later releases).
+- [ ] **Ongoing asset improvement (R2A+) — CONTINUOUS** — the reference-style fox + icon regen was a significant improvement; keep iterating on the icon/illustration assets: refine the PWA icons, plant artwork polish, fox pose variants, favicon/metadata treatment, and any asset the reference set can inform. Low-frequency maintenance item; pick up whenever asset polish is wanted (does NOT gate R2A delivery).
 - [ ] Coach + World screens (R3+) — personalised recommendations and progression maps per strategy.
