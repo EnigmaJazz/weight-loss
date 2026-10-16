@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Art Library</title>
+  <!-- Dev preview of static/art/library.svg (future islands + plants). Not
+       linked from the app. Loads the live stylesheet for the shared island,
+       fox and ip-* rules, plus library.css for the theme tokens; inlines the
+       library SVG (so document CSS applies) and borrows the fox symbols from
+       the live index page. -->
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/art/library.css">
+  <style>
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font-family: var(--font-body); }
+    h1, h2 { font-family: var(--font-display); margin: 0 0 8px; }
+    .gallery-section { margin-bottom: 28px; }
+    .island-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .island-tile { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 8px; }
+    .island-tile svg { display: block; width: 100%; height: auto; }
+    .island-tile p { margin: 6px 0 0; font-weight: 600; text-align: center; color: var(--text); }
+    .plant-shelf .collectible-row { color: var(--text); }
+    .plant-shelf { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .plant-shelf .collectible-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; }
+    .plant-shelf small { display: block; color: var(--muted); }
+    #theme-switch { margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Art library</h1>
+  <p>Future island themes and collectible plants. Light and dark variants side by side.</p>
+  <div id="defs-host" hidden></div>
+  <section class="gallery-section"><h2>Islands</h2><div id="islands"></div></section>
+  <section class="gallery-section"><h2>Plants</h2><div id="plants"></div></section>
+  <script>
+    "use strict";
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    // Same slots the live island uses for its first plants (app.js placement).
+    const PLANT_SLOTS = [[60, 124, 1.0, 3], [96, 118, 0.95, -2], [142, 128, 1.05, 2], [178, 138, 1.0, -4]];
+    const FOX_POSE = "translate(157.9, 58.5) scale(0.56)";
+
+    function svgEl(tag, attrs) {
+      const el = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+      return el;
+    }
+
+    function islandTile(island, plants, theme) {
+      const tile = document.createElement("div");
+      tile.className = "island-tile";
+      tile.dataset.theme = theme;
+      const svg = svgEl("svg", { viewBox: "0 0 240 150", role: "img", "aria-label": island.dataset.islandName });
+      const scene = island.cloneNode(true);
+      scene.removeAttribute("data-island-key");
+      svg.append(scene);
+      // Plants sit on the scene inside the themed group so its tokens apply.
+      plants.forEach((plant, i) => {
+        const [x, y, s, r] = PLANT_SLOTS[i % PLANT_SLOTS.length];
+        const g = plant.cloneNode(true);
+        g.removeAttribute("data-plant-key");
+        g.setAttribute("transform", `translate(${x}, ${y}) rotate(${r}) scale(${s}) translate(-10, -28)`);
+        scene.append(g);
+      });
+      scene.append(svgEl("use", { href: "#island-fox-full-symbol", width: "64", height: "82", transform: FOX_POSE }));
+      const label = document.createElement("p");
+      label.textContent = `${island.dataset.islandName} (${theme})`;
+      tile.append(svg, label);
+      return tile;
+    }
+
+    function plantRow(plant, state) {
+      const li = document.createElement("li");
+      li.className = "collectible-row";
+      li.dataset.state = state;
+      const art = document.createElement("span");
+      art.className = "collectible-art";
+      const svg = svgEl("svg", { viewBox: "0 0 20 28" });
+      svg.append(plant.cloneNode(true));
+      art.append(svg);
+      const label = document.createElement("span");
+      label.innerHTML = `${plant.dataset.plantKey}<small>${plant.dataset.plantTheme} · ${state}</small>`;
+      li.append(art, label);
+      return li;
+    }
+
+    async function main() {
+      const [library, index] = await Promise.all([
+        fetch("/static/art/library.svg").then((r) => r.text()),
+        fetch("/").then((r) => r.text()),
+      ]);
+      const host = document.getElementById("defs-host");
+      host.innerHTML = library;
+      const page = new DOMParser().parseFromString(index, "text/html");
+      const foxDefs = svgEl("svg", { width: "0", height: "0" });
+      const defs = svgEl("defs", {});
+      for (const id of ["island-fox-symbol", "island-fox-full-symbol"]) {
+        const sym = page.getElementById(id);
+        if (sym) defs.append(document.importNode(sym, true));
+      }
+      foxDefs.append(defs);
+      host.append(foxDefs);
+
+      const plants = [...host.querySelectorAll("#plant-library-defs [data-plant-key]")];
+      const islands = document.getElementById("islands");
+      for (const island of host.querySelectorAll("#island-theme-defs [data-island-key]")) {
+        const themed = plants.filter((p) => p.dataset.plantTheme === island.dataset.islandKey);
+        const row = document.createElement("div");
+        row.className = "island-row";
+        row.append(islandTile(island, themed, "light"), islandTile(island, themed, "dark"));
+        islands.append(row);
+      }
+      const shelfHost = document.getElementById("plants");
+      for (const theme of ["light", "dark"]) {
+        const shelf = document.createElement("ul");
+        shelf.className = "plant-shelf";
+        shelf.dataset.theme = theme;
+        shelf.style.cssText = "background: var(--bg); padding: 8px; border-radius: 10px; margin-bottom: 12px;";
+        for (const plant of plants) {
+          shelf.append(plantRow(plant, "earned"));
+        }
+        for (const plant of plants.slice(0, 4)) shelf.append(plantRow(plant, "locked"));
+        shelfHost.append(shelf);
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>

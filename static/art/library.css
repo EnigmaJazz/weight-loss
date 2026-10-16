@@ -1,0 +1,438 @@
+/* Art library (future upgrades, not loaded by the live app yet).
+ *
+ * Island themes: each themed island group carries data-island-theme="<key>"
+ * and re-points the live island's semantic tokens (--island-sky, --island-
+ * ground, ...) so the shared .island-* rules in style.css paint it; theme-only
+ * scenery uses the .isl-* rules below. Wiring a theme later = load this file
+ * and set data-island-theme on #world-island. Hex lives only in these token
+ * declarations; every rule consumes var() tokens (pinned by
+ * tests/test_art_library.py). Dark variants key off [data-theme="dark"]. */
+
+[data-island-theme="dune"] {
+  --island-sky: #ffd7a8;
+  --island-sky-low: #ffe9c9;
+  --island-star: transparent;
+  --island-sun: #ff9f43;
+  --island-sun-halo: #ffd9a0;
+  --island-sun-light: #ffe6bf;
+  --island-cloud: #fff3e3;
+  --island-cloud-shade: #f6d9bd;
+  --island-bird: #8a5a44;
+  --island-hill-far: #e8a37a;
+  --island-sea: #3cc8c0;
+  --island-sea-deep: #2aa8a5;
+  --island-wave: #e8fffc;
+  --island-sand: #f9dc9a;
+  --island-ground: #f2c46d;
+  --island-ground-light: #f8d68f;
+  --island-grass: #c9a24a;
+  --island-rock: #d08b5b;
+  --island-rock-light: #e6a97c;
+  --island-trunk: #a9743f;
+  --island-trunk-shade: #8a5a2e;
+  --isl-cactus: #58b947;
+  --isl-cactus-shade: #3f9a37;
+  --isl-flower-top: #ff6fa8;
+  --isl-palm-trunk: #c98a4b;
+  --isl-palm-leaf: #5cc04a;
+  --isl-palm-leaf-shade: #3f9a37;
+  --isl-coconut: #8a5a2e;
+  --isl-pool: #3cc8c0;
+  --isl-pool-light: #bff3ef;
+  --isl-dune-line: #e0ad55;
+  --isl-mesa-band: #d48a62;
+}
+
+[data-theme="dark"] [data-island-theme="dune"] {
+  --island-sky: #2a1f4f;
+  --island-sky-low: #45306b;
+  --island-star: #ffe9b8;
+  --island-sun: #fff1c4;
+  --island-sun-halo: #3f2f6e;
+  --island-sun-light: #fff8e0;
+  --island-cloud: #4a3a78;
+  --island-cloud-shade: #3d2f66;
+  --island-bird: #c9b8e8;
+  --island-hill-far: #5a3e6e;
+  --island-sea: #1d4f6b;
+  --island-sea-deep: #163e57;
+  --island-wave: #4f86a3;
+  --island-sand: #b59563;
+  --island-ground: #a8844f;
+  --island-ground-light: #bb975d;
+  --island-grass: #7d6438;
+  --island-rock: #7a5a4a;
+  --island-rock-light: #93705c;
+  --island-trunk: #8a5a33;
+  --island-trunk-shade: #6e4626;
+  --isl-cactus: #4c9a46;
+  --isl-cactus-shade: #367a36;
+  --isl-flower-top: #e86a9c;
+  --isl-palm-trunk: #9a6a3c;
+  --isl-palm-leaf: #4c9a46;
+  --isl-palm-leaf-shade: #367a36;
+  --isl-coconut: #5e3e22;
+  --isl-pool: #2a6f8a;
+  --isl-pool-light: #6aa8c0;
+  --isl-dune-line: #937040;
+  --isl-mesa-band: #4b3360;
+}
+
+[data-island-theme="frost"] {
+  --island-sky: #d6ecff;
+  --island-sky-low: #eef7ff;
+  --island-star: transparent;
+  --island-sun: #fff2a8;
+  --island-sun-halo: #fffadf;
+  --island-sun-light: #fffdf0;
+  --island-cloud: #ffffff;
+  --island-cloud-shade: #dfeaf5;
+  --island-bird: #5a6b80;
+  --island-hill-far: #b9d3ea;
+  --island-sea: #4a90c2;
+  --island-sea-deep: #2f6f9f;
+  --island-wave: #e6f4ff;
+  --island-sand: #e6f0f8;
+  --island-ground: #f4f9ff;
+  --island-ground-light: #ffffff;
+  --island-grass: #c4d6e6;
+  --island-rock: #8fa3b5;
+  --island-rock-light: #b7c7d6;
+  --island-trunk: #8a5a33;
+  --island-trunk-shade: #6e4626;
+  --isl-snow: #ffffff;
+  --isl-snow-shade: #d7e6f4;
+  --isl-pine: #2f9a6a;
+  --isl-pine-shade: #237a53;
+  --isl-ice: #c8ecff;
+  --isl-flake: #ffffff;
+  --isl-carrot: #ff9a3c;
+  --isl-coal: #3a3f4a;
+  --isl-scarf: #ff4b4b;
+}
+
+[data-theme="dark"] [data-island-theme="frost"] {
+  --island-sky: #0f2340;
+  --island-sky-low: #1b3558;
+  --island-star: #e6f3ff;
+  --island-sun: #e9f2ff;
+  --island-sun-halo: #263f66;
+  --island-sun-light: #ffffff;
+  --island-cloud: #2c4669;
+  --island-cloud-shade: #23395a;
+  --island-bird: #9fb3d1;
+  --island-hill-far: #2d4a6e;
+  --island-sea: #12304d;
+  --island-sea-deep: #0d2540;
+  --island-wave: #3e6a90;
+  --island-sand: #9fb4c8;
+  --island-ground: #c9d8e6;
+  --island-ground-light: #dae6f1;
+  --island-grass: #8ea6bd;
+  --island-rock: #5b6e80;
+  --island-rock-light: #73889b;
+  --island-trunk: #6e4626;
+  --island-trunk-shade: #553419;
+  --isl-snow: #e3edf7;
+  --isl-snow-shade: #b8c9da;
+  --isl-pine: #2a7a58;
+  --isl-pine-shade: #1d5c42;
+  --isl-ice: #8fb8d6;
+  --isl-flake: #e6f3ff;
+  --isl-carrot: #f08a3a;
+  --isl-coal: #1f2329;
+  --isl-scarf: #e04848;
+}
+
+[data-island-theme="lagoon"] {
+  --island-sky: #8fdcff;
+  --island-sky-low: #c8f0ff;
+  --island-star: transparent;
+  --island-sun: #ffd447;
+  --island-sun-halo: #fff0a8;
+  --island-sun-light: #fff8d6;
+  --island-cloud: #ffffff;
+  --island-cloud-shade: #dcf2fb;
+  --island-bird: #2f6f8a;
+  --island-hill-far: #6fc9a0;
+  --island-sea: #19c3d8;
+  --island-sea-deep: #0fa0c2;
+  --island-wave: #e8fdff;
+  --island-sand: #ffe7a3;
+  --island-ground: #6fd36a;
+  --island-ground-light: #8fe388;
+  --island-grass: #4fb84a;
+  --island-rock: #a8a29a;
+  --island-rock-light: #cbc6bf;
+  --island-trunk: #a9743f;
+  --island-trunk-shade: #8a5a2e;
+  --isl-palm-trunk: #c98a4b;
+  --isl-palm-leaf: #4fc24a;
+  --isl-palm-leaf-shade: #349a3a;
+  --isl-coconut: #8a5a2e;
+  --isl-volcano: #8d7b6b;
+  --isl-volcano-shade: #6f5f52;
+  --isl-lava: #ff7a45;
+  --isl-smoke: #eef2f5;
+  --isl-boat: #e0643f;
+  --isl-sail: #ffffff;
+  --isl-sail-shade: #dcecf5;
+  --isl-wood: #a9743f;
+  --isl-starfish: #ff8a65;
+}
+
+[data-theme="dark"] [data-island-theme="lagoon"] {
+  --island-sky: #102a4c;
+  --island-sky-low: #17406a;
+  --island-star: #fff6cc;
+  --island-sun: #fff1c4;
+  --island-sun-halo: #21436b;
+  --island-sun-light: #fff8e0;
+  --island-cloud: #25466b;
+  --island-cloud-shade: #1d3a5a;
+  --island-bird: #9fc3d8;
+  --island-hill-far: #1f5a5a;
+  --island-sea: #0e4f6b;
+  --island-sea-deep: #0a3d57;
+  --island-wave: #3f8fae;
+  --island-sand: #b8a271;
+  --island-ground: #3f7d4a;
+  --island-ground-light: #4a8f56;
+  --island-grass: #2f6a3a;
+  --island-rock: #6b6a72;
+  --island-rock-light: #85848c;
+  --island-trunk: #8a5a33;
+  --island-trunk-shade: #6e4626;
+  --isl-palm-trunk: #9a6a3c;
+  --isl-palm-leaf: #3f9a46;
+  --isl-palm-leaf-shade: #2c7a36;
+  --isl-coconut: #5e3e22;
+  --isl-volcano: #4a4250;
+  --isl-volcano-shade: #3a333f;
+  --isl-lava: #ff7a45;
+  --isl-smoke: #5a6478;
+  --isl-boat: #c9563a;
+  --isl-sail: #dfe7ee;
+  --isl-sail-shade: #b3c2cf;
+  --isl-wood: #8a5a33;
+  --isl-starfish: #e9785a;
+}
+
+[data-island-theme="maple"] {
+  --island-sky: #ffe3b3;
+  --island-sky-low: #fff1d6;
+  --island-star: transparent;
+  --island-sun: #ffb347;
+  --island-sun-halo: #ffe0a8;
+  --island-sun-light: #fff3d6;
+  --island-cloud: #fffaf0;
+  --island-cloud-shade: #f3e3c8;
+  --island-bird: #7a5a44;
+  --island-hill-far: #d9a066;
+  --island-sea: #5fb3c9;
+  --island-sea-deep: #4596ad;
+  --island-wave: #eafaff;
+  --island-sand: #f0d39a;
+  --island-ground: #b5c75a;
+  --island-ground-light: #c8d86f;
+  --island-grass: #93a843;
+  --island-rock: #a79b8c;
+  --island-rock-light: #c9bfb2;
+  --island-trunk: #9a6638;
+  --island-trunk-shade: #7a4c26;
+  --isl-maple: #ff8a3c;
+  --isl-maple-shade: #e0642a;
+  --isl-maple-alt: #ff5a4f;
+  --isl-maple-alt-shade: #d93f3c;
+  --isl-canopy-light: #ffc27a;
+  --isl-wood: #b07a42;
+  --isl-wood-shade: #8a5a2e;
+  --isl-roof: #d9534f;
+  --isl-sail: #fff6e6;
+  --isl-leaf-fall: #ff8a3c;
+  --isl-leaf-fall-alt: #ff5a4f;
+}
+
+[data-theme="dark"] [data-island-theme="maple"] {
+  --island-sky: #2b1d3a;
+  --island-sky-low: #452c4a;
+  --island-star: #ffe9c8;
+  --island-sun: #ffe6b0;
+  --island-sun-halo: #47304f;
+  --island-sun-light: #fff4dc;
+  --island-cloud: #47334f;
+  --island-cloud-shade: #3a2a42;
+  --island-bird: #c9b3c8;
+  --island-hill-far: #5a3b40;
+  --island-sea: #1f4a5a;
+  --island-sea-deep: #173a47;
+  --island-wave: #4a7f8f;
+  --island-sand: #a08b5f;
+  --island-ground: #5b6a35;
+  --island-ground-light: #6a7a40;
+  --island-grass: #47552a;
+  --island-rock: #6b6266;
+  --island-rock-light: #857a7e;
+  --island-trunk: #7a5230;
+  --island-trunk-shade: #5e3c20;
+  --isl-maple: #e07a36;
+  --isl-maple-shade: #b85a26;
+  --isl-maple-alt: #d94f48;
+  --isl-maple-alt-shade: #ad3a36;
+  --isl-canopy-light: #f0a860;
+  --isl-wood: #8a5a33;
+  --isl-wood-shade: #6e4626;
+  --isl-roof: #b3463f;
+  --isl-sail: #d9cfc0;
+  --isl-leaf-fall: #e07a36;
+  --isl-leaf-fall-alt: #d94f48;
+}
+
+[data-island-theme="blossom"] {
+  --island-sky: #ffe0ef;
+  --island-sky-low: #fff0f6;
+  --island-star: transparent;
+  --island-sun: #fff0a0;
+  --island-sun-halo: #fff6cf;
+  --island-sun-light: #fffbe6;
+  --island-cloud: #ffffff;
+  --island-cloud-shade: #f5dbe8;
+  --island-bird: #7a5a80;
+  --island-hill-far: #c9b3e6;
+  --island-sea: #7fd0e8;
+  --island-sea-deep: #5cb6d6;
+  --island-wave: #f0fbff;
+  --island-sand: #fbe3c8;
+  --island-ground: #9ad97a;
+  --island-ground-light: #b3e693;
+  --island-grass: #74c25a;
+  --island-rock: #b9aab5;
+  --island-rock-light: #d6cbd2;
+  --island-trunk: #8a5a3e;
+  --island-trunk-shade: #6e4430;
+  --isl-blossom: #ffb3d1;
+  --isl-blossom-shade: #f28ab5;
+  --isl-canopy-light: #ffe0ee;
+  --isl-petal: #ff9fc6;
+  --isl-lantern-light: #ffd84d;
+}
+
+[data-theme="dark"] [data-island-theme="blossom"] {
+  --island-sky: #241a3d;
+  --island-sky-low: #3a2856;
+  --island-star: #ffe6f3;
+  --island-sun: #fff3c4;
+  --island-sun-halo: #3d2f5e;
+  --island-sun-light: #fffbe6;
+  --island-cloud: #3d3060;
+  --island-cloud-shade: #322750;
+  --island-bird: #d6c3e8;
+  --island-hill-far: #4a3a6e;
+  --island-sea: #1d4766;
+  --island-sea-deep: #163a57;
+  --island-wave: #4f7fa3;
+  --island-sand: #a8907a;
+  --island-ground: #4a7d4a;
+  --island-ground-light: #568f56;
+  --island-grass: #386a3a;
+  --island-rock: #6b6272;
+  --island-rock-light: #857c8c;
+  --island-trunk: #6e4430;
+  --island-trunk-shade: #553424;
+  --isl-blossom: #e48fb8;
+  --isl-blossom-shade: #c46f98;
+  --isl-canopy-light: #f5bcd6;
+  --isl-petal: #e88fb6;
+  --isl-lantern-light: #ffd84d;
+}
+
+/* Library plant colours (new ip-* hues for the library plants; same
+ * pattern as style.css: saturated fill + thin tone-on-tone edge). */
+:root {
+  --island-plant-pink: #ff8fc0;
+  --island-plant-pink-shade: #e8679f;
+  --island-plant-orange: #ff9a3c;
+  --island-plant-orange-shade: #e07722;
+  --island-plant-snow: #ffffff;
+  --island-plant-snow-shade: #c9dbec;
+  --island-plant-ice: #9fdcff;
+  --island-plant-ice-shade: #6cb8e6;
+  --island-plant-teal: #4cc9a8;
+  --island-plant-teal-shade: #2fa585;
+  --island-plant-brown: #9a6238;
+  --island-plant-brown-shade: #774826;
+}
+[data-theme="dark"] {
+  --island-plant-pink: #f29ac4;
+  --island-plant-pink-shade: #cf74a0;
+  --island-plant-orange: #ffa95a;
+  --island-plant-orange-shade: #d9833a;
+  --island-plant-snow: #eef4fa;
+  --island-plant-snow-shade: #b3c4d4;
+  --island-plant-ice: #a8dcfa;
+  --island-plant-ice-shade: #78b4d8;
+  --island-plant-teal: #5fcfb1;
+  --island-plant-teal-shade: #3fa88c;
+  --island-plant-brown: #b07848;
+  --island-plant-brown-shade: #8a5a33;
+}
+.ip-pink, .ip-orange, .ip-snow, .ip-ice, .ip-teal, .ip-brown {
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.ip-pink { fill: var(--island-plant-pink); stroke: var(--island-plant-pink-shade); }
+.ip-orange { fill: var(--island-plant-orange); stroke: var(--island-plant-orange-shade); }
+.ip-snow { fill: var(--island-plant-snow); stroke: var(--island-plant-snow-shade); }
+.ip-ice { fill: var(--island-plant-ice); stroke: var(--island-plant-ice-shade); }
+.ip-teal { fill: var(--island-plant-teal); stroke: var(--island-plant-teal-shade); }
+.ip-brown { fill: var(--island-plant-brown); stroke: var(--island-plant-brown-shade); }
+
+/* Theme scenery fills (token-only). */
+.isl-cactus { fill: var(--isl-cactus); }
+.isl-cactus-shade { fill: var(--isl-cactus-shade); }
+.isl-flower-top { fill: var(--isl-flower-top); }
+.isl-palm-trunk { fill: var(--isl-palm-trunk); }
+.isl-palm-leaf { fill: var(--isl-palm-leaf); }
+.isl-palm-leaf-shade { fill: var(--isl-palm-leaf-shade); }
+.isl-coconut { fill: var(--isl-coconut); }
+.isl-pool { fill: var(--isl-pool); }
+.isl-pool-light { fill: var(--isl-pool-light); }
+.isl-mesa-band { fill: var(--isl-mesa-band); }
+.isl-snow { fill: var(--isl-snow); }
+.isl-snow-shade { fill: var(--isl-snow-shade); }
+.isl-pine { fill: var(--isl-pine); }
+.isl-pine-shade { fill: var(--isl-pine-shade); }
+.isl-ice { fill: var(--isl-ice); }
+.isl-flake { fill: var(--isl-flake); }
+.isl-carrot { fill: var(--isl-carrot); }
+.isl-coal { fill: var(--isl-coal); }
+.isl-scarf { fill: var(--isl-scarf); }
+.isl-volcano { fill: var(--isl-volcano); }
+.isl-volcano-shade { fill: var(--isl-volcano-shade); }
+.isl-lava { fill: var(--isl-lava); }
+.isl-smoke { fill: var(--isl-smoke); }
+.isl-boat { fill: var(--isl-boat); }
+.isl-sail { fill: var(--isl-sail); }
+.isl-sail-shade { fill: var(--isl-sail-shade); }
+.isl-wood { fill: var(--isl-wood); }
+.isl-wood-shade { fill: var(--isl-wood-shade); }
+.isl-starfish { fill: var(--isl-starfish); }
+.isl-maple { fill: var(--isl-maple); }
+.isl-maple-shade { fill: var(--isl-maple-shade); }
+.isl-maple-alt { fill: var(--isl-maple-alt); }
+.isl-maple-alt-shade { fill: var(--isl-maple-alt-shade); }
+.isl-canopy-light { fill: var(--isl-canopy-light); }
+.isl-roof { fill: var(--isl-roof); }
+.isl-leaf-fall { fill: var(--isl-leaf-fall); }
+.isl-leaf-fall-alt { fill: var(--isl-leaf-fall-alt); }
+.isl-blossom { fill: var(--isl-blossom); }
+.isl-blossom-shade { fill: var(--isl-blossom-shade); }
+.isl-petal { fill: var(--isl-petal); }
+.isl-lantern-light { fill: var(--isl-lantern-light); }
+.isl-dune-line {
+  fill: none;
+  stroke: var(--isl-dune-line);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
