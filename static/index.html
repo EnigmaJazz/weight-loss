@@ -495,10 +495,42 @@
           <section class="card" id="world-card" aria-label="XP island">
             <h2>World</h2>
             <svg id="world-island" viewBox="0 0 240 150" role="img" aria-label="Your XP island, stage 1, Sprout Isle" data-current-stage="1">
+              <!-- Backdrop + baseline scenery (every stage): layered sky,
+                   sun/halo, clouds, far hills, sea with waves, beach, rocks and
+                   grass tufts. Flat Duolingo-style fills, shade-first depth,
+                   token classes only; .island-star shows only in dark mode. -->
               <rect class="island-sky" x="0" y="0" width="240" height="150" rx="12"/>
-              <circle class="island-sun" cx="198" cy="28" r="13"/>
+              <path class="island-sky-low" d="M0 94 C60 90 180 90 240 94 L240 112 L0 112 Z"/>
+              <g class="island-stars"><circle class="island-star" cx="16" cy="14" r="1.1"/><circle class="island-star" cx="44" cy="46" r="0.8"/><circle class="island-star" cx="70" cy="10" r="1"/><circle class="island-star" cx="96" cy="32" r="0.8"/><circle class="island-star" cx="142" cy="12" r="1.1"/><circle class="island-star" cx="160" cy="40" r="0.8"/><circle class="island-star" cx="226" cy="58" r="0.9"/><circle class="island-star" cx="8" cy="60" r="0.8"/><circle class="island-star" cx="178" cy="8" r="0.8"/><circle class="island-star" cx="118" cy="50" r="0.7"/></g>
+              <circle class="island-sun-halo" cx="198" cy="28" r="19"/>
+              <circle class="island-sun" cx="198" cy="28" r="12"/>
+              <ellipse class="island-sun-light" cx="193.5" cy="23" rx="3.6" ry="2.4" transform="rotate(-35 193.5 23)"/>
+              <g class="island-cloud-group" transform="translate(22 30) scale(0.95)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+              <g class="island-cloud-group" transform="translate(122 16) scale(0.7)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+              <g class="island-cloud-group" transform="translate(160 52) scale(0.55)"><path class="island-cloud" d="M3 6 C-2 6 -2 -1 4 -1 C4 -8 14 -11 18 -5 C22 -10 31 -7 30 0 C35 0 35 6 30 6 Z"/><path class="island-cloud-shade" d="M3 6 L30 6 C33 6 34 4 33 3 C30 4.4 6 4.4 0 3 C-0.5 4.6 0.6 6 3 6 Z"/></g>
+              <path class="island-bird" d="M88 26 q2.5 -2.5 5 0 q2.5 -2.5 5 0"/>
+              <path class="island-bird" d="M100 34 q1.8 -1.8 3.6 0 q1.8 -1.8 3.6 0"/>
+              <path class="island-hill-far" d="M-2 112 C8 96 26 92 46 112 Z"/>
+              <path class="island-hill-far" d="M190 112 C204 98 226 94 242 112 Z"/>
               <path class="island-sea" d="M0 112 L240 112 L240 150 L0 150 Z"/>
-              <path class="island-ground" d="M18 118 C64 92 176 92 222 118 L222 150 L18 150 Z"/>
+              <path class="island-sea-deep" d="M0 134 L240 134 L240 150 L0 150 Z"/>
+              <path class="island-wave" d="M1 118 q2.5 -2 5 0 q2.5 2 5 0"/>
+              <path class="island-wave" d="M228 119 q2.5 -2 5 0 q2.5 2 5 0"/>
+              <path class="island-wave" d="M4 126 q2.5 -2 5 0 q2.5 2 5 0"/>
+              <path class="island-sand" d="M2 150 C6 126 16 112 36 104 C78 88 162 88 204 104 C224 112 234 126 238 150 Z"/>
+              <path class="island-ground" d="M10 150 C14 128 22 116 40 108 C80 93 160 93 200 108 C218 116 226 128 230 150 Z"/>
+              <path class="island-ground-light" d="M44 106 C84 92 156 92 196 106 C156 98 84 98 44 106 Z"/>
+              <path class="island-rock" d="M4.4 142 C4.4 137.8 7.9 136.4 10.7 137.1 C14.2 136.75 15.6 139.9 15.6 142 Z"/>
+              <path class="island-rock-light" d="M6.15 139.9 C6.5 138.15 8.25 137.52 10 137.66 C8.6 138.22 7.48 138.92 6.15 139.9 Z"/>
+              <path class="island-rock" d="M222.2 143 C222.2 137.9 226.45 136.2 229.85 137.05 C234.1 136.62 235.8 140.45 235.8 143 Z"/>
+              <path class="island-rock-light" d="M224.32 140.45 C224.75 138.32 226.88 137.56 229 137.73 C227.3 138.41 225.94 139.26 224.32 140.45 Z"/>
+              <path class="island-rock" d="M232.8 145 C232.8 142.6 234.8 141.8 236.4 142.2 C238.4 142 239.2 143.8 239.2 145 Z"/>
+              <path class="island-rock-light" d="M233.8 143.8 C234 142.8 235 142.44 236 142.52 C235.2 142.84 234.56 143.24 233.8 143.8 Z"/>
+              <path class="island-grass" d="M61 108 Q61 104 62.6 103 Q63 106 64 101.5 Q65 106 65.6 103 Q67 104 67 108 Z"/>
+              <path class="island-grass" d="M175 108 Q175 104 176.6 103 Q177 106 178 101.5 Q179 106 179.6 103 Q181 104 181 108 Z"/>
+              <path class="island-grass" d="M123 146 Q123 142 124.6 141 Q125 144 126 139.5 Q127 144 127.6 141 Q129 142 129 146 Z"/>
+              <path class="island-grass" d="M27 146 Q27 142 28.6 141 Q29 144 30 139.5 Q31 144 31.6 141 Q33 142 33 146 Z"/>
+              <path class="island-grass" d="M203 140 Q203 136 204.6 135 Q205 138 206 133.5 Q207 138 207.6 135 Q209 136 209 140 Z"/>
               <!-- Plant layer (r2a-island-polish Unit 2): dynamic sibling of the
                    keyed artwork defs below; app.js clones the current stage's
                    plants here. Rendered between ground and stage groups so the
@@ -716,54 +748,132 @@
                 </g>
               </defs>
               <g class="island-stage" data-stage="1" data-stage-name="sprout">
+                <ellipse class="island-ground-shade" cx="120" cy="112" rx="7" ry="2"/>
                 <rect class="island-stem" x="118.5" y="96" width="3" height="16" rx="1.5"/>
                 <path class="island-leaf" d="M120 96 C113 90 111 82 113 75 C119 80 120 88 120 96 Z"/>
                 <path class="island-leaf" d="M120 96 C127 90 129 82 127 75 C121 80 120 88 120 96 Z"/>
+                <path class="island-leaf-shade" d="M120 96 C119 89 117 82 113 75 C112.4 84 115 91 120 96 Z"/>
+                <path class="island-leaf-shade" d="M120 96 C121 89 123 82 127 75 C127.6 84 125 91 120 96 Z"/>
                 <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(78.6, 66.5) scale(0.42)"/>
               </g>
               <g class="island-stage" data-stage="2" data-stage-name="sapling">
                 <rect class="island-trunk" x="118" y="84" width="4" height="30" rx="2"/>
-                <circle class="island-foliage" cx="113" cy="76" r="10"/>
-                <circle class="island-foliage" cx="127" cy="76" r="10"/>
-                <circle class="island-foliage" cx="120" cy="66" r="12"/>
+                <rect class="island-trunk-shade" x="120.2" y="84" width="1.8" height="30" rx="0.88"/>
+                <circle class="island-foliage-shade" cx="113" cy="76" r="10"/>
+                <circle class="island-foliage-shade" cx="127" cy="76" r="10"/>
+                <circle class="island-foliage-shade" cx="120" cy="66" r="12"/>
+                <circle class="island-foliage" cx="112.2" cy="74.6" r="8.8"/>
+                <circle class="island-foliage" cx="126.2" cy="74.6" r="8.8"/>
+                <circle class="island-foliage" cx="119.04" cy="64.32" r="10.56"/>
+                <ellipse class="island-foliage-light" cx="115.8" cy="61.2" rx="3.84" ry="2.4" transform="rotate(-30 115.8 61.2)"/>
                 <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(152.6, 63.7) scale(0.48)"/>
               </g>
               <g class="island-stage" data-stage="3" data-stage-name="tree">
                 <rect class="island-trunk" x="118" y="78" width="4" height="36" rx="2"/>
-                <circle class="island-foliage" cx="110" cy="70" r="13"/>
-                <circle class="island-foliage" cx="130" cy="70" r="13"/>
-                <circle class="island-foliage" cx="120" cy="58" r="15"/>
-                <circle class="island-foliage-deep" cx="88" cy="106" r="7"/>
+                <rect class="island-trunk-shade" x="120.2" y="78" width="1.8" height="36" rx="0.88"/>
+                <circle class="island-foliage-shade" cx="110" cy="70" r="13"/>
+                <circle class="island-foliage-shade" cx="130" cy="70" r="13"/>
+                <circle class="island-foliage-shade" cx="120" cy="58" r="15"/>
+                <circle class="island-foliage" cx="108.96" cy="68.18" r="11.44"/>
+                <circle class="island-foliage" cx="128.96" cy="68.18" r="11.44"/>
+                <circle class="island-foliage" cx="118.8" cy="55.9" r="13.2"/>
+                <ellipse class="island-foliage-light" cx="114.75" cy="52" rx="4.8" ry="3" transform="rotate(-30 114.75 52)"/>
+                <circle class="island-bush-shade" cx="83.5" cy="107.2" r="4.2"/>
+                <circle class="island-bush-shade" cx="92.5" cy="107.2" r="4.2"/>
+                <circle class="island-bush-shade" cx="88" cy="105.1" r="6"/>
+                <circle class="island-bush" cx="83.16" cy="106.53" r="3.61"/>
+                <circle class="island-bush" cx="92.16" cy="106.53" r="3.61"/>
+                <circle class="island-bush" cx="87.52" cy="104.14" r="5.16"/>
                 <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(153.4, 60.8) scale(0.52)"/>
               </g>
               <g class="island-stage" data-stage="4" data-stage-name="lush">
                 <rect class="island-trunk" x="120" y="80" width="4" height="34" rx="2"/>
-                <circle class="island-foliage" cx="110" cy="72" r="13"/>
-                <circle class="island-foliage" cx="130" cy="72" r="13"/>
-                <circle class="island-foliage" cx="120" cy="60" r="15"/>
+                <rect class="island-trunk-shade" x="122.2" y="80" width="1.8" height="34" rx="0.88"/>
+                <circle class="island-foliage-shade" cx="110" cy="72" r="13"/>
+                <circle class="island-foliage-shade" cx="130" cy="72" r="13"/>
+                <circle class="island-foliage-shade" cx="120" cy="60" r="15"/>
+                <circle class="island-foliage" cx="108.96" cy="70.18" r="11.44"/>
+                <circle class="island-foliage" cx="128.96" cy="70.18" r="11.44"/>
+                <circle class="island-foliage" cx="118.8" cy="57.9" r="13.2"/>
+                <ellipse class="island-foliage-light" cx="114.75" cy="54" rx="4.8" ry="3" transform="rotate(-30 114.75 54)"/>
                 <rect class="island-trunk" x="88" y="94" width="3" height="16" rx="1.5"/>
-                <circle class="island-foliage" cx="86" cy="84" r="8"/>
-                <circle class="island-foliage" cx="94" cy="84" r="8"/>
-                <circle class="island-foliage" cx="90" cy="78" r="9"/>
-                <circle class="island-foliage-deep" cx="158" cy="102" r="8"/>
-                <circle class="island-flower" cx="150" cy="114" r="3"/>
-                <circle class="island-flower" cx="76" cy="112" r="3"/>
+                <rect class="island-trunk-shade" x="89.65" y="94" width="1.35" height="16" rx="0.66"/>
+                <circle class="island-foliage-shade" cx="86" cy="84" r="8"/>
+                <circle class="island-foliage-shade" cx="94" cy="84" r="8"/>
+                <circle class="island-foliage-shade" cx="90" cy="78" r="9"/>
+                <circle class="island-foliage" cx="85.36" cy="82.88" r="7.04"/>
+                <circle class="island-foliage" cx="93.36" cy="82.88" r="7.04"/>
+                <circle class="island-foliage" cx="89.28" cy="76.74" r="7.92"/>
+                <ellipse class="island-foliage-light" cx="86.85" cy="74.4" rx="2.88" ry="1.8" transform="rotate(-30 86.85 74.4)"/>
+                <circle class="island-bush-shade" cx="152.75" cy="103.4" r="4.9"/>
+                <circle class="island-bush-shade" cx="163.25" cy="103.4" r="4.9"/>
+                <circle class="island-bush-shade" cx="158" cy="100.95" r="7"/>
+                <circle class="island-bush" cx="152.36" cy="102.62" r="4.21"/>
+                <circle class="island-bush" cx="162.86" cy="102.62" r="4.21"/>
+                <circle class="island-bush" cx="157.44" cy="99.83" r="6.02"/>
+                <circle class="island-flower" cx="150" cy="112.35" r="1.5"/>
+                <circle class="island-flower" cx="151.57" cy="113.49" r="1.5"/>
+                <circle class="island-flower" cx="150.97" cy="115.34" r="1.5"/>
+                <circle class="island-flower" cx="149.03" cy="115.34" r="1.5"/>
+                <circle class="island-flower" cx="148.43" cy="113.49" r="1.5"/>
+                <circle class="island-flower-center" cx="150" cy="114" r="1.14"/>
+                <circle class="island-flower" cx="76" cy="110.35" r="1.5"/>
+                <circle class="island-flower" cx="77.57" cy="111.49" r="1.5"/>
+                <circle class="island-flower" cx="76.97" cy="113.34" r="1.5"/>
+                <circle class="island-flower" cx="75.03" cy="113.34" r="1.5"/>
+                <circle class="island-flower" cx="74.43" cy="111.49" r="1.5"/>
+                <circle class="island-flower-center" cx="76" cy="112" r="1.14"/>
                 <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(166.4, 63.1) scale(0.52)"/>
               </g>
               <g class="island-stage" data-stage="5" data-stage-name="thriving">
                 <rect class="island-trunk" x="120" y="76" width="4" height="38" rx="2"/>
-                <circle class="island-foliage" cx="108" cy="68" r="14"/>
-                <circle class="island-foliage" cx="132" cy="68" r="14"/>
-                <circle class="island-foliage" cx="120" cy="54" r="16"/>
+                <rect class="island-trunk-shade" x="122.2" y="76" width="1.8" height="38" rx="0.88"/>
+                <circle class="island-foliage-shade" cx="108" cy="68" r="14"/>
+                <circle class="island-foliage-shade" cx="132" cy="68" r="14"/>
+                <circle class="island-foliage-shade" cx="120" cy="54" r="16"/>
+                <circle class="island-foliage" cx="106.88" cy="66.04" r="12.32"/>
+                <circle class="island-foliage" cx="130.88" cy="66.04" r="12.32"/>
+                <circle class="island-foliage" cx="118.72" cy="51.76" r="14.08"/>
+                <ellipse class="island-foliage-light" cx="114.4" cy="47.6" rx="5.12" ry="3.2" transform="rotate(-30 114.4 47.6)"/>
                 <rect class="island-trunk" x="88" y="94" width="3" height="16" rx="1.5"/>
-                <circle class="island-foliage" cx="86" cy="84" r="8"/>
-                <circle class="island-foliage" cx="94" cy="84" r="8"/>
-                <circle class="island-foliage" cx="90" cy="78" r="9"/>
-                <circle class="island-foliage-deep" cx="158" cy="102" r="8"/>
-                <circle class="island-foliage-deep" cx="60" cy="110" r="6"/>
-                <circle class="island-flower" cx="150" cy="114" r="3"/>
-                <circle class="island-flower" cx="76" cy="112" r="3"/>
-                <circle class="island-flower" cx="184" cy="116" r="3"/>
+                <rect class="island-trunk-shade" x="89.65" y="94" width="1.35" height="16" rx="0.66"/>
+                <circle class="island-foliage-shade" cx="86" cy="84" r="8"/>
+                <circle class="island-foliage-shade" cx="94" cy="84" r="8"/>
+                <circle class="island-foliage-shade" cx="90" cy="78" r="9"/>
+                <circle class="island-foliage" cx="85.36" cy="82.88" r="7.04"/>
+                <circle class="island-foliage" cx="93.36" cy="82.88" r="7.04"/>
+                <circle class="island-foliage" cx="89.28" cy="76.74" r="7.92"/>
+                <ellipse class="island-foliage-light" cx="86.85" cy="74.4" rx="2.88" ry="1.8" transform="rotate(-30 86.85 74.4)"/>
+                <circle class="island-bush-shade" cx="152.75" cy="103.4" r="4.9"/>
+                <circle class="island-bush-shade" cx="163.25" cy="103.4" r="4.9"/>
+                <circle class="island-bush-shade" cx="158" cy="100.95" r="7"/>
+                <circle class="island-bush" cx="152.36" cy="102.62" r="4.21"/>
+                <circle class="island-bush" cx="162.86" cy="102.62" r="4.21"/>
+                <circle class="island-bush" cx="157.44" cy="99.83" r="6.02"/>
+                <circle class="island-bush-shade" cx="56.25" cy="111" r="3.5"/>
+                <circle class="island-bush-shade" cx="63.75" cy="111" r="3.5"/>
+                <circle class="island-bush-shade" cx="60" cy="109.25" r="5"/>
+                <circle class="island-bush" cx="55.97" cy="110.44" r="3.01"/>
+                <circle class="island-bush" cx="63.47" cy="110.44" r="3.01"/>
+                <circle class="island-bush" cx="59.6" cy="108.45" r="4.3"/>
+                <circle class="island-flower" cx="150" cy="112.35" r="1.5"/>
+                <circle class="island-flower" cx="151.57" cy="113.49" r="1.5"/>
+                <circle class="island-flower" cx="150.97" cy="115.34" r="1.5"/>
+                <circle class="island-flower" cx="149.03" cy="115.34" r="1.5"/>
+                <circle class="island-flower" cx="148.43" cy="113.49" r="1.5"/>
+                <circle class="island-flower-center" cx="150" cy="114" r="1.14"/>
+                <circle class="island-flower" cx="76" cy="110.35" r="1.5"/>
+                <circle class="island-flower" cx="77.57" cy="111.49" r="1.5"/>
+                <circle class="island-flower" cx="76.97" cy="113.34" r="1.5"/>
+                <circle class="island-flower" cx="75.03" cy="113.34" r="1.5"/>
+                <circle class="island-flower" cx="74.43" cy="111.49" r="1.5"/>
+                <circle class="island-flower-center" cx="76" cy="112" r="1.14"/>
+                <circle class="island-flower" cx="184" cy="114.35" r="1.5"/>
+                <circle class="island-flower" cx="185.57" cy="115.49" r="1.5"/>
+                <circle class="island-flower" cx="184.97" cy="117.34" r="1.5"/>
+                <circle class="island-flower" cx="183.03" cy="117.34" r="1.5"/>
+                <circle class="island-flower" cx="182.43" cy="115.49" r="1.5"/>
+                <circle class="island-flower-center" cx="184" cy="116" r="1.14"/>
                 <use class="island-fox" href="#island-fox-full-symbol" width="64" height="82" transform="translate(157.9, 58.5) scale(0.56)"/>
               </g>
             </svg>
