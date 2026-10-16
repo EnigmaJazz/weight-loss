@@ -38,8 +38,8 @@
   --space-4: 1rem;
   --space-5: 1.5rem;
   --fox: #f47c2c;          /* reference fox orange (R2A Unit 1) */
-  --fox-dark: #d8662c;      /* deeper inner-ear orange */
-  --fox-outline: #78371f;   /* warm-brown contour (new, R2A Unit 1) */
+  --fox-dark: #d8662c;      /* darker fur shade: inner ears, brow tuft, paws */
+  --fox-outline: #78371f;   /* warm-brown mouth line */
   --gold: #f5c518;
   --gold-deep: #d4a017;
   --font-display: 'Baloo 2', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -58,7 +58,9 @@
   --island-trunk: #a9743f;
   --island-flower: #f5c518;
   --island-sun: #fde68a;
-  --island-fox-face: #fff0cf;  /* cream muzzle / gleams */
+  --island-fox-face: #fff0cf;  /* cream cheeks / chin / belly */
+  --island-fox-face-shade: #f3d9a8; /* cream shade under the chin */
+  --island-fox-eye-white: #ffffff;  /* big cartoon eye whites + gleams */
   --island-fox-eye: #3a2214;    /* dark expressive eyes / nose */
    /* r2a-island-polish Unit 2: compact illustrated plant tokens (muted warm
     * palette, warm-brown rounded outlines). --island-plant-locked is the
@@ -145,6 +147,8 @@
   --island-flower: #fbd34a;
   --island-sun: #fcd34d;
   --island-fox-face: #fff4dc;  /* brightened cream for dark surfaces */
+  --island-fox-face-shade: #e9cf9d; /* chin shade on dark surfaces */
+  --island-fox-eye-white: #ffffff;  /* eye whites stay pure white */
   --island-fox-eye: #241509;    /* deeper eye/nose for dark surfaces */
    /* r2a-island-polish Unit 2: plant tokens in the dark palette (lightened for
     * contrast on dark surfaces); locked is a muted sage, lighter + grayer than
@@ -327,18 +331,15 @@ main {
 .island-foliage-deep { fill: var(--island-foliage-deep); }
 .island-trunk { fill: var(--island-trunk); }
 .island-flower { fill: var(--island-flower); }
-/* Fox mascot (r2a-island-polish Unit 1): one <defs> symbol referenced in
- * every stage group; flat token fills, warm-brown contour with round joins. */
-.island-fox-body {
-  fill: var(--fox);
-  stroke: var(--fox-outline);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-.island-fox-ear-inner { fill: var(--fox-dark); }
-.island-fox-muzzle { fill: var(--island-fox-face); }
-.island-fox-brow,
+/* Fox mascot: one shared head symbol (plus the full-body island pose that
+ * reuses it). Duolingo-style flat fills with no contour; depth comes from
+ * the darker fur shade and the cream chin shade. */
+.island-fox-fur { fill: var(--fox); }
+.island-fox-shade { fill: var(--fox-dark); }
+.island-fox-face { fill: var(--island-fox-face); }
+.island-fox-face-shade { fill: var(--island-fox-face-shade); }
+.island-fox-eye-white { fill: var(--island-fox-eye-white); }
+.island-fox-eye { fill: var(--island-fox-eye); }
 .island-fox-mouth {
   fill: none;
   stroke: var(--fox-outline);
@@ -346,9 +347,6 @@ main {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.island-fox-eye,
-.island-fox-nose { fill: var(--island-fox-eye); }
-.island-fox-eye-gleam { fill: var(--island-fox-face); }
 
 /* r2a-island-polish Unit 2: plant artwork classes. Every ip-* rule consumes
  * plant tokens only — muted warm fills + warm-brown rounded outline; stroke
