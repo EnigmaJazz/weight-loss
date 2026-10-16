@@ -2483,7 +2483,7 @@ const ISLAND_PLANT_STAGES = [
  * island from reading as an inventory row: back accents at y102-112 (scale
  * .68-.85), slope plants at y116-126 (.8-1.0), and foreground focal forms at
  * y130-138 (.95-1.15), with uneven clusters and subtle rotations (-6..6).
- * Stage-1 anchors clear the fox (x78-107, y70-99) and central sprout
+ * Stage-1 anchors clear the fox (x78-106, y66-101) and central sprout
  * (x111-129, down to y112); later-stage plants may tuck behind the fox/tree
  * because the plant layer renders below the stage groups. */
 const ISLAND_PLANT_PLACEMENT = {
